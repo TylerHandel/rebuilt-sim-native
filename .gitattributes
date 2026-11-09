@@ -1,0 +1,3 @@
+assets/world.json -text
+*.rs text eol=lf
+*.yml text eol=lf

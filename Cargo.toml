@@ -1,0 +1,24 @@
+[workspace]
+resolver = "3"
+members = ["crates/sim", "crates/app"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+repository = "https://github.com/TylerHandel/rebuilt-sim-native"
+
+[workspace.dependencies]
+rapier3d = { version = "0.36", features = ["parallel"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# dependencies optimized even in debug builds, so a `cargo run` plays smoothly
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

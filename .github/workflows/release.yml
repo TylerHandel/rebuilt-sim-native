@@ -1,0 +1,82 @@
+# Every push to main: test the sim, build the Windows game with its assets, and publish it as a
+# Velopack release on GitHub Releases. Installed copies find it on their next start, download it,
+# and install it the start after.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p sim --release
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # the field data and CAD models, from the browser game at the commit assets/SOURCE names
+      - name: Check out rebuilt-sim-2026 at assets/SOURCE
+        shell: bash
+        run: |
+          git clone -q https://github.com/TylerHandel/rebuilt-sim-2026 _web
+          git -C _web checkout -q "$(cat assets/SOURCE)"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Bring the assets over
+        shell: bash
+        run: |
+          (cd _web && npm ci --no-audit --no-fund)
+          (cd tools && npm ci --no-audit --no-fund)
+          node tools/sync-assets.mjs _web
+          # the committed world.json must be what that commit exports
+          git diff --exit-code assets/world.json
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Version
+        shell: bash
+        run: echo "VERSION=0.1.${{ github.run_number }}" >> "$GITHUB_ENV"
+      - name: Build
+        shell: bash
+        run: |
+          sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
+          cargo build --release -p app
+
+      - name: Stage
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/release/rebuilt-sim.exe dist/
+          cp -r assets dist/assets
+
+      - name: Package and publish (Velopack)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dotnet tool install -g vpk --version 1.2.161
+          REPO="https://github.com/${{ github.repository }}"
+          # the previous release, so this one also ships as a small delta from it
+          vpk download github --repoUrl "$REPO" --token "$GH_TOKEN" || true
+          vpk pack --packId RebuiltSim --packVersion "$VERSION" --packDir dist --mainExe rebuilt-sim.exe --packTitle "REBUILT Sim"
+          vpk upload github --repoUrl "$REPO" --token "$GH_TOKEN" --publish --releaseName "REBUILT Sim $VERSION" --tag "v$VERSION"

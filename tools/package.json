@@ -1,0 +1,11 @@
+{
+  "name": "rebuilt-sim-native-tools",
+  "private": true,
+  "type": "module",
+  "description": "Brings the field data and CAD models over from rebuilt-sim-2026 (tools/sync-assets.mjs).",
+  "dependencies": {
+    "@gltf-transform/core": "4.2.1",
+    "@gltf-transform/extensions": "4.2.1",
+    "@gltf-transform/functions": "4.2.1"
+  }
+}

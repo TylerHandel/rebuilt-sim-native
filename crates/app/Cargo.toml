@@ -1,0 +1,14 @@
+[package]
+name = "app"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "rebuilt-sim"
+path = "src/main.rs"
+
+[dependencies]
+sim = { path = "../sim" }
+bevy = "0.20"
+velopack = "=1.2.161"
+rapier3d.workspace = true
