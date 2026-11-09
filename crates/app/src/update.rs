@@ -37,18 +37,18 @@ fn check(status: &UpdateStatus) {
         Err(_) => return status.set("development build (no updates)"),
     };
     let v = um.get_current_version_as_string();
-    status.set(format!("v{v} · checking for updates…"));
+    status.set(format!("v{v} | checking for updates..."));
     match um.check_for_updates() {
         Ok(UpdateCheck::UpdateAvailable(info)) => {
             let to = info.TargetFullRelease.Version.clone();
-            status.set(format!("v{v} · downloading v{to}…"));
+            status.set(format!("v{v} | downloading v{to}..."));
             match um.download_updates(&info, None) {
                 // (VelopackApp applies a downloaded update the next time the game starts)
-                Ok(()) => status.set(format!("v{v} · v{to} downloaded: it installs the next time you start the game")),
-                Err(e) => status.set(format!("v{v} · download failed: {e}")),
+                Ok(()) => status.set(format!("v{v} | v{to} downloaded: it installs the next time you start the game")),
+                Err(e) => status.set(format!("v{v} | download failed: {e}")),
             }
         }
-        Ok(_) => status.set(format!("v{v} · up to date")),
-        Err(e) => status.set(format!("v{v} · update check failed: {e}")),
+        Ok(_) => status.set(format!("v{v} | up to date")),
+        Err(e) => status.set(format!("v{v} | update check failed: {e}")),
     }
 }

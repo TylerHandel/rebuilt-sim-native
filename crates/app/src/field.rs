@@ -62,7 +62,8 @@ fn collider_mesh(shape: TypedShape) -> Option<Mesh> {
 
 fn spawn_colliders(mut commands: Commands, sim: Res<SimState>, mut meshes: ResMut<Assets<Mesh>>, mut mats: ResMut<Assets<StandardMaterial>>) {
     let mat = mats.add(StandardMaterial {
-        base_color: Color::srgba(0.2, 0.9, 0.4, 0.35),
+        base_color: Color::srgba(1.0, 0.1, 0.8, 0.45),
+        depth_bias: 10.0,
         alpha_mode: AlphaMode::Blend,
         unlit: true,
         cull_mode: None,

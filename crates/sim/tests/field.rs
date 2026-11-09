@@ -41,3 +41,11 @@ fn a_dropped_fuel_bounces_and_rests_on_the_carpet() {
     // restitution 0.45 against the carpet's: it comes back up, well under where it started
     assert!(top_after_bounce > 0.2 && top_after_bounce < 1.2, "first bounce to {top_after_bounce}");
 }
+
+#[test]
+fn the_fixed_body_holds_the_field() {
+    let d = WorldData::bundled();
+    let n = d.field.len();
+    let s = Sim::new(d);
+    assert_eq!(s.physics.bodies[s.fixed].colliders().len(), n);
+}

@@ -36,7 +36,7 @@ fn shoot(
         return;
     }
     shot.frames += 1;
-    if shot.frames == 1 && std::env::var_os("REBUILT_SHOT_COLLIDERS").is_some() {
+    if shot.frames == 1 && std::env::var("REBUILT_SHOT_COLLIDERS").is_ok_and(|v| v == "1") {
         for mut v in &mut views { *v = Visibility::Visible; }
     }
     if shot.frames < 90 {

@@ -32,7 +32,7 @@ fn refresh(diag: Res<DiagnosticsStore>, sim: Res<SimState>, st: Res<StepTime>, u
     let fps = diag.get(&FrameTimeDiagnosticsPlugin::FPS).and_then(|d| d.smoothed()).unwrap_or(0.0);
     let Ok(mut t) = q.single_mut() else { return };
     t.0 = format!(
-        "{fps:.0} fps   physics {:.2} ms/step   {} FUEL   t {:.1} s\n{}\nRight-drag turn · wheel zoom · WASD move · Space drop FUEL · R reset · F1 colliders",
+        "{fps:.0} fps   physics {:.2} ms/step   {} FUEL   t {:.1} s\n{}\nRight-drag turn | wheel zoom | WASD move | Space drop FUEL | R reset | F1 colliders",
         st.0, sim.0.fuel.len(), sim.0.time, upd.text()
     );
 }
