@@ -5,6 +5,7 @@ use crate::fuel::Fuel;
 use crate::game_match::{Match, Phase, ALLIANCES};
 use crate::human_player::{HpControls, HumanPlayer};
 use crate::rng::Mulberry32;
+use crate::robot::{Robot, UnderArm};
 use crate::world::WorldData;
 use rapier3d::prelude::*;
 
@@ -16,6 +17,9 @@ pub struct Settings {
     pub human_players: bool,
     /// FUEL preloaded in robots, in all
     pub preload: usize,
+    /// the robots, made in this order (blue's first, as createGame makes them): robots.json key,
+    /// alliance, and where each starts (x, z, yaw)
+    pub robots: Vec<(String, Alliance, [f64; 3])>,
 }
 
 pub struct World {
@@ -26,6 +30,9 @@ pub struct World {
     pub match_: Match,
     pub hps: [HumanPlayer; 2],
     pub rng: Mulberry32,
+    pub robots: Vec<Robot>,
+    /// js physics.underArm: the colliders the TRENCH arm rule watches
+    pub under: Vec<UnderArm>,
     pub steps: u64,
 }
 
@@ -41,9 +48,17 @@ impl World {
         let mut w = World {
             physics, fixed, data, fuel, match_: Match::new(Alliance::Blue),
             hps: [HumanPlayer::new(Alliance::Blue), HumanPlayer::new(Alliance::Red)],
-            rng: Mulberry32::new(s.seed), steps: 0,
+            rng: Mulberry32::new(s.seed), robots: Vec::new(), under: Vec::new(), steps: 0,
         };
         w.fuel.stage(&mut w.physics, s.preload, &mut w.rng);
+        let all: serde_json::Value = serde_json::from_str(include_str!("../../../assets/robots.json")).unwrap();
+        for (key, alliance, [x, z, yaw]) in &s.robots {
+            let cfg = all["robots"][key.as_str()].clone();
+            assert!(!cfg.is_null(), "no robot {key}");
+            let mut r = Robot::new(key, cfg, *alliance, &mut w.physics, &mut w.under);
+            r.spawn(&mut w.physics, *x, *z, *yaw);
+            w.robots.push(r);
+        }
         for hp in &mut w.hps { hp.auto = s.human_players; }
         w
     }
@@ -51,23 +66,35 @@ impl World {
     pub fn dt(&self) -> f64 { PHYSICS_DT }
 
     /// js `match._go(phase)` with the robots enabled to match (a script's jump to a phase)
-    pub fn jump_to(&mut self, phase: Phase) { self.match_.go(phase); }
+    pub fn jump_to(&mut self, phase: Phase) {
+        self.match_.go(phase);
+        let on = self.match_.robot_enabled();
+        for r in &mut self.robots { r.enabled = on; }
+    }
 
     /// js `stepGame(game, world, dt, probe)`: one physics step
     pub fn step(&mut self, probe: Probe) {
         let dt = PHYSICS_DT;
-        self.match_.update(dt, &[], &mut self.rng);
+        let climbs: Vec<_> = self.robots.iter().map(|r| (r.alliance, 0u8)).collect();
+        self.match_.update(dt, &climbs, &mut self.rng);
+        let on = self.match_.robot_enabled();
+        for r in &mut self.robots { r.enabled = on; }
         probe(self, "match");
         probe(self, "drivers");
+        let teleop = self.match_.is_teleop();
+        for r in &mut self.robots { r.pre_step(&mut self.physics, dt, teleop); }
         probe(self, "robotsPre");
         self.fuel.pre_step(&mut self.physics, dt);
         probe(self, "fuelPre");
+        if let Some(arms) = &self.data.trench_arms { crate::robot::under_arms(&mut self.physics, &mut self.under, arms); }
         self.physics.step();
         probe(self, "physics");
         let t = self.match_.t;
         self.fuel.post_step(&mut self.physics, dt, t);
         probe(self, "fuelPost");
+        for r in &mut self.robots { r.post_step(&mut self.physics, dt, t); }
         probe(self, "robotsPost");
+        assert!(self.robots.len() < 2, "the rules between robots arrive with M4");
         probe(self, "rules");
         self.steps += 1;
     }

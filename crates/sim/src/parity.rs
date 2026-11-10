@@ -112,6 +112,7 @@ pub fn world_digest(w: &crate::game::World) -> String {
         h.bytes(b.state.name().as_bytes());
         h.bytes(&[0]);
     }
+    for r in &w.robots { body_bits(&mut h, &w.physics.bodies[r.body]); }
     h.bytes(&w.rng.draws.to_le_bytes());
     h.hex()
 }
@@ -121,11 +122,16 @@ pub fn play(s: &Script) -> Vec<(usize, &'static str, String)> {
     use crate::fuel::LaunchOpts;
     use crate::game::{Settings, World};
     use crate::game_match::{LaunchBy, LaunchInfo, Phase};
-    assert!(s.slots.is_empty(), "{}: robots aren't ported yet", s.name);
-    let mut w = World::new(crate::WorldData::bundled(), &Settings { seed: s.seed, human_players: s.human_players.unwrap_or(true), preload: 0 });
+    // (blue's robots first, as createGame makes them)
+    let mut slots: Vec<&Slot> = s.slots.iter().filter(|x| x.alliance == "blue").collect();
+    slots.extend(s.slots.iter().filter(|x| x.alliance == "red"));
+    let robots = slots.iter().map(|x| (x.robot.clone(), if x.alliance == "blue" { crate::constants::Alliance::Blue } else { crate::constants::Alliance::Red }, x.pose)).collect();
+    let mut w = World::new(crate::WorldData::bundled(), &Settings { seed: s.seed, human_players: s.human_players.unwrap_or(true), preload: 0, robots });
+    let cmds: Vec<&Command> = { let mut c: Vec<&Command> = s.commands.iter().collect(); c.sort_by_key(|c| c.from); c };
     if let Some(p) = &s.phase { w.jump_to(Phase::parse(p)); }
     let mut out = Vec::new();
     for step in 0..s.steps {
+        for c in cmds.iter().filter(|c| c.from == step) { w.robots[c.robot].cmd = c.cmd; }
         for l in s.launches.iter().filter(|l| l.step == step) {
             let info = LaunchInfo { by: LaunchBy::Test, alliance: None, legal: false, t: None };
             w.fuel.launch(&mut w.physics, l.ball, l.pos, l.vel, LaunchOpts { info: Some(info), ..Default::default() });

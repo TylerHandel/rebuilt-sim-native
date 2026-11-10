@@ -12,6 +12,9 @@ repository = "https://github.com/TylerHandel/rebuilt-sim-native"
 # WebAssembly: pinned, and without the parallel and simd features, it steps the same world to the
 # same bits (crates/sim/tests/parity.rs). Serial is also the fastest on this game's world.
 rapier3d = { version = "=0.36.1" }
+# (the WebAssembly build's sin, cos, atan2... are Rust's own libm: so are the engine's here, for
+# the same bits; glamx's libm takes glam's, simba's and num-traits' math there too)
+glamx = { version = "=0.3.1", features = ["libm"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 

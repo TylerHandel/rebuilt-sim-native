@@ -19,7 +19,7 @@ fn every_script_has_its_trace() {
 
 /// The scripts whose modules are ported (PORT.md), played here and matched against the JS game's
 /// traces, step by step, part by part.
-const PORTED: [&str; 2] = ["fuel-start", "fuel-launch"];
+const PORTED: [&str; 3] = ["fuel-start", "fuel-launch", "drive-2910"];
 
 #[test]
 fn ported_scripts_play_as_in_the_js_game() {

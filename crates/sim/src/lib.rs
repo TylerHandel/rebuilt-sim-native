@@ -3,13 +3,17 @@
 
 pub mod ballistics;
 pub mod constants;
+pub mod drivetrain;
 pub mod field;
 pub mod fuel;
 pub mod game;
 pub mod game_match;
 pub mod human_player;
+pub mod libm_f32;
+pub mod mech;
 pub mod parity;
 pub mod rng;
+pub mod robot;
 pub mod world;
 
 use rapier3d::prelude::*;

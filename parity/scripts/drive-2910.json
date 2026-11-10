@@ -1,15 +1,17 @@
 {
   "name": "drive-2910",
-  "about": "2910 alone in TELEOP: accelerate, strafe, spin, brake, then drive into the FUEL line (M2c).",
+  "about": "2910 alone in TELEOP, away from the FUEL: accelerate, strafe into the side guardrail (the wall assist), spin against it, stop, then drive along it under the TRENCH arm (19 mm to spare) and back (M2c).",
   "seed": 3,
-  "slots": [{ "robot": "2910", "alliance": "blue", "pose": [-5.0, 0.0, 0.0] }],
+  "slots": [{ "robot": "2910", "alliance": "blue", "pose": [-6.2, 2.4, 0.0] }],
+  "humanPlayers": false,
   "phase": "teleop",
-  "steps": 720,
+  "steps": 600,
   "commands": [
-    { "from": 0, "robot": 0, "cmd": { "vx": 3.0 } },
-    { "from": 120, "robot": 0, "cmd": { "vz": -2.5 } },
-    { "from": 240, "robot": 0, "cmd": { "omega": 6.0 } },
-    { "from": 300, "robot": 0, "cmd": {} },
-    { "from": 360, "robot": 0, "cmd": { "vx": 4.0, "vz": 0.4 } }
+    { "from": 0, "robot": 0, "cmd": { "vx": 2.5 } },
+    { "from": 90, "robot": 0, "cmd": { "vz": 2.0 } },
+    { "from": 210, "robot": 0, "cmd": { "omega": 6.0 } },
+    { "from": 270, "robot": 0, "cmd": {} },
+    { "from": 330, "robot": 0, "cmd": { "vx": 3.0, "vz": 0.4 } },
+    { "from": 450, "robot": 0, "cmd": { "vx": -3.0, "vz": 0.2 } }
   ]
 }

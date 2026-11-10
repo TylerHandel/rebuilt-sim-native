@@ -62,6 +62,14 @@ each (special values, every exponent from -60 to 60, near multiples of pi/2, sma
 half-integer exponents, any bits). Every result matches node's bit for bit
 (`crates/jsmath/tests/vectors.rs`).
 
+**D3b. The engine's own f32 math is `libm`'s, as in the browser (`crates/sim/src/libm_f32.rs`).**
+Rapier and parry call `f32::sin`, `exp`, `atan2` and others directly. Compiled to WebAssembly those
+are Rust's `libm`; natively they're the platform's C library, which differs in the last bit now and
+then. The sim defines the C symbols (`sinf`, `cosf`, `atan2f`...) as `libm`'s, so the native engine
+lands on the same functions. Found by the `drive-2910` script: identical for 44 steps, then a
+wheel's contact impulse one bit off. (Rapier's `enhanced-determinism` feature is not the fix: it
+also turns glam's SIMD off and changes parry's maps, and the FUEL then differ from the browser's.)
+
 **D4. Data is exported from the JS game. Logic is ported by hand.** See the table below. Exported
 data stays correct when a robot is retuned in JS: re-run `tools/sync-assets.mjs`. Ported logic is
 tracked in a ledger (D10).
@@ -252,7 +260,13 @@ through the pre-match into AUTO) and `fuel-launch` (FUEL thrown spinning at wall
 into a CORRAL and out of the FIELD and returned) are identical to the JS game after every part of
 every step.
 
-**M2c. The robot body and drive.** `drivetrain.rs`; `robot.rs` constructor, `_createBody`, `reset`,
+**M2c. The robot body and drive.** In progress: `drivetrain.rs` (Drivetrain, SwerveDrive),
+`mech/drives.rs` (Motor, Shaft, Train, velLoop), `robot.rs` (the body as built, spawn, the drive,
+the wall assist, wheels on the floor, tip damping, the hopper sliding out, the intake block), the
+TRENCH arm rule, and 2910's intake pivot (the arm decides when its hopper slides out, which moves
+the body's mass). `drive-2910` (driving, strafing into the guardrail, spinning on it, under the TRENCH
+arm and back) is identical to the JS game for all 600 steps. Still to do here: folding and sliding
+intakes and lids (the other robots' bodies), two robots meeting (`rules.js`), a BUMP. `drivetrain.rs`; `robot.rs` constructor, `_createBody`, `reset`,
 `spawn`, `_preStepDrive`, `_alongWalls`, `_wheelsDown`, tip damping, the sliding hopper and top
 colliders; `physics.rs` `passesUnder`. For now a robot has no mechanisms and holds no FUEL.
 - Gate 1: each of the 13 robots' built colliders equal the JS export (points, masses, center of

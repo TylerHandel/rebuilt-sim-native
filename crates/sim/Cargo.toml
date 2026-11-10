@@ -6,6 +6,8 @@ edition.workspace = true
 [dependencies]
 jsmath = { path = "../jsmath" }
 rapier3d.workspace = true
+glamx.workspace = true
+libm = "0.2"
 serde.workspace = true
 serde_json.workspace = true
 
