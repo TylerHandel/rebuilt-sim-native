@@ -34,7 +34,7 @@ order, and how each piece is proven right before the next one starts.
 - Rust's `std` math and the `libm` crate do **not** match JavaScript's `Math` bit for bit. Out of
   200,000 random inputs each: `libm` matches exactly for `tan asin acos atan atan2 exp expm1`. It
   mismatches for `sin` (672), `cos` (968), `log` (1083), `log1p` (47), `tanh`, `cbrt`, `pow`, and
-  `hypot`. `std` mismatches on all of them.
+  `hypot`. `std` mismatches on all of them. Hence `crates/jsmath` (D3), which matches on all.
 - In the JS game's 3v3 profile, the game's own logic (mechanisms about 240 ms/s, aiming 40 to 90)
   costs more than Rapier (200 to 250). The Rust port of that logic is where most of the speedup
   will come from, more than the engine.
@@ -52,12 +52,15 @@ can. The JS code is already written this way (its `Reaction` class emulates Rapi
 Optimizations that change the bits come only after a module's parity gate has passed. From then on
 they are checked against the Rust build tagged at parity.
 
-**D3. JavaScript's math functions are reproduced exactly in a `jsmath` module.** Sim code calls
-`jsmath::sin`, never `f64::sin`. Functions where `libm` already matches node are re-exported from
-it. The rest (`sin cos log log1p tanh cbrt pow hypot`, and `Math.hypot` with three arguments) are
-ported from V8's implementations (fdlibm-derived, in V8's `src/base/ieee754.cc`; `Math.hypot` is
-V8's own scaled sum). Test vectors come from node: at least a million inputs per function,
-including the ranges the sim uses, with zero mismatches allowed.
+**D3. JavaScript's math functions come from V8's own source (`crates/jsmath`, done).** Sim code
+calls `jsmath::sin`, never `f64::sin`. `crates/jsmath` compiles V8's `src/base/ieee754.cc`
+(12.4.254.21, the V8 in Node 22) unmodified, with shims for the four V8 headers it includes and
+floating-point contraction off. Node's V8 is built without `V8_USE_LIBM_TRIG_FUNCTIONS`, so `sin`
+and `cos` are the fdlibm ones. `round`, `sign`, `max`, `min`, `hypot`, `imul` and `fround`
+follow V8's builtins (`math.tq`). `tools/jsmath-vectors.mjs` checks 31 functions on a million inputs
+each (special values, every exponent from -60 to 60, near multiples of pi/2, small integer and
+half-integer exponents, any bits). Every result matches node's bit for bit
+(`crates/jsmath/tests/vectors.rs`).
 
 **D4. Data is exported from the JS game. Logic is ported by hand.** See the table below. Exported
 data stays correct when a robot is retuned in JS: re-run `tools/sync-assets.mjs`. Ported logic is
@@ -189,8 +192,8 @@ isn't identical.
 ## The `sim` crate
 
 ```
+crates/jsmath/      JavaScript's Math, exactly (D3)
 crates/sim/src/
-  jsmath.rs        JavaScript's Math, exactly (D3)
   rng.rs           mulberry32
   constants.rs     js/constants.js
   world.rs         the exported data's types
@@ -227,7 +230,7 @@ with auto-update, engine parity test.
 ### M2: a robot you can drive
 
 **M2a. The parity harness.**
-- `jsmath` with node's test vectors (D3).
+- `jsmath` with node's test vectors (D3). Done: 31 functions, a million inputs each, all identical.
 - `rng.rs`, `constants.rs`.
 - Script format, `tools/native-trace.mjs` (JS game), `parity_*.rs` runner, `--dump`.
 - Export all integration parameters. Export `robots.json`.
@@ -252,7 +255,8 @@ colliders; `physics.rs` `passesUnder`. For now a robot has no mechanisms and hol
 
 **M2d. Drawing and input.** Sim thread and snapshot (D8). Model export (D9) for the first robots.
 `anim` for swerve modules. Keyboard and gamepad to commands (`input.js`), field-relative drive.
-Chase and driver-station cameras.
+Chase and driver-station cameras. Graphics presets for slow machines (render scale, shadows off,
+no MSAA), in a settings menu.
 **Release: pick one of the 13 robots and drive it around the field, pushing FUEL.**
 
 ### M3: mechanisms
@@ -302,24 +306,25 @@ squash, nets, spin blur, and graphics presets (render scale, shadows off, no MSA
 - **Windows may not be bit-identical to Linux or the browser.** Rapier calls the platform's f32
   math in places. The Windows CI test will show it. Playing is unaffected either way. Only the
   parity gate would then be Linux-only.
-- **`jsmath` must be exact.** If a V8 function can't be matched, the fallback is a JS-side shim:
-  the JS game calls a small table-free implementation that both sides share, for that one function.
+- **`jsmath` on Windows.** It's compiled V8 source, so it matches on any compiler that doesn't
+  contract or reorder floating point (MSVC `/fp:precise`, the default). The vector test runs in
+  the Windows CI job to prove it.
 - **Low-end GPUs.** Bevy needs DirectX 12 or Vulkan. An old laptop that ran the browser game in
   WebGL may run Bevy worse, or not at all. Test v0.1 on the weakest target machine now (see below),
   before more is built on it.
 - **Size.** The sim logic to port is roughly 15,000 lines of JS: `robot.js` 1,900, `mechanism.js`
   1,160, thirteen robots about 5,500, AI and autos about 2,800, the rest about 3,500. The parity
   method keeps each piece checkable, but it is many sessions of work.
-- **The JS game keeps changing.** Every JS change after a file's ported commit has to be carried
-  over. The ledger (D10) finds them. Freezing JS robot tuning during M3 would save work.
+- **The JS game changing.** Robot tuning is frozen for the port (owner's answer 3), but fixes still
+  land there. Every JS change after a file's ported commit has to be carried over, and the ledger
+  (D10) finds them.
 
-## Open questions for the owner
+## The owner's answers (2026-11-10)
 
-1. **The four robots without physical mechanisms (971, 4946, 3928, 4930).** Recommended: leave
-   them out of the native game until they are modeled physically in the JS game. Porting the
-   emulated path for them is a large extra piece with no parity benefit elsewhere.
-2. **Try v0.1 on your weakest computer.** The HUD shows the frame rate and physics time. If it
-   doesn't start or runs badly with only the field and FUEL, the graphics side needs a different
-   approach before M2d.
-3. **Is the JS game frozen while this is ported, or still being tuned?** Either works. It changes
-   how often the ledger has to be worked through.
+1. **Leave 971, 4946, 3928 and 4930 out** of the native game (D11).
+2. **No low-end computer to test on yet.** So the HUD's frame-rate and physics numbers are the only
+   check for now, and the graphics presets (render scale, shadows off, no MSAA) move from M6 to
+   M2d, so a slow machine has settings to fall back on from the first playable release.
+3. **The JS game's robots are frozen during the port** where that's better for it. Robot tuning in
+   the JS game waits, so ported modules don't have to be redone. Fixes the port turns up in the JS
+   game (a bug found by a mismatch) are still made there first, then carried over.

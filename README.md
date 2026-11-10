@@ -13,6 +13,7 @@ downloads it in the background, and installs it the next time it starts.
 | | |
 |---|---|
 | `crates/sim` | The simulation, with no graphics: native [Rapier](https://rapier.rs) physics. Its tests and benchmark run headless. |
+| `crates/jsmath` | JavaScript's `Math` to the bit: V8's own math source compiled in, so the ported sim computes exactly what the browser game does. |
 | `crates/app` | The game: [Bevy](https://bevyengine.org) drawing, input, the HUD and the update check ([Velopack](https://velopack.io)). |
 | `assets/world.json` | The field exactly as the browser game builds it: every collider's shape, pose, friction and groups, the physics settings, and the FUEL. Its `tools/export-native.mjs` exports it. |
 | `assets/cad/` | The field and robot models. These aren't committed; `tools/sync-assets.mjs` brings them over. |
@@ -25,7 +26,7 @@ git clone https://github.com/TylerHandel/rebuilt-sim-2026 ../rebuilt-sim-2026   
 cd tools && npm ci && cd ..
 node tools/sync-assets.mjs ../rebuilt-sim-2026
 cargo run -p app                                          # the game
-cargo test -p sim --release                               # the sim's tests
+cargo test -p sim -p jsmath --release                     # the sim's tests
 cargo run --release -p sim --example bench                # physics time per simulated second
 ```
 In the game: right-drag turns the camera, the wheel zooms, WASD moves it. Space drops a heap of
