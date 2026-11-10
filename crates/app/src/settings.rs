@@ -59,7 +59,7 @@ impl Settings {
         if self.ds > 2 { self.ds = d.ds; }
         if !r.starts.iter().any(|(k, _, _)| *k == self.start) { self.start = d.start.clone(); }
         if self.auto != "skip" && self.auto != "none" { self.auto = d.auto.clone(); }
-        if !["high", "medium", "low"].contains(&self.graphics.as_str()) { self.graphics = d.graphics; }
+        if !["ultra", "high", "medium", "low"].contains(&self.graphics.as_str()) { self.graphics = d.graphics; }
         if self.hp != "auto" && self.hp != "manual" { self.hp = d.hp.clone(); }
         if crate::camera::CamMode::from_key(&self.camera).key() != self.camera { self.camera = d.camera; }
         self

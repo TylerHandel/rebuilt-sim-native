@@ -296,6 +296,11 @@ HUMAN PLAYER panels), pause and results, with its fonts (Barlow Condensed, Inter
 colors mixed as the browser mixes them. Settings are kept in the user's app data. 1 v 1 and 3 v 3
 wait for the AI drivers; what isn't simulated yet says so. Still to do: the sim thread, the other
 cameras.
+*Graphics (Nov 10):* four presets: Low (no shadows), Medium (shadows, FXAA), High (4x MSAA, 4K
+shadow cascades, HDR with bloom), Ultra (TAA, SSAO, temporally filtered soft shadows out to 60 m).
+What glows (crates/app/src/lights.rs): the HUBs' light bars (field.js setHubLights, from
+Match::hub_light_mode) and the robots' LED strips (leds.js LED_LAYOUT and each team's scheme from
+its code), past bloom's threshold so only they bloom.
 
 ### M3: mechanisms
 Owner (Nov 10): the HUMAN PLAYER throws by itself by default ("nobody presses a button to throw while

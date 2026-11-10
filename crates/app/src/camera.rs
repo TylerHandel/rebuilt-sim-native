@@ -196,9 +196,49 @@ fn place(
     }
 }
 
-/// High: 4x MSAA and shadows; Medium: shadows; Low: neither
-fn graphics(settings: Res<Settings>, mut commands: Commands, cams: Query<Entity, With<Camera3d>>, mut suns: Query<&mut DirectionalLight>) {
+/// The graphics preset (js graphics.js, as far as Bevy goes): Low: no shadows or anti-aliasing;
+/// Medium: shadows and FXAA; High: 4x MSAA, bigger shadows and bloom (what glows, glows: the HUB
+/// lights and the LEDs); Ultra: temporal anti-aliasing, ambient occlusion and temporally filtered
+/// soft shadows, 4K cascades out further.
+fn graphics(settings: Res<Settings>, mut commands: Commands, cams: Query<Entity, With<Camera3d>>, mut suns: Query<(Entity, &mut DirectionalLight)>) {
+    use bevy::anti_alias::{fxaa::Fxaa, taa::TemporalAntiAliasing};
+    use bevy::core_pipeline::prepass::{DepthPrepass, MotionVectorPrepass, NormalPrepass};
+    use bevy::light::{CascadeShadowConfigBuilder, DirectionalLightShadowMap, ShadowFilteringMethod};
+    use bevy::pbr::{ScreenSpaceAmbientOcclusion, ScreenSpaceAmbientOcclusionQualityLevel};
+    use bevy::post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter};
+    use bevy::camera::Hdr;
+    use bevy::render::camera::{TemporalJitter, MipBias};
     if !settings.is_changed() { return }
-    for c in &cams { commands.entity(c).insert(if settings.graphics == "high" { Msaa::Sample4 } else { Msaa::Off }); }
-    for mut s in &mut suns { s.shadow_maps_enabled = settings.graphics != "low"; }
+    let g = settings.graphics.as_str();
+    let (high, ultra) = (g == "high" || g == "ultra", g == "ultra");
+    for c in &cams {
+        let mut e = commands.entity(c);
+        e.remove::<(Fxaa, TemporalAntiAliasing, TemporalJitter, MipBias, ScreenSpaceAmbientOcclusion, Bloom, Hdr)>()
+            .remove::<(DepthPrepass, NormalPrepass, MotionVectorPrepass)>();
+        e.insert(match g { "high" => Msaa::Sample4, _ => Msaa::Off });
+        e.insert(if ultra { ShadowFilteringMethod::Temporal } else { ShadowFilteringMethod::Gaussian });
+        if g == "medium" { e.insert(Fxaa::default()); }
+        if high {
+            // (only what's brighter than a lit panel blooms: the lights, lights.rs glow)
+            e.insert((Hdr, Bloom {
+                intensity: 0.15,
+                low_frequency_boost: 0.35,
+                prefilter: BloomPrefilter { threshold: 4.0, threshold_softness: 0.2 },
+                composite_mode: BloomCompositeMode::Additive,
+                ..Bloom::NATURAL
+            }));
+        }
+        if ultra {
+            e.insert((TemporalAntiAliasing::default(), ScreenSpaceAmbientOcclusion { quality_level: ScreenSpaceAmbientOcclusionQualityLevel::High, ..default() }));
+        }
+    }
+    commands.insert_resource(DirectionalLightShadowMap { size: if high { 4096 } else { 2048 } });
+    for (e, mut s) in &mut suns {
+        s.shadow_maps_enabled = g != "low";
+        commands.entity(e).insert(if ultra {
+            CascadeShadowConfigBuilder { num_cascades: 4, first_cascade_far_bound: 6.0, maximum_distance: 60.0, ..default() }.build()
+        } else {
+            CascadeShadowConfigBuilder { maximum_distance: 40.0, ..default() }.build()
+        });
+    }
 }

@@ -106,7 +106,7 @@ fn opt_values(id: OptId) -> Vec<(String, String)> {
         OptId::Ds => vec![v("0", "Left (DS1)"), v("1", "Center (DS2)"), v("2", "Right (DS3)")],
         OptId::Hp => vec![v("auto", "Auto-throw when HUB active"), v("manual", "Manual (X / Y)")],
         OptId::Camera => crate::camera::CAMERA_MODES.iter().map(|m| v(m.key(), m.name())).collect(),
-        OptId::Graphics => vec![v("high", "High"), v("medium", "Medium"), v("low", "Low")],
+        OptId::Graphics => vec![v("ultra", "Ultra"), v("high", "High"), v("medium", "Medium"), v("low", "Low")],
         OptId::Fps => vec![v("off", "Off"), v("on", "On")],
     }
 }
@@ -137,8 +137,9 @@ fn opt_desc(id: OptId, s: &Settings) -> String {
         OptId::Hp => "The human player at your OUTPOST: it throws FUEL by itself whenever your HUB is active, or you throw it yourself (Y / H held; X / G opens the CHUTE DOOR).".into(),
         OptId::Camera => "Change it any time in a match with D-pad ← → ([ / ]); right stick click (T) turns it around.".into(),
         OptId::Graphics => match s.graphics.as_str() {
-            "high" => "High: shadows and 4x anti-aliasing.",
-            "medium" => "Medium: shadows, no anti-aliasing.",
+            "ultra" => "Ultra: High, plus temporal anti-aliasing, ambient occlusion in creases and under BUMPERS, and soft shadows out to the far wall. For a gaming GPU.",
+            "high" => "High: big shadows, 4x anti-aliasing, and glowing HUB lights and robot LEDs (bloom).",
+            "medium" => "Medium: shadows and FXAA edges.",
             _ => "Low: no shadows or anti-aliasing, for slower PCs.",
         }.into(),
         OptId::Fps => "Frame rate, physics time per step and the update status in the corner.".into(),
