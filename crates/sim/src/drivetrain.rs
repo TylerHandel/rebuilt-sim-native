@@ -24,7 +24,6 @@ const V_REST: f64 = 12.6;
 const R_BATTERY: f64 = 0.02;
 const OTHER_LOAD: f64 = 25.0;
 const ETA: f64 = 0.93;
-const TOP_FRACTION: f64 = 0.88;
 
 /// cfg.drive, as robots.json has it (fields left out take the JS DEFAULTS)
 #[derive(Debug, Clone, serde::Deserialize)]
