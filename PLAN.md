@@ -325,9 +325,10 @@ squash, nets, spin blur, and graphics presets (render scale, shadows off, no MSA
 
 ## Risks
 
-- **Windows may not be bit-identical to Linux or the browser.** Rapier calls the platform's f32
-  math in places. The Windows CI test will show it. Playing is unaffected either way. Only the
-  parity gate would then be Linux-only.
+- **Windows matching Linux and the browser: confirmed so far.** The Windows CI job runs the engine
+  parity test, the jsmath vectors, and the trace regeneration (Windows Node making the same traces
+  as the committed Linux ones), and all are identical (runs 3 and 5, 2026-11-10). Each new parity
+  script is checked there the same way.
 - **`jsmath` on Windows.** It's compiled V8 source, so it matches on any compiler that doesn't
   contract or reorder floating point (MSVC `/fp:precise`, the default). The vector test runs in
   the Windows CI job to prove it.
