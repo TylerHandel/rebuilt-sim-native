@@ -19,11 +19,13 @@ fn every_script_has_its_trace() {
 
 /// The scripts whose modules are ported (PORT.md), played here and matched against the JS game's
 /// traces, step by step, part by part.
-const PORTED: [&str; 15] = ["fuel-start", "fuel-launch", "drive-2910", "intake-2910", "shoot-2910", "hp-throws", "intake-4414", "shoot-4414", "intake-8793", "shoot-8793", "trench-8793", "intake-1678", "shoot-1678", "intake-1690", "shoot-1690"];
+const PORTED: [&str; 17] = ["fuel-start", "fuel-launch", "drive-2910", "intake-2910", "shoot-2910", "hp-throws", "intake-4414", "shoot-4414", "intake-8793", "shoot-8793", "trench-8793", "intake-1678", "shoot-1678", "intake-1690", "shoot-1690", "intake-7769", "shoot-7769"];
 
 #[test]
 fn ported_scripts_play_as_in_the_js_game() {
-    for (s, t) in scripts().iter().filter(|(s, _)| PORTED.contains(&s.name.as_str())) {
+    // (PARITY_ONLY=<name> plays that one alone)
+    let only = std::env::var("PARITY_ONLY").ok();
+    for (s, t) in scripts().iter().filter(|(s, _)| PORTED.contains(&s.name.as_str()) && only.as_deref().is_none_or(|o| s.name == o)) {
         let got = sim::parity::play(s);
         if let Some(m) = sim::parity::first_mismatch(t, &got.iter().map(|(a, b, c)| (*a, *b, c.clone())).collect::<Vec<_>>()) { panic!("{m}"); }
     }

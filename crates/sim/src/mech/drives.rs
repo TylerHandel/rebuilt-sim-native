@@ -61,13 +61,16 @@ pub struct Shaft {
     pub lo: f64, pub hi: f64, free: f64,
     pub load: f64,
     pub vel: Option<VelLoop>,
+    /// js r7769.js Racks (and 1114's): its racks' friction holds it still against small pushes,
+    /// its stops (lo, hi) as well: integrated and pushed as if free, then held to them
+    pub racks: bool,
 }
 
 impl Shaft {
     /// js `new Shaft({ name, motor, inertia = 5e-5, drag = 2e-4, friction = 0 })`
     pub fn new(name: &str, motor: Option<Motor>, inertia: f64, drag: f64, friction: f64) -> Self {
         Shaft { name: name.into(), motor, inertia, drag, friction, p0: 0.0, acc: 0.0, b: 0.0, omega_: 0.0, cmd: Some(0.0), train: None, k: 1.0,
-            lo: f64::NEG_INFINITY, hi: f64::INFINITY, free: 0.0, load: 0.0, vel: None }
+            lo: f64::NEG_INFINITY, hi: f64::INFINITY, free: 0.0, load: 0.0, vel: None, racks: false }
     }
 }
 
@@ -137,6 +140,16 @@ impl Drives {
     }
     /// js `shaft.impulse(L)`
     pub fn impulse(&mut self, s: usize, l: f64) {
+        if self.shafts[s].racks && self.shafts[s].train.is_none() {
+            let (lo, hi) = (self.shafts[s].lo, self.shafts[s].hi);
+            self.shafts[s].lo = f64::NEG_INFINITY; self.shafts[s].hi = f64::INFINITY;
+            self.shafts[s].racks = false;
+            self.impulse(s, l);
+            let sh = &mut self.shafts[s];
+            sh.racks = true; sh.lo = lo; sh.hi = hi;
+            sh.omega_ = m::min(hi, m::max(lo, sh.omega_));
+            return;
+        }
         if let Some(t) = self.shafts[s].train {
             let tj = self.train_j(t);
             self.trains[t].omega += (l * self.shafts[s].k) / tj;
@@ -164,6 +177,16 @@ impl Drives {
     /// js `shaft.integrate(dt, V, slice)`
     pub fn integrate_shaft(&mut self, s: usize, dt: f64, v: f64, slice: Option<(f64, f64)>) {
         if self.shafts[s].train.is_some() { return; }
+        if self.shafts[s].racks {
+            let (lo, hi) = (self.shafts[s].lo, self.shafts[s].hi);
+            self.shafts[s].lo = f64::NEG_INFINITY; self.shafts[s].hi = f64::INFINITY;
+            self.shafts[s].racks = false;
+            self.integrate_shaft(s, dt, v, slice);
+            let sh = &mut self.shafts[s];
+            sh.racks = true; sh.lo = lo; sh.hi = hi;
+            sh.omega_ = m::min(hi, m::max(lo, sh.omega_));
+            return;
+        }
         let j = self.j(s);
         if self.shafts[s].vel.is_some() && self.shafts[s].motor.is_some() {
             let vl = self.shafts[s].vel.unwrap();

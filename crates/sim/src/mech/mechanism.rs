@@ -153,7 +153,7 @@ pub fn abutting(wheels: &mut [Wheel]) {
 pub enum Mount { Fixed, Pivot { shaft: usize, pivot: V3, axis: V3 }, Slide { shaft: usize, dir: V3, k: f64 } }
 
 #[derive(Clone, Debug)]
-enum Shape { Mesh, Block { c: V3, h: V3, r: f64 }, Net(NetDome), Plate(Box<Plate>) }
+enum Shape { Mesh, Block { c: V3, h: V3, r: f64 }, Net(NetDome), Sheet(NetSheet), Plate(Box<Plate>) }
 
 /// A top plate the load bows up, and a net out past it (js r1690.js Net1690): x0, the back of the
 /// bow; x1, the net's front (the U-frame's, where the carriage has it); y, the plate's height; hw,
@@ -247,6 +247,33 @@ impl NetDome {
         let l = m::hypot3(hx, 1.0, hz);
         let dist = (h - y) / l;
         if dist >= R || dist < -0.03 { return Vec::new(); }
+        vec![Hit { depth: R - dist, n: [hx / l, -1.0 / l, hz / l] }]
+    }
+}
+
+/// A net over a hopper (js r7769.js Net): from its back edge (x0, y0), level to xs, then down to
+/// the front (x1, yf, wherever the intake has it), across +-hw, bulging up to `bulge` at its middle
+#[derive(Clone, Copy, Debug)]
+pub struct NetSheet { pub x0: f64, pub y0: f64, pub xs: f64, pub x1: f64, pub yf: f64, pub hw: f64, pub bulge: f64 }
+impl NetSheet {
+    /// js `at(x, z)`: its height, and its slope along x and z
+    fn at(&self, x: f64, z: f64) -> [f64; 3] {
+        let (x1, xs) = (self.x1, m::min(self.xs, self.x1 - 0.01));
+        let (h, hx);
+        if x <= xs { h = self.y0; hx = 0.0; } else { hx = (self.yf - self.y0) / (x1 - xs); h = self.y0 + (x - xs) * hx; }
+        let l = x1 - self.x0;
+        let (u, v, b) = ((x - self.x0) / l, (z + self.hw) / (2.0 * self.hw), self.bulge);
+        let (su, sv) = (m::sin(m::PI * u), m::sin(m::PI * v));
+        [h + b * su * sv, hx + (b * m::PI * m::cos(m::PI * u) * sv) / l, (b * su * m::PI * m::cos(m::PI * v)) / (2.0 * self.hw)]
+    }
+    /// js `touches(p)`
+    fn touches(&self, p: V3) -> Vec<Hit> {
+        let [x, y, z] = p;
+        if x <= self.x0 || x >= self.x1 || m::abs(z) >= self.hw { return Vec::new(); }
+        let [h, hx, hz] = self.at(x, z);
+        let l = m::hypot3(hx, 1.0, hz);
+        let dist = (h - y) / l;
+        if dist >= R || dist < -R { return Vec::new(); }
         vec![Hit { depth: R - dist, n: [hx / l, -1.0 / l, hz / l] }]
     }
 }
@@ -363,6 +390,13 @@ impl Surface {
         s.shape = Shape::Net(dome);
         s
     }
+    /// A net sheet (js r7769.js Net: a Surface built on one small triangle, its touches its own)
+    pub fn sheet(name: &str, mu: f64, tread: f64, sheet: NetSheet) -> Self {
+        let mut s = Surface::mesh(name, &[0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.01], &[0, 1, 2], mu, [0.0; 3], 0.0, 0.0, 0.08, tread);
+        s.shape = Shape::Sheet(sheet);
+        s
+    }
+    pub fn sheet_mut(&mut self) -> Option<&mut NetSheet> { if let Shape::Sheet(d) = &mut self.shape { Some(d) } else { None } }
     /// A top plate and net (js Net1690: a Surface built on one small triangle, its touches its own)
     pub fn plate(name: &str, mu: f64, tread: f64, plate: Plate) -> Self {
         let mut s = Surface::mesh(name, &[0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.01], &[0, 1, 2], mu, [0.0; 3], 0.0, 0.0, 0.08, tread);
@@ -374,7 +408,7 @@ impl Surface {
     /// a net's shape, to place it (js Net1678.place)
     pub fn net_mut(&mut self) -> Option<&mut NetDome> { if let Shape::Net(d) = &mut self.shape { Some(d) } else { None } }
     /// whether its own touches are a plain mesh's or a Block's (js surfaceBounds' plain)
-    fn plain(&self) -> bool { !matches!(self.shape, Shape::Net(_) | Shape::Plate(_)) }
+    fn plain(&self) -> bool { !matches!(self.shape, Shape::Net(_) | Shape::Sheet(_) | Shape::Plate(_)) }
     /// a Block's bottom edge (its center's y less its half height and rounding)
     pub fn block_bottom(&self) -> Option<f64> { if let Shape::Block { c, h, r } = self.shape { Some(c[1] - h[1] - r) } else { None } }
 
@@ -462,6 +496,7 @@ impl Surface {
     /// js `touches(p, who)` (a Block's, or a mesh's)
     pub fn touches(&mut self, p: V3, who: RigidBodyHandle) -> Vec<Hit> {
         if let Shape::Net(d) = &self.shape { return d.touches(p); }
+        if let Shape::Sheet(d) = &self.shape { return d.touches(p); }
         if let Shape::Plate(pl) = &mut self.shape { return pl.touches(p, who); }
         if let Shape::Block { c, h, r } = self.shape {
             let d = [p[0] - c[0], p[1] - c[1], p[2] - c[2]];
