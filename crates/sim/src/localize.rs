@@ -136,7 +136,6 @@ mod sigma {
     pub const SCALE: f64 = 0.005;
     pub const TAG: f64 = 0.005;
     pub fn turret_ang() -> f64 { 0.3 * DEG }
-    #[allow(dead_code)]
     pub const TURRET_T: f64 = 0.003;
     pub const TS_JITTER: f64 = 0.002;
     pub const LAT_JITTER: f64 = 0.004;
@@ -163,7 +162,6 @@ fn between(a: P2, b: P2) -> P2 {
 }
 
 #[derive(Clone, Copy, Debug)]
-#[allow(dead_code)] // (turret: for the cameras on turrets, M3c)
 struct CamCal { yaw: f64, scale: f64, turret: f64, phase: f64 }
 #[derive(Clone, Debug)]
 struct Cal { cams: Vec<CamCal>, tags: Vec<[f64; 2]>, wheel_r: f64, md: Vec<f64>, gyro_bias: f64, gyro_scale: f64 }
@@ -187,6 +185,9 @@ pub struct RobotView<'a> {
     pub ready_shoot: bool,
     /// the other robots: x, z, halfL, halfW
     pub others: &'a [[f64; 4]],
+    /// its turrets (x, z: robot frame) and their yaws (rad)
+    pub turrets: &'a [[f64; 2]],
+    pub turret_yaws: &'a [f64],
 }
 
 /// js `Localizer`
@@ -211,6 +212,7 @@ pub struct Localizer {
     v: [f64; 3],
     latched: bool,
     air: Vec<f64>,
+    last_turret: Vec<f64>,
     t: Option<f64>,
     pub frames: u32,
     pub used: u32,
@@ -222,7 +224,7 @@ impl Localizer {
         Localizer {
             truth: aim_truth, prof: profile_for(cfg), ready: false, rng: None, tags: tags(), cal: None,
             est: P2::default(), odo: P2::default(), gyro_err: 0.0, last_yaw: 0.0, gyro_prev: None, stall_t: None,
-            buf: Vec::new(), hist: Vec::new(), pending: Vec::new(), cam_t: Vec::new(), v: [0.0; 3], latched: false, air: Vec::new(), t: None,
+            buf: Vec::new(), hist: Vec::new(), pending: Vec::new(), cam_t: Vec::new(), v: [0.0; 3], latched: false, air: Vec::new(), last_turret: Vec::new(), t: None,
             frames: 0, used: 0,
         }
     }
@@ -280,6 +282,7 @@ impl Localizer {
         self.v = [0.0; 3];
         self.latched = false;
         self.air = vec![0.0; r.swerve.modules.len()];
+        self.last_turret = r.turret_yaws.to_vec();
         self.t = None;
         self.frames = 0;
         self.used = 0;
@@ -362,16 +365,25 @@ impl Localizer {
         // ---- what the aim reads, ACT_DELAY steps late
         self.hist.push(Hist { x: self.est.x, y: self.est.y, th: self.est.th, f: self.v[0], l: self.v[1], w: self.v[2] });
         if self.hist.len() > ACT_DELAY + 1 { self.hist.remove(0); }
+        self.last_turret = r.turret_yaws.to_vec();
     }
 
     /// js `_frame(cm, ci, t, T, dt)`: one camera frame, the pose its pipeline makes of the tags it sees
-    fn frame(&mut self, ci: usize, t: f64, tr: P2, _dt: f64, r: &RobotView) -> Option<Meas> {
+    fn frame(&mut self, ci: usize, t: f64, tr: P2, dt: f64, r: &RobotView) -> Option<Meas> {
         let cm = self.prof.cams[ci];
         let c = cam(cm.cam);
         let cal = self.cal.as_ref().unwrap().cams[ci];
         self.frames += 1;
-        assert!(cm.turret.is_none(), "cameras on turrets arrive with the turret robots (M3c)");
-        let (cx, cy, cyaw, t_rate) = (cm.x, cm.y, cm.yaw * DEG, 0.0);
+        let (mut cx, mut cy, mut cyaw, mut t_rate) = (cm.x, cm.y, cm.yaw * DEG, 0.0);
+        if let Some(ti) = cm.turret {
+            // (on a turret, along its shot: turning with it)
+            let tt = r.turrets[ti];
+            let ty = r.turret_yaws.get(ti).copied().unwrap_or(0.0);
+            t_rate = if dt > 0.0 { wrap(ty - self.last_turret.get(ti).copied().unwrap_or(ty)) / dt } else { 0.0 };
+            cx = tt[0] + m::cos(ty) * cm.x - m::sin(ty) * cm.y;
+            cy = -tt[1] + m::sin(ty) * cm.x + m::cos(ty) * cm.y;
+            cyaw = ty + cm.yaw * DEG;
+        }
         let cam_world = |p: P2, yaw_err: f64| P2 { x: p.x + m::cos(p.th) * cx - m::sin(p.th) * cy, y: p.y + m::sin(p.th) * cx + m::cos(p.th) * cy, th: p.th + cyaw + yaw_err };
         let camp = cam_world(tr, 0.0);
         let tilt = Self::tilt(r.quat);
@@ -412,7 +424,8 @@ impl Localizer {
             obs.push(Obs { k, d, b: bm, r: dm, sb, sr, phi: phim, sphi, amb: m::min(1.0, (6.0 * px) / cue) });
         }
         if obs.is_empty() { return None; }
-        let turret_err = 0.0;
+        // (the turret's angle as the code knows it at the frame's time: encoder, timing)
+        let turret_err = if cm.turret.is_some() { cal.turret + t_rate * self.gauss() * sigma::TURRET_T } else { 0.0 };
         let mode = cm.mode.unwrap_or(self.prof.mode);
         if self.prof.min_tags.unwrap_or(1) > obs.len() { return None; }
         if let Some(mo) = self.prof.max_omega { if m::abs(r.omega) > mo * DEG { return None; } }

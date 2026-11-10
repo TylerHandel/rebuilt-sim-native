@@ -171,10 +171,13 @@ fn animate(game: Res<Game>, time: Res<Time>, mut models: Query<(&mut RobotModel,
         if !m.ready { continue }
         let m = &mut *m;
         // the state anim reads (js robot.js visualState().anim); what isn't simulated yet rests
-        let inputs: [(&str, f32); 3] = [("intakeDeploy", r.intake_deploy as f32), ("hopperDeploy", r.hopper_deploy as f32), ("hoodDeg", r.hood_deg as f32)];
-        // (the hopper floor's rollers as fast as they turn; the generic feed's when it's feeding)
-        let floor = match &r.phys { Some(sim::robot::Phys::R2910(p)) => p.floor_spin() as f32, None => 0.0 };
-        let rates: [(&str, f32); 2] = [("floorSpin", floor), ("feeding", if m.rig.rate.contains_key("floorSpin") { 0.0 } else { r.out.feeding as f32 })];
+        let inputs: [(&str, f32); 4] = [("intakeDeploy", r.intake_deploy as f32), ("hopperDeploy", r.hopper_deploy as f32), ("hoodDeg", r.hood_deg as f32), ("turretYaw", r.turret_yaw as f32)];
+        // (the hopper floor's rollers as fast as they turn, 2910's; the rest at the rates the robot's
+        // drawing spins them: the intake's rollers, the flywheel, the feed when it's feeding, its
+        // floor's when that's not simulated)
+        let floor = match &r.phys { Some(sim::robot::Phys::R2910(p)) => p.floor_spin() as f32, _ => 0.0 };
+        let feeding = if m.rig.rate.contains_key("floorSpin") { 0.0 } else { r.out.feeding as f32 };
+        let rates: [(&str, f32); 4] = [("floorSpin", floor), ("feeding", feeding), ("intakeSpeed", r.out.intake_speed as f32), ("flywheel", r.flywheel as f32)];
         for (name, v) in rates {
             let Some(ch) = m.rig.rate.get(name) else { continue };
             for (node, d) in ch {

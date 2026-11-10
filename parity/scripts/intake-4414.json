@@ -1,0 +1,57 @@
+{
+  "name": "intake-4414",
+  "about": "4414 alone in TELEOP drives into the NEUTRAL ZONE's FUEL with its intake running: the box slides out on its racks, the primary roller, kick wheel and black roller lift FUEL over the bumper, the Dye Rotor turns back slowly spreading them round its bowl; then it turns with its load (M3c).",
+  "seed": 5,
+  "slots": [
+    {
+      "robot": "4414",
+      "alliance": "blue",
+      "pose": [
+        -1.75,
+        1.0,
+        0.0
+      ]
+    }
+  ],
+  "humanPlayers": false,
+  "phase": "teleop",
+  "steps": 960,
+  "commands": [
+    {
+      "from": 0,
+      "robot": 0,
+      "cmd": {
+        "intake": true
+      }
+    },
+    {
+      "from": 72,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.8,
+        "intake": true
+      }
+    },
+    {
+      "from": 480,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.5,
+        "omega": 1.2,
+        "intake": true
+      }
+    },
+    {
+      "from": 720,
+      "robot": 0,
+      "cmd": {
+        "intake": true
+      }
+    },
+    {
+      "from": 840,
+      "robot": 0,
+      "cmd": {}
+    }
+  ]
+}

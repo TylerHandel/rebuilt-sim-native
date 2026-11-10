@@ -249,12 +249,25 @@ impl Surface {
         s
     }
 
+    /// A surface as the browser game's own code built it (tools/export-mech.mjs): its triangles
+    /// (`tri`, the zero-area ones already gone: built from them again, the same tree and order), its
+    /// pose, and a Block's section
+    pub fn from_tri(name: &str, tri: &[f64], mu: f64, tread: f64, cell: f64, pos: V3, axes: [V3; 3], block: Option<(V3, V3, f64)>) -> Self {
+        let idx: Vec<u32> = (0..(tri.len() / 3) as u32).collect();
+        let mut s = Surface::mesh(name, tri, &idx, mu, pos, 0.0, 0.0, cell, tread);
+        s.axes = axes;
+        if let Some((c, h, r)) = block { s.shape = Shape::Block { c, h, r }; }
+        s
+    }
+
     pub fn is_block(&self) -> bool { matches!(self.shape, Shape::Block { .. }) }
     /// a Block's bottom edge (its center's y less its half height and rounding)
     pub fn block_bottom(&self) -> Option<f64> { if let Shape::Block { c, h, r } = self.shape { Some(c[1] - h[1] - r) } else { None } }
 
     /// js `onShaft(shaft, pivot, axis)`
     pub fn on_shaft(mut self, shaft: usize, pivot: V3, axis: V3) -> Self { self.mount = Mount::Pivot { shaft, pivot, axis }; self }
+    /// js `sf.slideK = k`: m it slides per radian of its shaft
+    pub fn set_slide_k(&mut self, k: f64) { if let Mount::Slide { k: kk, .. } = &mut self.mount { *kk = k; } }
     /// js `onSlide(shaft, dir)` (slideK set later)
     pub fn on_slide(mut self, shaft: usize, dir: V3) -> Self { self.mount = Mount::Slide { shaft, dir, k: 0.0 }; self }
 

@@ -5,6 +5,7 @@
 use crate::constants::*;
 use crate::drivetrain::{DriveCfg, Drivetrain, SwerveDrive};
 use crate::mech::phys2910::{Phys2910, PostIn, PostOut};
+use crate::mech::phys4414::Phys4414;
 use crate::mech::physical::{Ctx, Stats};
 use crate::fuel::Fuel;
 use crate::parity::Cmd;
@@ -37,7 +38,7 @@ pub fn apply_quat(v: [f64; 3], q: [f64; 4]) -> [f64; 3] {
 
 /// The robots whose mechanisms are ported (a robot.json config's "physical"): the others' Robot::new
 /// panics until theirs are
-pub const PORTED: &[&str] = &["2910"];
+pub const PORTED: &[&str] = &["2910", "4414"];
 
 /// Whether this sim can build robot `cfg` yet (its mechanisms and intake are ported)
 pub fn ported(cfg: &Value) -> bool {
@@ -110,7 +111,13 @@ pub enum Top { Frame { body: RigidBodyHandle, pts: Vec<f64> }, Lid { body: Rigid
 #[derive(Debug, Clone)]
 pub struct UnderArm { pub collider: ColliderHandle, pub top: Top, pub under: bool }
 
-pub enum Phys { R2910(Box<Phys2910>) }
+pub enum Phys { R2910(Box<Phys2910>), R4414(Box<Phys4414>) }
+
+impl Phys {
+    /// the shared part (js PhysicalRobot)
+    pub fn physical(&self) -> &crate::mech::physical::Physical { match self { Phys::R2910(p) => &p.p, Phys::R4414(p) => &p.p } }
+    pub fn physical_mut(&mut self) -> &mut crate::mech::physical::Physical { match self { Phys::R2910(p) => &mut p.p, Phys::R4414(p) => &mut p.p } }
+}
 
 pub struct Robot {
     pub key: String,
@@ -172,6 +179,12 @@ pub struct Robot {
     pub tables: std::sync::Arc<Tables>,
     /// js loc: what its code knows of its pose, which its aims work from (localize.rs)
     pub loc: crate::localize::Localizer,
+    /// js turrets (x, z: robot frame) and their yaws (rad, on the robot), turretYaw (the first's)
+    pub turrets: Vec<[f64; 2]>,
+    pub turret_yaws: Vec<f64>,
+    pub turret_yaw: f64,
+    /// this step's dt (js _shooter's), for the turret
+    step_dt: f64,
 }
 
 /// js robot.hubTable and passTable: its shot tables (built once per robot)
@@ -180,8 +193,25 @@ pub struct Tables { pub hub: crate::ballistics::ShotTable, pub pass: crate::ball
 /// What the localizer reads of a robot (js its this.r)
 macro_rules! loc_view {
     ($r:expr, $others:expr) => {
-        crate::localize::RobotView { pos: $r.pos, quat: $r.quat, yaw: $r.yaw, vel: $r.vel, omega: $r.omega, swerve: &$r.swerve, ready_shoot: $r.ready && $r.want_shoot, others: $others }
+        crate::localize::RobotView { pos: $r.pos, quat: $r.quat, yaw: $r.yaw, vel: $r.vel, omega: $r.omega, swerve: &$r.swerve, ready_shoot: $r.ready && $r.want_shoot, others: $others, turrets: &$r.turrets, turret_yaws: &$r.turret_yaws }
     };
+}
+
+/// js `turretGoal(rel, cur, lim, shooting)`: where the turret goes for a target rel (rad from the
+/// middle of its travel), from cur, within +-lim: (goal, over: how far past a stop it's held)
+pub fn turret_goal(rel: f64, cur: f64, lim: f64, shooting: bool) -> (f64, f64) {
+    let (unwind, hold) = (-1.0 * DEG, 0.0 * DEG);
+    let b = cur + wrap_angle(rel - cur);
+    let cands: Vec<f64> = [rel, rel + 2.0 * m::PI, rel - 2.0 * m::PI].into_iter().filter(|a| m::abs(*a) <= lim).collect();
+    if shooting {
+        if m::abs(b) <= lim { return (b, 0.0); }
+        let g = crate::fuel::clamp(b, -lim, lim);
+        if m::abs(b - g) < hold || cands.is_empty() { return (g, b - g); }
+        return (cands.iter().copied().reduce(|a, c| if m::abs(c - cur) < m::abs(a - cur) { c } else { a }).unwrap(), 0.0);
+    }
+    if cands.is_empty() { return (crate::fuel::clamp(rel, -lim, lim), 0.0); }
+    let mid = cands.iter().copied().reduce(|a, c| if m::abs(c) < m::abs(a) { c } else { a }).unwrap();
+    (if m::abs(b) <= lim && m::abs(b) < lim - unwind { b } else { mid }, 0.0)
 }
 
 /// js util `wrapAngle(a)`
@@ -248,14 +278,22 @@ impl Robot {
             aim_vel: [0.0; 2], stored: Vec::new(), stats: Stats::default(), full: false, last_in_zone: false, want_shoot: false, shot_setpoint: 0.0,
             shot: None, last_pass: false, aim_override: None, aim_err: None, pass_clear: None, out: PostOut::default(),
             hood_deg: 0.0, flywheel: 0.0, ready: false, status: String::new(), aim_offset: 0.0, tables, loc: crate::localize::Localizer::new(&cfg_loc, false),
+            turrets: Vec::new(), turret_yaws: Vec::new(), turret_yaw: 0.0, step_dt: 0.0,
         };
         let sh = &r.cfg["shooter"];
         r.aim_offset = if sh["type"].as_str() == Some("fixed") && sh["facing"].as_str() == Some("back") { m::PI } else { 0.0 };
+        // (turret shooters: one or more turrets, each aiming itself)
+        if sh["type"].as_str() == Some("turret") {
+            let list = if sh["turrets"].is_array() { sh["turrets"].as_array().unwrap().clone() } else { vec![sh["turretPos"].clone()] };
+            assert!(list.len() == 1, "twin turrets arrive with 1706 (M3c)");
+            r.turrets = list.iter().map(|t| [num(t, "x"), num(t, "z")]).collect();
+        }
         r.max_speed = num(&r.cfg["drive"], "maxSpeed");
         r.max_omega = num(&r.cfg["drive"], "maxOmega");
         r.create_body(phys, under);
         r.phys = match r.cfg.get("physical").and_then(|x| x.as_str()) {
             Some("2910") => Some(Phys::R2910(Box::new(Phys2910::new(r.body)))), // (and in PORTED)
+            Some("4414") => Some(Phys::R4414(Box::new(Phys4414::new(r.body)))),
             Some(p) => panic!("robot {p}'s mechanisms aren't ported yet"),
             None => panic!("robot {key} isn't physical: not in the native game (PLAN.md D11)"),
         };
@@ -363,7 +401,12 @@ impl Robot {
 
     /// js `reset()` (what play reads so far)
     pub fn reset(&mut self) {
-        if let Some(Phys::R2910(p)) = &mut self.phys { p.reset(); }
+        match &mut self.phys { Some(Phys::R2910(p)) => p.reset(), Some(Phys::R4414(p)) => p.reset(), None => {} }
+        // (each turret starts at the middle of its travel)
+        let sh = &self.cfg["shooter"];
+        let list = if sh["turrets"].is_array() { sh["turrets"].as_array().unwrap().clone() } else if sh["turretPos"].is_object() { vec![sh["turretPos"].clone()] } else { vec![] };
+        self.turret_yaws = list.iter().map(|t| opt(t, "start").or(opt(t, "center")).unwrap_or(0.0) * DEG).collect();
+        self.turret_yaw = self.turret_yaws.first().copied().unwrap_or(0.0);
         self.last_t = 0.0;
         self.intake_deploy = 0.0;
         self.hopper_deploy = 0.0;
@@ -408,7 +451,7 @@ impl Robot {
     /// js `loadFuel(balls)`: its preload
     pub fn load_fuel(&mut self, phys: &mut PhysicsWorld, fuel: &mut Fuel, balls: &[usize]) {
         let mut c = Ctx { body: self.body, alliance: self.alliance, frame: self.frame_lw(), fuel, phys };
-        if let Some(Phys::R2910(p)) = &mut self.phys { self.stored = p.p.load(&mut c, balls); }
+        if let Some(p) = &mut self.phys { self.stored = p.physical_mut().load(&mut c, balls); }
     }
 
     /// js `preStep(dt)` for a robot alone (its mechanisms between its two halves)
@@ -418,6 +461,11 @@ impl Robot {
         let mut c = Ctx { body: self.body, alliance: self.alliance, frame: self.frame_lw(), fuel, phys };
         match &mut self.phys {
             Some(Phys::R2910(p)) => { p.pre_mech(dt, on, teleop); p.mechanisms(&mut c, dt, t); self.intake_deploy = p.post_mech(dt); }
+            Some(Phys::R4414(p)) => {
+                p.pre_mech(dt, &crate::mech::phys4414::PreIn { enabled: on, intake_deploy: self.intake_deploy, turret_yaw: self.turret_yaw });
+                p.mechanisms(&mut c, dt, t);
+                self.intake_deploy = p.post_mech(dt);
+            }
             None => {}
         }
     }
@@ -446,7 +494,7 @@ impl Robot {
         // (a physical robot passes where its code does: 2910's FieldConstants' points)
         match &self.phys {
             Some(Phys::R2910(_)) => (true, self.aim_pt(Phys2910::pass_target(self.alliance, [self.pos[0], self.pos[2]])), in_zone),
-            None => {
+            _ => {
                 let s = if self.alliance == Alliance::Blue { 1.0 } else { -1.0 };
                 let x = s * (-HALF_L + 1.7);
                 let zc = [HALF_W - 1.8, -HALF_W + 1.8];
@@ -458,7 +506,7 @@ impl Robot {
 
     /// js `capacity()`: how many it holds, about (a physical robot's own rating)
     pub fn capacity(&self) -> usize {
-        match &self.phys { Some(Phys::R2910(p)) => p.capacity(), None => 0 }
+        match &self.phys { Some(Phys::R2910(p)) => p.capacity(), Some(Phys::R4414(p)) => p.capacity(), None => 0 }
     }
 
     /// js `aimPt(p)`: where its pose estimate puts world point p, seen from its true pose
@@ -480,15 +528,32 @@ impl Robot {
         [num(h, "x") + s * num(h, "r") * m::sin(th), num(h, "y") + num(h, "r") * m::cos(th)]
     }
 
-    /// js `_passLands(0, anywhere)` (a fixed shooter's): where a FUEL launched now comes down is on
+    /// js `_turretExit(ti)`: where FUEL leaves turret ti's hood now (robot frame)
+    fn turret_exit(&self, ti: usize) -> [f64; 3] {
+        let sh = &self.cfg["shooter"];
+        let (t, a, r) = (self.turrets[ti], self.turret_yaws[ti], num(sh, "exitRadius"));
+        [t[0] + m::cos(a) * r, num(sh, "exitY"), t[1] - m::sin(a) * r]
+    }
+    /// js `estVelAt(p)`: the chassis velocity at p as its wheels and gyro measure it
+    pub fn est_vel_at(&self, p: [f64; 3]) -> [f64; 2] {
+        let Some(v) = self.loc.vel(self.yaw) else { return self.velocity_at(p) };
+        let w = self.loc.omega().unwrap();
+        [v[0] + w * (p[2] - self.pos[2]), v[1] - w * (p[0] - self.pos[0])]
+    }
+
+    /// js `_passLands(0, anywhere)`: where a FUEL launched now comes down is on
     /// its own half, clear of the walls (anywhere: only that it misses both HUBS)
     fn pass_lands(&self, short: bool, anywhere: bool) -> bool {
         let sh = &self.cfg["shooter"];
-        let psi = self.yaw + self.aim_offset;
-        let lanes = sh["lanes"].as_array().expect("lanes");
-        let lane_z = lanes[0].as_f64().unwrap();
-        let e = self.fixed_exit(self.hood_deg);
-        let exit = self.local_to_world(e[0], e[1], lane_z);
+        let (psi, exit) = if sh["type"].as_str() == Some("fixed") {
+            let lanes = sh["lanes"].as_array().expect("lanes");
+            let lane_z = lanes[0].as_f64().unwrap();
+            let e = self.fixed_exit(self.hood_deg);
+            (self.yaw + self.aim_offset, self.local_to_world(e[0], e[1], lane_z))
+        } else {
+            let e = self.turret_exit(0);
+            (self.yaw + self.turret_yaws[0], self.local_to_world(e[0], e[1], e[2]))
+        };
         let lv = self.velocity_at(exit);
         let (th, v) = (self.hood_deg * DEG, self.flywheel);
         let sv = [m::cos(psi) * m::cos(th) * v, -m::sin(psi) * m::cos(th) * v];
@@ -522,26 +587,48 @@ impl Robot {
         self.last_in_zone = in_zone;
         let prespin = on && has && in_zone;
         let mut out_of_range = false;
+        let fixed = self.cfg["shooter"]["type"].as_str() == Some("fixed");
         if (want_shoot || prespin) && has {
-            let (dx, dz) = (tgt[0] - self.pos[0], tgt[1] - self.pos[2]);
-            let dd = { let h = m::hypot2(dx, dz); if h == 0.0 { 1.0 } else { h } };
-            let exit_at = |deg: f64| {
-                let e = self.fixed_exit(deg);
-                let along = if self.aim_offset != 0.0 { -e[0] } else { e[0] };
-                [self.pos[0] + (dx / dd) * along, self.pos[1] + e[1], self.pos[2] + (dz / dd) * along]
-            };
-            let lv = self.aim_vel;
+            let (exit, lv);
+            let mut sol;
             let table = if pass { &self.tables.pass } else { &self.tables.hub };
-            let mut sol = crate::ballistics::solve_moving_shot(table, exit_at(self.hood_deg), lv, tgt);
-            if let Some(s1) = sol {
-                if !self.cfg["shooter"]["hood"].is_null() {
-                    if let Some(s2) = crate::ballistics::solve_moving_shot(table, exit_at(s1.theta / DEG), lv, tgt) { sol = Some(s2); }
+            if fixed {
+                let (dx, dz) = (tgt[0] - self.pos[0], tgt[1] - self.pos[2]);
+                let dd = { let h = m::hypot2(dx, dz); if h == 0.0 { 1.0 } else { h } };
+                let exit_at = |deg: f64| {
+                    let e = self.fixed_exit(deg);
+                    let along = if self.aim_offset != 0.0 { -e[0] } else { e[0] };
+                    [self.pos[0] + (dx / dd) * along, self.pos[1] + e[1], self.pos[2] + (dz / dd) * along]
+                };
+                exit = exit_at(self.hood_deg);
+                lv = self.aim_vel;
+                sol = crate::ballistics::solve_moving_shot(table, exit, lv, tgt);
+                if let Some(s1) = sol {
+                    if !self.cfg["shooter"]["hood"].is_null() {
+                        if let Some(s2) = crate::ballistics::solve_moving_shot(table, exit_at(s1.theta / DEG), lv, tgt) { sol = Some(s2); }
+                    }
+                }
+            } else {
+                // (FUEL leaves the hood exitRadius in front of the turret's axis, along the shot line)
+                let sh = &self.cfg["shooter"];
+                let c = self.local_to_world(self.turrets[0][0], num(sh, "exitY"), self.turrets[0][1]);
+                let (dx, dz) = (tgt[0] - c[0], tgt[1] - c[2]);
+                let dd = { let h = m::hypot2(dx, dz); if h == 0.0 { 1.0 } else { h } };
+                let er = num(sh, "exitRadius");
+                exit = [c[0] + (dx / dd) * er, c[1], c[2] + (dz / dd) * er];
+                lv = self.est_vel_at(exit);
+                sol = crate::ballistics::solve_moving_shot(table, exit, lv, tgt);
+                if let Some(s1) = sol {
+                    if !self.cfg["shooter"]["hood"].is_null() { let _ = s1; panic!("a turret with a swinging hood's exit: not yet"); }
                 }
             }
+            let _ = exit;
             if let Some(sol) = sol {
                 self.shot = Some(Shot { pass, target: tgt, reach: sol.reach });
                 setpoint = sol.v;
-                let aim_err = wrap_angle(sol.psi - self.yaw - self.aim_offset);
+                let aim_err;
+                if fixed {
+                aim_err = wrap_angle(sol.psi - self.yaw - self.aim_offset);
                 if want_shoot {
                     let (max_omega, max_alpha) = (num(&self.cfg["drive"], "maxOmega"), num(&self.cfg["drive"], "maxAlpha"));
                     let (rx, rz) = (tgt[0] - self.pos[0], tgt[1] - self.pos[2]);
@@ -550,6 +637,29 @@ impl Robot {
                     let a = m::abs(aim_err);
                     let w = m::min(m::min(max_omega, m::sqrt(2.0 * 0.7 * max_alpha * a)), AIM_GAIN * a);
                     self.aim_override = Some(crate::fuel::clamp(m::sign(aim_err) * w + ff, -max_omega, max_omega));
+                }
+                } else {
+                    // (measured from the middle of the turret's travel: its hard stops are +-lim from there)
+                    let sh = &self.cfg["shooter"];
+                    let lim = num(sh, "turretRange") * DEG;
+                    let mid = 0.0 * DEG;
+                    // (a physical robot that aims its own way says where: phys.aimPsi)
+                    let psi = match &self.phys { Some(Phys::R4414(p)) => p.aim_psi.unwrap_or(sol.psi), _ => sol.psi };
+                    let rel = wrap_angle(psi - self.yaw - mid);
+                    let cur = self.turret_yaw - mid;
+                    let (goal, over) = turret_goal(rel, cur, lim, want_shoot);
+                    if over != 0.0 && want_shoot {
+                        let (max_omega, max_alpha) = (num(&self.cfg["drive"], "maxOmega"), num(&self.cfg["drive"], "maxAlpha"));
+                        let a = m::abs(over);
+                        self.aim_override = Some(m::sign(over) * m::min(m::min(max_omega, m::sqrt(2.0 * 0.7 * max_alpha * a)), AIM_GAIN * a));
+                    }
+                    let ty = match &mut self.phys {
+                        Some(Phys::R4414(p)) => p.turret_step(mid + cur, mid + goal, self.step_dt, self.last_t),
+                        _ => mid + approach(cur, goal, num(sh, "turretRate") * DEG * self.step_dt),
+                    };
+                    self.turret_yaw = ty;
+                    self.turret_yaws[0] = ty;
+                    aim_err = wrap_angle(psi - (self.yaw + self.turret_yaw));
                 }
                 self.aim_err = Some(aim_err);
                 let tol = if pass { 4.0 * DEG } else { m::max(0.6 * DEG, m::atan2(0.14, sol.dist)) };
@@ -682,6 +792,7 @@ impl Robot {
         self.aim_vel[1] += ka * (mv[1] - self.aim_vel[1]);
         let on = self.enabled;
         self.last_t = t;
+        self.step_dt = dt;
         // (2910's intake pivot is its mechanisms': its hopper still slides out with the first deploy)
         self.hopper_step(phys, dt, on);
         self.shooter_step(on);
@@ -704,6 +815,20 @@ impl Robot {
                 self.ready = self.out.ready;
                 self.full = p.p.watch_full(c.phys, c.fuel, self.body, dt, on && self.cmd.intake);
             }
+            Some(Phys::R4414(p)) => {
+                let est_omega = self.loc.omega().unwrap_or(c.phys.bodies[self.body].angvel().y as f64);
+                let pin4 = crate::mech::phys4414::PostIn {
+                    on, feeding: self.want_shoot, outtake: on && self.cmd.outtake, setpoint: self.shot_setpoint, pass: pin.pass, intake: self.cmd.intake,
+                    has_shot: self.shot.is_some(), target: pin.target, aim_hub: pin.aim_hub, aim_err: self.aim_err,
+                    est_vel: pin.est_vel, est_omega, yaw: self.yaw, spin: opt(&self.cfg["shooter"], "spin").unwrap_or(0.0), wheel_pts: &self.wheel_pts, legal: self.last_in_zone,
+                };
+                self.stored = p.post_step(&mut c, dt, t, &pin4, &mut self.stats, &mut self.out);
+                self.hood_deg = self.out.hood_deg;
+                self.flywheel = self.out.flywheel;
+                self.ready = self.out.ready;
+                // (full at its rated count: it isn't one whose intake says so)
+                self.full = self.stored.len() >= p.capacity();
+            }
             None => {}
         }
     }
@@ -713,10 +838,14 @@ impl Robot {
         let st = &self.cfg["storage"];
         let ext = opt(st, "extLen").unwrap_or(0.0);
         if ext == 0.0 { return; }
-        let latched = st["extend"].as_str() == Some("latched");
-        let mut want = if latched { if self.hopper_deploy > 0.02 || self.intake_deploy > 0.3 { 1.0 } else { 0.0 } } else { self.intake_deploy };
-        want = m::max(want, 0.0);
-        if on || want < self.hopper_deploy { self.hopper_deploy = approach(self.hopper_deploy, want, dt / 0.45); }
+        // (a physical robot's extension goes where its mechanism puts it: 4414's box on its racks)
+        if let Some(Phys::R4414(p)) = &self.phys { self.hopper_deploy = crate::fuel::clamp(p.ext_now() / ext, 0.0, 1.0); }
+        else {
+            let latched = st["extend"].as_str() == Some("latched");
+            let mut want = if latched { if self.hopper_deploy > 0.02 || self.intake_deploy > 0.3 { 1.0 } else { 0.0 } } else { self.intake_deploy };
+            want = m::max(want, 0.0);
+            if on || want < self.hopper_deploy { self.hopper_deploy = approach(self.hopper_deploy, want, dt / 0.45); }
+        }
         let Some((col, wall)) = self.hopper else { return };
         let out = self.hopper_deploy * ext;
         let fx = num(&self.cfg["frame"], "length") / 2.0 - ext / 2.0 + out;

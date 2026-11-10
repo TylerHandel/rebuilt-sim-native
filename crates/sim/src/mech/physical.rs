@@ -95,7 +95,7 @@ pub struct Ctx<'a> {
 
 /// js robot.stats (what a physical robot counts)
 #[derive(Clone, Copy, Debug, Default)]
-pub struct Stats { pub intaked: u32, pub shots: u32, pub passes: u32 }
+pub struct Stats { pub intaked: u32, pub shots: u32, pub passes: u32, pub unjams: u32 }
 
 struct Job { near: Vec<RigidBodyHandle>, owned: Vec<RigidBodyHandle>, skip: Option<Skip>, sb: Vec<RigidBodyHandle> }
 

@@ -68,7 +68,7 @@ impl World {
         // (js createGame: each robot's pose estimate, its own seeded draws, by its slot)
         let seed = s.seed.to_string();
         for (i, r) in w.robots.iter_mut().enumerate() {
-            let view = crate::localize::RobotView { pos: r.pos, quat: r.quat, yaw: r.yaw, vel: r.vel, omega: r.omega, swerve: &r.swerve, ready_shoot: r.ready && r.want_shoot, others: &[] };
+            let view = crate::localize::RobotView { pos: r.pos, quat: r.quat, yaw: r.yaw, vel: r.vel, omega: r.omega, swerve: &r.swerve, ready_shoot: r.ready && r.want_shoot, others: &[], turrets: &r.turrets, turret_yaws: &r.turret_yaws };
             let (key, a) = (r.key.clone(), r.alliance);
             r.loc.init(&seed, i, &key, a, &view);
         }
