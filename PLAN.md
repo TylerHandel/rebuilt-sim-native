@@ -231,10 +231,14 @@ with auto-update, engine parity test.
 
 **M2a. The parity harness.**
 - `jsmath` with node's test vectors (D3). Done: 31 functions, a million inputs each, all identical.
-- `rng.rs`, `constants.rs`.
-- Script format, `tools/native-trace.mjs` (JS game), `parity_*.rs` runner, `--dump`.
-- Export all integration parameters. Export `robots.json`.
-- `PORT.md` and `tools/port-status.mjs`.
+- `rng.rs`, `constants.rs`. Done: mulberry32 and the constants (generated from the export, JS
+  names kept: `FUEL::radius`) checked against the JS game.
+- Script format, `tools/native-trace.mjs` (JS game), `parity_*.rs` runner, `--dump`. Done: the JS
+  game's `stepGame` takes an observe-only probe (identical replays); three scripts (`fuel-start`,
+  `fuel-launch`, `drive-2910`) and their traces; the Rust types and `first_mismatch`. Each script
+  runs here once its modules are ported.
+- Export all integration parameters. Export `robots.json`. Done.
+- `PORT.md` and `tools/port-status.mjs`. Done.
 - Gate: the existing engine scenario, re-expressed as a script, is identical on Linux and Windows.
   If Windows differs, find which call differs. If it is inside Rapier, gate on Linux only and say
   so in `PORT.md`.

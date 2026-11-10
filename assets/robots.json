@@ -1,0 +1,2853 @@
+{
+ "source": "rebuilt-sim-2026 js/robotConfigs.js",
+ "order": [
+  "2910",
+  "4414",
+  "8793",
+  "971",
+  "1678",
+  "1690",
+  "4946",
+  "3928",
+  "341",
+  "4930",
+  "1706",
+  "581",
+  "1114",
+  "604",
+  "6328",
+  "2056",
+  "7769"
+ ],
+ "physical": [
+  "341",
+  "581",
+  "604",
+  "1114",
+  "1678",
+  "1690",
+  "1706",
+  "2056",
+  "2910",
+  "4414",
+  "6328",
+  "7769",
+  "8793"
+ ],
+ "robots": {
+  "341": {
+   "key": "341",
+   "team": 341,
+   "teamName": "Miss Daisy",
+   "robotName": "Miss Daisy XXIV",
+   "archetype": "Serializer",
+   "physical": "341",
+   "blurb": "Almost no hopper: a triple-roller slapdown lifts FUEL onto a single-layer tray under the turret table, where three spinning 6in omni wheels serialize it into the uptake to the turret. Shoots as fast as it intakes. Climbs Level 1.",
+   "frame": {
+    "length": 0.6858,
+    "width": 0.6858
+   },
+   "height": 0.55245,
+   "mass": 62,
+   "drive": {
+    "ratio": 7.67,
+    "wheel": 0.09144,
+    "stator": 35,
+    "supply": 70,
+    "maxSpeed": 3.186032058615071,
+    "maxAccel": 6.834407927269961,
+    "maxOmega": 8.40935003256608,
+    "maxAlpha": 39.58282235037094
+   },
+   "intake": {
+    "width": 0.6095999999999999,
+    "reach": 0.18,
+    "rate": 20,
+    "deployTime": 0.3,
+    "side": "front",
+    "latched": false,
+    "fold": {
+     "pivot": [
+      0.2545,
+      0.3365
+     ],
+     "stowDeg": 95,
+     "hull": [
+      [
+       -0.03,
+       0.035
+      ],
+      [
+       0.2,
+       0.03
+      ],
+      [
+       0.37,
+       -0.09
+      ],
+      [
+       0.37,
+       -0.13
+      ],
+      [
+       0.34,
+       -0.2
+      ],
+      [
+       0.21,
+       -0.3
+      ],
+      [
+       0.17,
+       -0.305
+      ],
+      [
+       -0.02,
+       -0.1
+      ]
+     ]
+    }
+   },
+   "storage": {
+    "capacity": 8,
+    "extLen": 0.22,
+    "extend": "intake"
+   },
+   "bay": {
+    "x0": -0.03,
+    "x1": 0.335,
+    "hw": 0.33,
+    "top": 0.37,
+    "pack": false,
+    "floor": {
+     "a": 0.175,
+     "b": 0,
+     "lo": 0.175,
+     "hi": 0.175
+    },
+    "obstacles": [
+     {
+      "x": -0.0445,
+      "z": 0.0755,
+      "r": 0.03,
+      "y0": 0.22,
+      "y1": 0.28,
+      "wheel": 0.076
+     },
+     {
+      "x": 0.108,
+      "z": 0.219,
+      "r": 0.03,
+      "y0": 0.22,
+      "y1": 0.28,
+      "wheel": 0.076
+     },
+     {
+      "x": 0.1205,
+      "z": -0.2285,
+      "r": 0.03,
+      "y0": 0.22,
+      "y1": 0.28,
+      "wheel": 0.076
+     },
+     {
+      "box": [
+       -0.2,
+       0.095,
+       0,
+       1,
+       -0.4,
+       -0.148
+      ]
+     }
+    ],
+    "drive": "floor",
+    "driveSpeed": 1.6,
+    "feed": {
+     "x": -0.01,
+     "z": -0.075,
+     "reach": 0.14,
+     "pull": 15,
+     "via": [
+      [
+       -0.06,
+       0.3,
+       -0.075
+      ],
+      [
+       -0.1,
+       0.42,
+       -0.077
+      ]
+     ]
+    }
+   },
+   "shooter": {
+    "type": "turret",
+    "turretPos": {
+     "x": -0.1015,
+     "z": -0.0765
+    },
+    "exitRadius": 0.17,
+    "exitY": 0.52,
+    "turretRange": 180,
+    "turretRate": 600,
+    "bps": 12,
+    "hoodMin": 40,
+    "hoodMax": 80,
+    "speedMax": 16,
+    "spin": 0.33,
+    "spinTau": 0.3,
+    "shotDrop": 0.006,
+    "speedSigma": 0.014,
+    "angleSigma": 0.7,
+    "yawSigma": 0.7
+   },
+   "climber": {
+    "maxLevel": 1,
+    "times": [
+     0,
+     1.8
+    ]
+   },
+   "stats": {
+    "Shot rate": "12 BPS",
+    "Aiming": "Turret",
+    "Top speed": "10.5 ft/s (11.9 free)",
+    "Trench": "Intake down",
+    "Climb": "Level 1"
+   },
+   "colors": {
+    "frame": 12830926,
+    "accent": 3104691,
+    "trim": 15909656
+   }
+  },
+  "581": {
+   "key": "581",
+   "team": 581,
+   "teamName": "Blazing Bulldogs",
+   "robotName": "Rubble",
+   "archetype": "Dumper",
+   "blurb": "Hopper Division finalist. Rebuilt mid-season from a turret into a dumper: a linear intake slides out on titanium racks and carries the front of the hopper with it, a roller floor that pivots up to compact the load (ramps on the intake lift it as it comes in) feeds a drum at the back, and an adjustable hood throws FUEL out over the back. Fits under the TRENCH, full or not.",
+   "physical": "581",
+   "frame": {
+    "length": 0.6858,
+    "width": 0.7239
+   },
+   "height": 0.55118,
+   "mass": 64,
+   "drive": {
+    "ratio": 7.674,
+    "stator": 120,
+    "supply": 40,
+    "maxSpeed": 3.538190410560564,
+    "maxAccel": 12.753000000000002,
+    "maxOmega": 9.012904865379525,
+    "maxAlpha": 39.228974631150145
+   },
+   "intake": {
+    "width": 0.5588,
+    "reach": 0.28,
+    "rate": 200,
+    "pull": 5,
+    "deployTime": 0.3,
+    "retractTime": 0.5,
+    "side": "front",
+    "latched": false,
+    "compacts": true,
+    "slide": {
+     "hull": [
+      [
+       0.28,
+       0.162
+      ],
+      [
+       0.481,
+       0.143
+      ],
+      [
+       0.589,
+       0.14
+      ],
+      [
+       0.609,
+       0.151
+      ],
+      [
+       0.644,
+       0.227
+      ],
+      [
+       0.644,
+       0.492
+      ],
+      [
+       0.28,
+       0.492
+      ],
+      [
+       0.488,
+       0.146,
+       0.353
+      ],
+      [
+       0.545,
+       0.146,
+       0.353
+      ],
+      [
+       0.545,
+       0.209,
+       0.353
+      ],
+      [
+       0.488,
+       0.209,
+       0.353
+      ]
+     ],
+     "hw": 0.345,
+     "back": [
+      -0.3047,
+      0.0294
+     ]
+    }
+   },
+   "storage": {
+    "extLen": 0.305,
+    "extend": "intake",
+    "box": false
+   },
+   "bay": {
+    "x0": -0.09,
+    "x1": 0.33,
+    "hw": 0.33,
+    "top": 0.55,
+    "slope": {
+     "x": 0.33,
+     "y": 0.49
+    },
+    "dome": {
+     "h": 0.05,
+     "x0": 0.302,
+     "cx": 0,
+     "cz": 0,
+     "rHole": -1
+    },
+    "floor": {
+     "a": 0.148,
+     "b": 0.25,
+     "lo": 0.125,
+     "hi": 0.205
+    },
+    "drive": "floor",
+    "driveSpeed": 2.4,
+    "feed": {
+     "x": -0.09,
+     "via": [
+      [
+       -0.14,
+       0.2
+      ],
+      [
+       -0.2,
+       0.33
+      ],
+      [
+       -0.25,
+       0.47
+      ]
+     ]
+    }
+   },
+   "shooter": {
+    "type": "fixed",
+    "facing": "back",
+    "lanes": [
+     -0.2,
+     -0.067,
+     0.067,
+     0.2
+    ],
+    "exit": {
+     "x": -0.24,
+     "y": 0.65
+    },
+    "bps": 23,
+    "hoodMin": 43,
+    "hoodMax": 76,
+    "speedMax": 10.3,
+    "spin": 0.1,
+    "spinTau": 0.25,
+    "shotDrop": 0.002,
+    "speedSigma": 0.013,
+    "angleSigma": 0.65,
+    "yawSigma": 0.65
+   },
+   "climber": null,
+   "stats": {
+    "Shot rate": "23 BPS (Champs)",
+    "Aiming": "Chassis",
+    "Top speed": "11.6 ft/s (13.2 free)",
+    "Trench": "Yes"
+   },
+   "colors": {
+    "frame": 1908516,
+    "accent": 12986408,
+    "trim": 2763825
+   }
+  },
+  "604": {
+   "key": "604",
+   "team": 604,
+   "teamName": "Quixilver",
+   "robotName": "Toploader",
+   "archetype": "Dye Rotor",
+   "blurb": "Pinnacles winner, Half Moon Bay finalist and 4th seed in the Newton Division (the Autonomous Award). One driver, fully automated scoring: a turret that shoots on the move from anywhere in its zone and feeds from outside it, fed single file by its \"Dynamic Point of Capture\" serializer, a dye rotor whose hook sweeps FUEL round a plywood bucket to omni wheels that push them up a ramp into a corrugated plastic tube to the turret. A full-width intake on independent polycarbonate arms pushes the sliding hopper out. Goes over the BUMPS (too tall for the TRENCH).",
+   "physical": "604",
+   "frame": {
+    "length": 0.6858,
+    "width": 0.6858
+   },
+   "height": 0.7493,
+   "mass": 64,
+   "drive": {
+    "ratio": 6.48,
+    "wheel": 0.099314,
+    "stator": 120,
+    "supply": 40,
+    "maxSpeed": 4.095856722747273,
+    "maxAccel": 12.753000000000002,
+    "maxOmega": 10.810780378585687,
+    "maxAlpha": 39.58282235037093
+   },
+   "intake": {
+    "width": 0.5334,
+    "reach": 0.175,
+    "rate": 200,
+    "pull": 5,
+    "deployTime": 0.45,
+    "retractTime": 0.9,
+    "side": "front",
+    "latched": false,
+    "fold": {
+     "pivot": [
+      0.3048,
+      0.2064
+     ],
+     "stowDeg": 103,
+     "hw": 0.337,
+     "hull": [
+      [
+       -0.032,
+       -0.022
+      ],
+      [
+       0.122,
+       -0.174
+      ],
+      [
+       0.297,
+       -0.096
+      ],
+      [
+       0.316,
+       0.129
+      ],
+      [
+       0.286,
+       0.131
+      ],
+      [
+       -0.024,
+       0.033
+      ],
+      [
+       -0.035,
+       0.016
+      ],
+      [
+       -0.04,
+       -0.004
+      ]
+     ]
+    }
+   },
+   "storage": {
+    "extLen": 0.2921,
+    "extend": "intake",
+    "box": {
+     "y0": 0.26,
+     "y1": 0.696,
+     "hw": 0.346
+    }
+   },
+   "bay": {
+    "x0": -0.343,
+    "x1": 0.343,
+    "hw": 0.336,
+    "top": 0.69,
+    "floor": {
+     "a": 0.154,
+     "b": 0,
+     "lo": 0.154,
+     "hi": 0.3,
+     "pts": [
+      [
+       -0.343,
+       0.154
+      ],
+      [
+       0.25,
+       0.154
+      ],
+      [
+       0.31,
+       0.255
+      ],
+      [
+       0.36,
+       0.3
+      ],
+      [
+       0.66,
+       0.3
+      ]
+     ]
+    },
+    "column": {
+     "x": -0.0254,
+     "z": 0,
+     "r": 0.0815,
+     "y1": 0.524
+    },
+    "obstacles": [
+     {
+      "x": -0.0254,
+      "z": 0,
+      "r": 0.0815,
+      "y0": 0.35,
+      "y1": 1
+     },
+     {
+      "x": -0.0254,
+      "z": 0,
+      "r": 0.12,
+      "y0": 0.15,
+      "y1": 0.35
+     },
+     {
+      "x": -0.0254,
+      "z": 0,
+      "r": 0.18,
+      "y0": 0.53,
+      "y1": 1
+     },
+     {
+      "box": [
+       -0.343,
+       -0.2,
+       0,
+       0.262,
+       -0.4,
+       -0.2
+      ]
+     },
+     {
+      "box": [
+       -0.343,
+       -0.2,
+       0,
+       0.262,
+       0.2,
+       0.4
+      ]
+     }
+    ],
+    "drive": "rotor",
+    "rotor": {
+     "x": -0.0254,
+     "z": 0,
+     "y": 0.154,
+     "r": 0.29,
+     "grip": 40,
+     "drag": 4,
+     "finR0": 0.11,
+     "spin": 15.1,
+     "idle": 0
+    },
+    "feed": {
+     "x": -0.0254,
+     "z": 0,
+     "via": [
+      [
+       0,
+       0.25,
+       0
+      ],
+      [
+       -0.025,
+       0.42,
+       0
+      ],
+      [
+       -0.025,
+       0.6,
+       0
+      ]
+     ]
+    },
+    "hook": {
+     "r0": 0.28,
+     "r1": 0.12,
+     "th0": -1.2,
+     "th1": 0.4,
+     "y0": 0.2,
+     "y1": 0.256,
+     "r": 0.014
+    }
+   },
+   "shooter": {
+    "type": "turret",
+    "turretPos": {
+     "x": -0.0254,
+     "z": 0,
+     "center": 180,
+     "start": 180
+    },
+    "exitRadius": 0.02,
+    "exitY": 0.68,
+    "turretRange": 130,
+    "turretRate": 573,
+    "bps": 15,
+    "hoodMin": 55,
+    "hoodMax": 75,
+    "speedMax": 12,
+    "spin": 0.1,
+    "spinTau": 0.3,
+    "shotDrop": 0.004,
+    "speedSigma": 0.013,
+    "angleSigma": 0.6,
+    "yawSigma": 0.6
+   },
+   "climber": null,
+   "stats": {
+    "Shot rate": "15 BPS",
+    "Aiming": "Turret",
+    "Top speed": "13.4 ft/s (15.3 free)",
+    "Trench": "No (BUMPS)"
+   },
+   "colors": {
+    "frame": 12830926,
+    "accent": 16430344,
+    "trim": 1908257
+   }
+  },
+  "971": {
+   "key": "971",
+   "team": 971,
+   "teamName": "Spartan Robotics",
+   "robotName": "Mixtape",
+   "archetype": "Twin turrets",
+   "blurb": "Two independently aimed turrets fed by a roller floor and a powered separator that splits FUEL into two streams. The hopper is pushed out by its 4-bar intake, and a net holds the load in over the top. Climbs Level 1.",
+   "frame": {
+    "length": 0.6223,
+    "width": 0.7493
+   },
+   "height": 0.5588,
+   "mass": 64,
+   "drive": {
+    "ratio": 7.03,
+    "maxSpeed": 3.8623148237043767,
+    "maxAccel": 12.483518975888883,
+    "maxOmega": 10.12351207031455,
+    "maxAlpha": 39.641586557168004
+   },
+   "intake": {
+    "width": 0.7365999999999999,
+    "reach": 0.18,
+    "rate": 200,
+    "pull": 5,
+    "deployTime": 0.35,
+    "retractTime": 0.8,
+    "side": "front",
+    "latched": false,
+    "compacts": true,
+    "compactPush": 180,
+    "compactMin": 0.34,
+    "arm": {
+     "x": 0.217,
+     "y": 0.143,
+     "len": 0.3065,
+     "stowDeg": 118.2,
+     "deployDeg": -9.4
+    }
+   },
+   "storage": {
+    "extLen": 0.28,
+    "extend": "latched"
+   },
+   "bay": {
+    "x0": 0,
+    "x1": 0.34,
+    "hw": 0.37,
+    "top": 0.54,
+    "dome": {
+     "h": 0.15,
+     "x0": 0,
+     "cx": 0,
+     "cz": 0,
+     "rHole": -1
+    },
+    "floor": {
+     "pts": [
+      [
+       -0.1,
+       0.165
+      ],
+      [
+       0.09,
+       0.175
+      ],
+      [
+       0.14,
+       0.19
+      ],
+      [
+       0.19,
+       0.23
+      ],
+      [
+       0.24,
+       0.255
+      ],
+      [
+       1,
+       0.255
+      ]
+     ]
+    },
+    "drive": "floor",
+    "driveSpeed": 2,
+    "feed": {
+     "x": 0.02,
+     "z": 0,
+     "zs": [
+      -0.12,
+      0.12
+     ],
+     "vias": [
+      [
+       [
+        -0.06,
+        0.24,
+        -0.17
+       ],
+       [
+        -0.15,
+        0.34,
+        -0.21
+       ],
+       [
+        -0.19,
+        0.46,
+        -0.21
+       ]
+      ],
+      [
+       [
+        -0.06,
+        0.24,
+        0.17
+       ],
+       [
+        -0.15,
+        0.34,
+        0.21
+       ],
+       [
+        -0.19,
+        0.46,
+        0.21
+       ]
+      ]
+     ]
+    }
+   },
+   "shooter": {
+    "type": "turret",
+    "turrets": [
+     {
+      "x": -0.148,
+      "z": -0.21,
+      "center": 135
+     },
+     {
+      "x": -0.148,
+      "z": 0.21,
+      "center": -135
+     }
+    ],
+    "turretPos": {
+     "x": -0.148,
+     "z": -0.21
+    },
+    "exitRadius": 0.1,
+    "exitY": 0.54,
+    "turretRange": 105,
+    "turretRate": 600,
+    "bps": 14,
+    "hoodMin": 35,
+    "hoodMax": 85,
+    "speedMax": 17,
+    "spinTau": 0.28,
+    "shotDrop": 0.004,
+    "speedSigma": 0.014,
+    "angleSigma": 0.7,
+    "yawSigma": 0.7
+   },
+   "climber": {
+    "maxLevel": 1,
+    "times": [
+     0,
+     2
+    ]
+   },
+   "stats": {
+    "Shot rate": "2 x 7 BPS (est.)",
+    "Aiming": "Twin turrets",
+    "Top speed": "12.7 ft/s (14.4 free)",
+    "Trench": "Yes",
+    "Climb": "Level 1"
+   },
+   "colors": {
+    "frame": 11844033,
+    "accent": 12986408,
+    "trim": 2763825
+   }
+  },
+  "1114": {
+   "key": "1114",
+   "team": 1114,
+   "teamName": "Simbotics",
+   "robotName": "Simbot Tim",
+   "archetype": "Box dumper",
+   "physical": "1114",
+   "blurb": "Archimedes Division finalist, 10-0 in qualifications, and Ontario champion. A tall clear hopper box slides out over the intake on racks, under a red \"magic blanket\" top cover (after 1124's 2008 claw). A roller floor feeds a ball elevator up the tower at the back to a hooded flywheel that fires forward over the hopper. Too tall for the TRENCH, it goes over the BUMPS.",
+   "frame": {
+    "length": 0.6223,
+    "width": 0.762
+   },
+   "height": 0.70104,
+   "mass": 64,
+   "drive": {
+    "ratio": 7.674,
+    "maxSpeed": 3.538190410560564,
+    "maxAccel": 12.753000000000002,
+    "maxOmega": 9.15380802314507,
+    "maxAlpha": 39.53083260665547
+   },
+   "intake": {
+    "width": 0.635,
+    "reach": 0.2,
+    "rate": 200,
+    "pull": 5,
+    "deployTime": 0.35,
+    "retractTime": 0.5,
+    "side": "front",
+    "latched": false
+   },
+   "storage": {
+    "extLen": 0.2945,
+    "extend": "intake",
+    "lip": [
+     0.555,
+     0.19
+    ]
+   },
+   "bay": {
+    "x0": 0,
+    "x1": 0.311,
+    "hw": 0.36,
+    "top": 0.7,
+    "dome": {
+     "h": 0.1,
+     "x0": 0,
+     "cx": 0,
+     "cz": 0,
+     "rHole": -1
+    },
+    "floor": {
+     "a": 0.077,
+     "b": 0.33,
+     "lo": 0.06,
+     "hi": 0.19
+    },
+    "drive": "floor",
+    "driveSpeed": 2.4,
+    "feed": {
+     "x": 0,
+     "via": [
+      [
+       -0.05,
+       0.15
+      ],
+      [
+       -0.09,
+       0.3
+      ],
+      [
+       -0.09,
+       0.48
+      ],
+      [
+       -0.04,
+       0.6
+      ]
+     ]
+    }
+   },
+   "shooter": {
+    "type": "fixed",
+    "facing": "front",
+    "lanes": [
+     -0.16,
+     0,
+     0.16
+    ],
+    "hood": {
+     "x": -0.0176,
+     "y": 0.5715,
+     "r": 0.1039,
+     "cadDeg": 45.6,
+     "stowDeg": 45.6
+    },
+    "bps": 26,
+    "hoodMin": 42,
+    "hoodMax": 74,
+    "speedMax": 11.4,
+    "spin": 0.1,
+    "spinTau": 0.3,
+    "shotDrop": 0.003,
+    "speedSigma": 0.012,
+    "angleSigma": 0.55,
+    "yawSigma": 0.55
+   },
+   "climber": null,
+   "stats": {
+    "Shot rate": "~14 BPS a full box, ~21 best second (physical)",
+    "Aiming": "Chassis",
+    "Top speed": "11.6 ft/s (13.2 free)",
+    "Trench": "No (BUMPS)"
+   },
+   "colors": {
+    "frame": 11844033,
+    "accent": 12592941,
+    "trim": 2763825
+   }
+  },
+  "1678": {
+   "key": "1678",
+   "team": 1678,
+   "teamName": "Citrus Circuits",
+   "robotName": "Limestone",
+   "archetype": "Drum + lift",
+   "blurb": "Milstein Division champion. A full-width drum with three hood rollers fires out the back, fed by a roller floor and ball tunnel. The hopper grows out with the intake and up with the climber, with a net stretched diagonally over the extension. Climbs Level 1.",
+   "physical": "1678",
+   "frame": {
+    "length": 0.6858,
+    "width": 0.6858
+   },
+   "height": 0.54864,
+   "mass": 65,
+   "drive": {
+    "ratio": 7.03,
+    "stator": 80,
+    "supply": 40,
+    "teleop": {
+     "stator": 60,
+     "supply": 30
+    },
+    "maxSpeed": 3.8623148237043767,
+    "maxAccel": 12.291464837798285,
+    "maxOmega": 10.19435984665431,
+    "maxAlpha": 39.58282235037093
+   },
+   "intake": {
+    "width": 0.635,
+    "reach": 0.29,
+    "rate": 200,
+    "pull": 5,
+    "deployTime": 0.3,
+    "retractTime": 0.35,
+    "side": "front",
+    "latched": false,
+    "squeeze": 0.75,
+    "compacts": true,
+    "compactPush": 180,
+    "compactMin": 0.33,
+    "arm": {
+     "x": 0.309,
+     "y": 0.169,
+     "len": 0.314,
+     "stowDeg": 132.3,
+     "deployDeg": 2.3
+    },
+    "front": 0.639
+   },
+   "storage": {
+    "extLen": 0.303,
+    "extend": "latched"
+   },
+   "bay": {
+    "x0": -0.09,
+    "x1": 0.33,
+    "hw": 0.34,
+    "top": 0.545,
+    "lift": {
+     "h": 0.21589999999999998
+    },
+    "slope": {
+     "x": 0.335,
+     "y": 0.5
+    },
+    "dome": {
+     "h": 0.25,
+     "x0": 0.335,
+     "cx": 0,
+     "cz": 0,
+     "rHole": -1
+    },
+    "floor": {
+     "a": 0.157,
+     "b": 0.3,
+     "lo": 0.12,
+     "hi": 0.23
+    },
+    "drive": "floor",
+    "driveSpeed": 2.4,
+    "feed": {
+     "x": -0.09,
+     "via": [
+      [
+       -0.14,
+       0.2
+      ],
+      [
+       -0.17,
+       0.34
+      ],
+      [
+       -0.2,
+       0.47
+      ]
+     ]
+    }
+   },
+   "shooter": {
+    "type": "fixed",
+    "facing": "back",
+    "lanes": [
+     -0.21,
+     -0.07,
+     0.07,
+     0.21
+    ],
+    "exit": {
+     "x": -0.33,
+     "y": 0.56
+    },
+    "bps": 26,
+    "hoodMin": 38,
+    "hoodMax": 76,
+    "speedMax": 18,
+    "spin": 0.4,
+    "spinTau": 0.3,
+    "shotDrop": 0.002,
+    "speedSigma": 0.015,
+    "angleSigma": 0.75,
+    "yawSigma": 0.75
+   },
+   "climber": {
+    "maxLevel": 1,
+    "times": [
+     0,
+     1.6
+    ]
+   },
+   "stats": {
+    "Shot rate": "26 BPS",
+    "Aiming": "Chassis",
+    "Top speed": "12.7 ft/s (14.4 free)",
+    "Trench": "Yes",
+    "Climb": "Level 1"
+   },
+   "colors": {
+    "frame": 1908516,
+    "accent": 6279482,
+    "trim": 2763825
+   }
+  },
+  "1690": {
+   "key": "1690",
+   "team": 1690,
+   "teamName": "Orbit",
+   "robotName": "Kepler",
+   "archetype": "Compact turret",
+   "blurb": "A compact gear-driven turret on an 8in bearing shoots on the move while the intake keeps running. A roller floor pushes FUEL back into two belts along the back, which carry them to flex wheels that kick them up into the turret, where a 4in wheel throws them out against wheels on its hood, geared to it. The intake slides out with the hopper's lattice front, under a thin polycarbonate top that bows up over a full load.",
+   "physical": "1690",
+   "frame": {
+    "length": 0.635,
+    "width": 0.7365999999999999
+   },
+   "height": 0.553,
+   "mass": 63,
+   "drive": {
+    "ratio": 7.73,
+    "inverted": true,
+    "moduleAt": [
+     0.2505,
+     0.3013
+    ],
+    "maxSpeed": 3.512557983265429,
+    "maxAccel": 12.753000000000002,
+    "maxOmega": 8.964459990392845,
+    "maxAlpha": 40.79348768634935
+   },
+   "intake": {
+    "width": 0.6476999999999999,
+    "reach": 0.2,
+    "rate": 200,
+    "pull": 5,
+    "deployTime": 0.3,
+    "side": "front",
+    "latched": true
+   },
+   "storage": {
+    "extLen": 0.3,
+    "extend": "latched",
+    "box": {
+     "y0": 0.2,
+     "y1": 0.482,
+     "hw": 0.362
+    }
+   },
+   "bay": {
+    "x0": -0.21,
+    "x1": 0.3175,
+    "hw": 0.355,
+    "top": 0.551,
+    "dome": {
+     "h": 0.01,
+     "x0": -0.02,
+     "cx": 0,
+     "cz": 0,
+     "rHole": -1
+    },
+    "floor": {
+     "a": 0.16,
+     "b": 0.07,
+     "lo": 0.14,
+     "hi": 0.18
+    },
+    "drive": "floor",
+    "driveSpeed": 2,
+    "feed": {
+     "x": -0.134,
+     "z": -0.187,
+     "via": [
+      [
+       -0.134,
+       0.3,
+       -0.19
+      ],
+      [
+       -0.134,
+       0.45,
+       -0.187
+      ]
+     ]
+    }
+   },
+   "shooter": {
+    "type": "turret",
+    "turretPos": {
+     "x": -0.134,
+     "z": -0.1872
+    },
+    "exitRadius": 0.03,
+    "exitY": 0.66,
+    "turretRange": 200,
+    "turretRate": 720,
+    "bps": 13,
+    "hoodMin": 37,
+    "hoodMax": 83,
+    "speedMax": 10.6,
+    "spin": 0.2,
+    "spinTau": 0.3,
+    "shotDrop": 0.006,
+    "speedSigma": 0.012,
+    "angleSigma": 0.55,
+    "yawSigma": 0.55
+   },
+   "climber": null,
+   "stats": {
+    "Shot rate": "13 BPS",
+    "Aiming": "Turret",
+    "Top speed": "11.5 ft/s (13.1 free)",
+    "Trench": "Yes"
+   },
+   "colors": {
+    "frame": 2764083,
+    "accent": 2977750,
+    "trim": 10133672
+   }
+  },
+  "1706": {
+   "key": "1706",
+   "team": 1706,
+   "teamName": "Ratchet Rockers",
+   "robotName": "Mirage",
+   "archetype": "Twin spindexers",
+   "blurb": "Seeing double: two spindexers side by side under a deep hopper, each feeding its own turret. The intake folds up inside the hopper and pushes it out as it deploys, and a net over the top stretches as the load grows. 45-2 in 2026.",
+   "physical": "1706",
+   "frame": {
+    "length": 0.64008,
+    "width": 0.7493
+   },
+   "height": 0.54864,
+   "mass": 64,
+   "drive": {
+    "ratio": 6.75,
+    "maxSpeed": 4.022529364539522,
+    "maxAccel": 11.986309116251773,
+    "maxOmega": 10.391852812980277,
+    "maxAlpha": 39.456647320336955
+   },
+   "intake": {
+    "width": 0.6604,
+    "reach": 0.2,
+    "rate": 200,
+    "pull": 5,
+    "deployTime": 0.35,
+    "retractTime": 0.8,
+    "side": "front",
+    "latched": false,
+    "compacts": true,
+    "compactPush": 180,
+    "compactMin": 0.318,
+    "arm": {
+     "x": 0.262,
+     "y": 0.168,
+     "len": 0.36,
+     "stowDeg": 86.5,
+     "deployDeg": -17.5
+    }
+   },
+   "storage": {
+    "extLen": 0.3,
+    "extend": "intake",
+    "lip": [
+     0.575,
+     0.2
+    ]
+   },
+   "bay": {
+    "x0": -0.14,
+    "x1": 0.318,
+    "hw": 0.37,
+    "top": 0.548,
+    "dome": {
+     "h": 0.15,
+     "x0": -0.01,
+     "cx": 0,
+     "cz": 0,
+     "rHole": -1
+    },
+    "floor": {
+     "a": 0.16,
+     "b": 0,
+     "lo": 0.16,
+     "hi": 0.16
+    },
+    "funnel": {
+     "slope": 0.45,
+     "cap": 0.2
+    },
+    "obstacles": [
+     {
+      "x": 0.0865,
+      "z": -0.1735,
+      "r": 0.05,
+      "y0": 0.2,
+      "y1": 0.32
+     },
+     {
+      "x": 0.0865,
+      "z": 0.1735,
+      "r": 0.05,
+      "y0": 0.2,
+      "y1": 0.32
+     },
+     {
+      "box": [
+       -0.5,
+       -0.025,
+       0.33,
+       1.5,
+       -0.5,
+       -0.07
+      ]
+     },
+     {
+      "box": [
+       -0.5,
+       -0.025,
+       0.33,
+       1.5,
+       0.07,
+       0.5
+      ]
+     },
+     {
+      "box": [
+       -0.5,
+       -0.07,
+       0.43,
+       1.5,
+       -0.07,
+       0.07
+      ]
+     },
+     {
+      "box": [
+       -0.5,
+       -0.11,
+       0.33,
+       0.43,
+       -0.07,
+       0.07
+      ]
+     }
+    ],
+    "drive": "rotor",
+    "rotors": [
+     {
+      "x": 0.0885,
+      "z": -0.1775,
+      "y": 0.16,
+      "r": 0.138,
+      "grip": 70,
+      "drag": 60,
+      "finR0": 0,
+      "spin": 20,
+      "idle": -0.5,
+      "dir": 1
+     },
+     {
+      "x": 0.0885,
+      "z": 0.1775,
+      "y": 0.16,
+      "r": 0.138,
+      "grip": 70,
+      "drag": 60,
+      "finR0": 0,
+      "spin": 20,
+      "idle": -0.5,
+      "dir": -1
+     }
+    ],
+    "feed": {
+     "x": -0.03,
+     "zs": [
+      -0.19,
+      0.19
+     ],
+     "reach": 0.2,
+     "vias": [
+      [
+       [
+        -0.09,
+        0.28,
+        -0.2
+       ],
+       [
+        -0.15,
+        0.42,
+        -0.22
+       ]
+      ],
+      [
+       [
+        -0.09,
+        0.28,
+        0.2
+       ],
+       [
+        -0.15,
+        0.42,
+        0.22
+       ]
+      ]
+     ]
+    }
+   },
+   "shooter": {
+    "type": "turret",
+    "turrets": [
+     {
+      "x": -0.1651,
+      "z": -0.222,
+      "center": 90
+     },
+     {
+      "x": -0.1651,
+      "z": 0.222,
+      "center": -90
+     }
+    ],
+    "turretPos": {
+     "x": -0.1651,
+     "z": -0.222
+    },
+    "exitRadius": 0.06,
+    "exitY": 0.62,
+    "turretRange": 170,
+    "turretRate": 600,
+    "bps": 12.5,
+    "hoodMin": 38,
+    "hoodMax": 84,
+    "speedMax": 9.5,
+    "spin": 0.1,
+    "spinTau": 0.3,
+    "shotDrop": 0.004,
+    "speedSigma": 0.013,
+    "angleSigma": 0.6,
+    "yawSigma": 0.6
+   },
+   "climber": null,
+   "stats": {
+    "Shot rate": "12-13 BPS (2 turrets)",
+    "Aiming": "Twin turrets",
+    "Top speed": "13.2 ft/s (15.0 free)",
+    "Trench": "Yes"
+   },
+   "colors": {
+    "frame": 12830926,
+    "accent": 2772917,
+    "trim": 2764083
+   }
+  },
+  "2056": {
+   "key": "2056",
+   "team": 2056,
+   "teamName": "OP Robotics",
+   "robotName": "Desperate Measures",
+   "archetype": "Compact turret",
+   "blurb": "A turret on an 8in bearing that shoots on the move and passes from anywhere. A roller floor under a net carries FUEL back to two belts along the back, which run them into a quarter pipe and up between two Stealth wheels into the turret, where a 4in urethane wheel throws them against a backspin kicker on the hood's arm. The two-roller intake slides out on polycarbonate racks.",
+   "physical": "2056",
+   "frame": {
+    "length": 0.6476999999999999,
+    "width": 0.7493
+   },
+   "height": 0.5588,
+   "mass": 63.5,
+   "drive": {
+    "ratio": 7.03,
+    "stator": 100,
+    "supply": 60,
+    "moduleAt": [
+     0.25082499999999996,
+     0.301625
+    ],
+    "maxSpeed": 3.8623148237043767,
+    "maxAccel": 12.753000000000002,
+    "maxOmega": 9.845580156940596,
+    "maxAlpha": 39.65948030591392
+   },
+   "intake": {
+    "width": 0.5969,
+    "reach": 0.22,
+    "rate": 200,
+    "pull": 5,
+    "deployTime": 0.35,
+    "side": "front",
+    "latched": true
+   },
+   "storage": {
+    "extLen": 0.31,
+    "extend": "latched",
+    "box": {
+     "y0": 0.2,
+     "y1": 0.467,
+     "hw": 0.352
+    }
+   },
+   "bay": {
+    "x0": -0.21,
+    "x1": 0.324,
+    "hw": 0.346,
+    "top": 0.533,
+    "dome": {
+     "h": 0.01,
+     "x0": -0.02,
+     "cx": 0,
+     "cz": 0,
+     "rHole": -1
+    },
+    "floor": {
+     "a": 0.16,
+     "b": 0.07,
+     "lo": 0.141,
+     "hi": 0.183
+    },
+    "drive": "floor",
+    "driveSpeed": 2,
+    "feed": {
+     "x": -0.1334,
+     "z": 0.1842,
+     "via": [
+      [
+       -0.134,
+       0.3,
+       0.184
+      ],
+      [
+       -0.134,
+       0.45,
+       0.184
+      ]
+     ]
+    }
+   },
+   "shooter": {
+    "type": "turret",
+    "turretPos": {
+     "x": -0.13335,
+     "z": 0.18414999999999998
+    },
+    "exitRadius": 0.098,
+    "exitY": 0.6703,
+    "turretRange": 185,
+    "turretRate": 720,
+    "bps": 15,
+    "hoodMin": 37,
+    "hoodMax": 70,
+    "speedMax": 9.7,
+    "spin": 0.3,
+    "spinTau": 0.3,
+    "shotDrop": 0.006,
+    "speedSigma": 0.012,
+    "angleSigma": 0.55,
+    "yawSigma": 0.55
+   },
+   "climber": null,
+   "stats": {
+    "Shot rate": "",
+    "Aiming": "Turret",
+    "Top speed": "12.7 ft/s (14.4 free)",
+    "Trench": "Yes"
+   },
+   "colors": {
+    "frame": 12107204,
+    "accent": 2781144,
+    "trim": 1908516
+   }
+  },
+  "2910": {
+   "key": "2910",
+   "team": 2910,
+   "teamName": "Jack in the Bot",
+   "robotName": "Re•Blitz",
+   "archetype": "Dumper",
+   "physical": "2910",
+   "blurb": "Huge hopper and a 4-wide drum shooter fixed to the chassis — the whole robot rotates to aim. Unloads about 25 FUEL per second (30 in short volleys).",
+   "frame": {
+    "length": 0.6858,
+    "width": 0.6985
+   },
+   "height": 0.5461,
+   "mass": 64,
+   "drive": {
+    "ratio": 7.03,
+    "stator": 100,
+    "supply": 40,
+    "teleop": {
+     "stator": 120
+    },
+    "maxSpeed": 3.8623148237043767,
+    "maxAccel": 12.753000000000002,
+    "maxOmega": 10.07426612753402,
+    "maxAlpha": 39.4646847410379
+   },
+   "intake": {
+    "width": 0.6476999999999999,
+    "reach": 0.19812,
+    "rate": 200,
+    "pull": 5,
+    "deployTime": 0.35,
+    "retractTime": 1.6,
+    "side": "front",
+    "latched": false,
+    "compacts": true,
+    "arm": {
+     "x": 0.273,
+     "y": 0.17,
+     "len": 0.338,
+     "stowDeg": 112.5,
+     "deployDeg": -1.8
+    },
+    "compactPush": 180
+   },
+   "storage": {
+    "capacity": 60,
+    "retracted": 40,
+    "extLen": 0.3,
+    "extend": "latched"
+   },
+   "bay": {
+    "x0": -0.143,
+    "x1": 0.335,
+    "hw": 0.345,
+    "top": 0.54,
+    "bevel": {
+     "dx": 0.16,
+     "y": 0.41
+    },
+    "floor": {
+     "a": 0.1,
+     "b": 0.266,
+     "lo": 0.09,
+     "hi": 0.17
+    },
+    "drive": "floor",
+    "driveSpeed": 3,
+    "feed": {
+     "x": -0.09,
+     "via": [
+      [
+       -0.1,
+       0.25
+      ],
+      [
+       -0.12,
+       0.38
+      ],
+      [
+       -0.166,
+       0.418
+      ]
+     ],
+     "reach": 0.12,
+     "speed": 1.65
+    }
+   },
+   "shooter": {
+    "type": "fixed",
+    "facing": "back",
+    "lanes": [
+     -0.19,
+     -0.063,
+     0.063,
+     0.19
+    ],
+    "hood": {
+     "x": -0.283,
+     "y": 0.47,
+     "r": 0.1165,
+     "cadDeg": 79,
+     "stowDeg": 74
+    },
+    "bps": 25,
+    "feedPaced": true,
+    "hoodMin": 42,
+    "hoodMax": 74,
+    "speedMax": 17,
+    "spin": 0.18,
+    "spinTau": 0.33,
+    "shotDrop": 0.002,
+    "speedSigma": 0.016,
+    "angleSigma": 0.8,
+    "yawSigma": 0.8
+   },
+   "climber": null,
+   "stats": {
+    "Shot rate": "25 BPS",
+    "Aiming": "Chassis",
+    "Top speed": "12.7 ft/s (14.4 free)",
+    "Trench": "Yes"
+   },
+   "colors": {
+    "frame": 12172997,
+    "accent": 6054248,
+    "trim": 13028305
+   }
+  },
+  "3928": {
+   "key": "3928",
+   "team": 3928,
+   "teamName": "Team Neutrino",
+   "robotName": "",
+   "archetype": "Spindexer tower",
+   "blurb": "A 5-spoke spindexer with a cone in the middle turns the load round to a tower in the back corner, which lifts FUEL single file to a turret on top. Tall walls and a slide-out intake box make a deep hopper. Too tall for the TRENCH, it goes over the BUMPS.",
+   "frame": {
+    "length": 0.6858,
+    "width": 0.6858
+   },
+   "height": 0.74422,
+   "mass": 64,
+   "drive": {
+    "ratio": 7.03,
+    "maxSpeed": 3.8623148237043767,
+    "maxAccel": 12.483518975888883,
+    "maxOmega": 10.19435984665431,
+    "maxAlpha": 39.58282235037093
+   },
+   "intake": {
+    "width": 0.6604,
+    "reach": 0.19,
+    "rate": 200,
+    "pull": 5,
+    "deployTime": 0.4,
+    "side": "front",
+    "latched": true
+   },
+   "storage": {
+    "capacity": 80,
+    "extLen": 0.3,
+    "extend": "latched"
+   },
+   "bay": {
+    "x0": -0.33,
+    "x1": 0.33,
+    "hw": 0.33,
+    "top": 0.74,
+    "dome": {
+     "h": 0.15,
+     "x0": -0.33,
+     "cx": -0.154,
+     "cz": 0.0985,
+     "rHole": 0.22
+    },
+    "floor": {
+     "a": 0.105,
+     "b": 0,
+     "lo": 0.105,
+     "hi": 0.105
+    },
+    "funnel": {
+     "slope": 0.35,
+     "cap": 0.3
+    },
+    "obstacles": [
+     {
+      "x": 0.1125,
+      "z": -0.0175,
+      "r": 0.055,
+      "y0": 0.1,
+      "y1": 0.29
+     },
+     {
+      "box": [
+       -0.33,
+       -0.1,
+       0,
+       1,
+       -0.02,
+       0.2
+      ]
+     },
+     {
+      "box": [
+       -0.04,
+       0.11,
+       0.2,
+       0.52,
+       0.19,
+       0.33
+      ]
+     }
+    ],
+    "drive": "rotor",
+    "rotor": {
+     "x": 0.1125,
+     "z": -0.0175,
+     "y": 0.105,
+     "r": 0.2,
+     "grip": 160,
+     "drag": 35,
+     "finR0": 0.06,
+     "fins": 5,
+     "spin": -18,
+     "idle": -0.5
+    },
+    "feed": {
+     "x": -0.05,
+     "z": 0.07,
+     "reach": 0.18,
+     "via": [
+      [
+       -0.09,
+       0.2,
+       0.09
+      ],
+      [
+       -0.15,
+       0.4,
+       0.09
+      ],
+      [
+       -0.15,
+       0.6,
+       0.095
+      ]
+     ]
+    }
+   },
+   "shooter": {
+    "type": "turret",
+    "turretPos": {
+     "x": -0.154,
+     "z": 0.0985
+    },
+    "exitRadius": 0.1,
+    "exitY": 0.76,
+    "turretRange": 180,
+    "turretRate": 600,
+    "bps": 12,
+    "hoodMin": 42,
+    "hoodMax": 80,
+    "speedMax": 16,
+    "spinTau": 0.3,
+    "shotDrop": 0.005,
+    "speedSigma": 0.014,
+    "angleSigma": 0.7,
+    "yawSigma": 0.7
+   },
+   "climber": null,
+   "stats": {
+    "Shot rate": "12 BPS",
+    "Aiming": "Turret",
+    "Top speed": "12.7 ft/s (14.4 free)",
+    "Trench": "No (BUMPS)"
+   },
+   "colors": {
+    "frame": 2763825,
+    "accent": 15763996,
+    "trim": 12172997
+   }
+  },
+  "4414": {
+   "key": "4414",
+   "team": 4414,
+   "teamName": "HighTide",
+   "robotName": "RIPCURRENT",
+   "archetype": "Dye Rotor",
+   "blurb": "Extending hopper holds about 88 FUEL under a stretchy net. A Dye Rotor single-streams FUEL into a turret shooter (about 14 FUEL per second) with precomputed shoot-on-the-move.",
+   "physical": "4414",
+   "frame": {
+    "length": 0.635,
+    "width": 0.8128,
+    "chamfer": 0.08672102448427663
+   },
+   "height": 0.55245,
+   "mass": 64,
+   "drive": {
+    "ratio": 7.67,
+    "inverted": true,
+    "maxSpeed": 3.540035620683412,
+    "maxAccel": 12.753000000000002,
+    "maxOmega": 8.62059746121946,
+    "maxAlpha": 38.938717384545
+   },
+   "intake": {
+    "width": 0.762,
+    "reach": 0.22245000000000004,
+    "rate": 200,
+    "pull": 5,
+    "deployTime": 0.4,
+    "side": "front",
+    "latched": true,
+    "lip": {
+     "x": 0.4,
+     "y": 0.29,
+     "entry": 0.35
+    }
+   },
+   "storage": {
+    "capacity": 88,
+    "retracted": 58,
+    "extLen": 0.27,
+    "extend": "latched"
+   },
+   "bay": {
+    "x0": -0.3429,
+    "x1": 0.317,
+    "hw": 0.43179999999999996,
+    "top": 0.53,
+    "chamfer": 0.10160000000000002,
+    "wallTop": 0.53,
+    "dome": {
+     "h": 0.27,
+     "x0": -0.165,
+     "cx": -0.02,
+     "cz": 0,
+     "rHole": 0.2
+    },
+    "floor": {
+     "a": 0.105,
+     "b": 0,
+     "lo": 0.105,
+     "hi": 0.105
+    },
+    "ramp": {
+     "x": 0.4,
+     "y": 0.19,
+     "fwd": 1.05,
+     "lo": 0.02,
+     "lift": 0.03
+    },
+    "column": {
+     "x": -0.02,
+     "z": 0,
+     "r": 0.12,
+     "y1": 0.41
+    },
+    "obstacles": [
+     {
+      "x": -0.02,
+      "z": 0,
+      "r": 0.12,
+      "y0": 0.1,
+      "y1": 1
+     },
+     {
+      "x": -0.02,
+      "z": 0,
+      "r": 0.16,
+      "y0": 0.42,
+      "y1": 1
+     }
+    ],
+    "drive": "rotor",
+    "rotor": {
+     "x": -0.02,
+     "z": 0,
+     "y": 0.105,
+     "r": 0.285,
+     "grip": 40,
+     "drag": 4,
+     "finR0": 0.175,
+     "spin": 14.1,
+     "idle": -0.6
+    },
+    "feed": {
+     "x": -0.02,
+     "z": 0.21,
+     "via": [
+      [
+       0,
+       0.25,
+       0.2
+      ],
+      [
+       -0.04,
+       0.34,
+       0.17
+      ],
+      [
+       -0.02,
+       0.46,
+       0
+      ]
+     ]
+    },
+    "hook": {
+     "r0": 0.27,
+     "r1": 0.15,
+     "th0": -1.15,
+     "th1": 0.25,
+     "y0": 0.1,
+     "y1": 0.2,
+     "r": 0.014
+    }
+   },
+   "shooter": {
+    "type": "turret",
+    "turretPos": {
+     "x": -0.02,
+     "z": 0
+    },
+    "exitRadius": 0.1,
+    "exitY": 0.53,
+    "turretRange": 200,
+    "turretRate": 720,
+    "bps": 14,
+    "hoodMin": 44,
+    "hoodMax": 82,
+    "speedMax": 16,
+    "spin": 0.38,
+    "spinTau": 0.25,
+    "shotDrop": 0.005,
+    "speedSigma": 0.013,
+    "angleSigma": 0.6,
+    "yawSigma": 0.6
+   },
+   "climber": null,
+   "stats": {
+    "Shot rate": "14 BPS",
+    "Aiming": "Turret",
+    "Top speed": "11.6 ft/s (13.2 free)",
+    "Trench": "Yes"
+   },
+   "colors": {
+    "frame": 1024945,
+    "accent": 1024945,
+    "trim": 2830134
+   }
+  },
+  "4930": {
+   "key": "4930",
+   "team": 4930,
+   "teamName": "Electric Mayhem",
+   "robotName": "Floyd 2",
+   "archetype": "Triple shooter",
+   "blurb": "Three hooded flywheel shooters side by side, fixed to the chassis and firing forward over the intake: the robot drives at the HUB to aim. A belt floor carries FUEL back to an updexer that lifts it into all three. Too tall for the TRENCH, it goes over the BUMPS.",
+   "frame": {
+    "length": 0.6730999999999999,
+    "width": 0.7239
+   },
+   "height": 0.65532,
+   "mass": 65,
+   "drive": {
+    "ratio": 6.75,
+    "maxSpeed": 4.022529364539522,
+    "maxAccel": 11.80190436061713,
+    "maxOmega": 10.360302309158635,
+    "maxAlpha": 39.35314613247539
+   },
+   "intake": {
+    "width": 0.7111999999999999,
+    "reach": 0.2,
+    "rate": 200,
+    "pull": 5,
+    "deployTime": 0.35,
+    "retractTime": 0.8,
+    "side": "front",
+    "latched": false,
+    "compacts": true,
+    "compactPush": 180,
+    "compactMin": 0.33,
+    "arm": {
+     "x": 0.2355,
+     "y": 0.2005,
+     "len": 0.401,
+     "stowDeg": 67.3,
+     "deployDeg": -22.7
+    },
+    "fold": {
+     "pivot": [
+      0.2355,
+      0.2005
+     ],
+     "stowDeg": 90,
+     "hull": [
+      [
+       -0.03,
+       0.02
+      ],
+      [
+       0.2,
+       0.17
+      ],
+      [
+       0.37,
+       0.17
+      ],
+      [
+       0.39,
+       0
+      ],
+      [
+       0.39,
+       -0.13
+      ],
+      [
+       0.35,
+       -0.16
+      ],
+      [
+       0.02,
+       -0.16
+      ],
+      [
+       -0.03,
+       -0.05
+      ]
+     ]
+    }
+   },
+   "storage": {
+    "extLen": 0.22,
+    "extend": "intake"
+   },
+   "bay": {
+    "x0": -0.02,
+    "x1": 0.33,
+    "hw": 0.31,
+    "top": 0.55,
+    "slope": {
+     "x": 0.12,
+     "y": 0.37
+    },
+    "dome": {
+     "h": 0.3,
+     "x0": 0.12,
+     "cx": 0,
+     "cz": 0,
+     "rHole": -1
+    },
+    "floor": {
+     "a": 0.11,
+     "b": 0.385,
+     "lo": 0.11,
+     "hi": 0.23
+    },
+    "drive": "floor",
+    "driveSpeed": 2.2,
+    "feed": {
+     "x": 0,
+     "via": [
+      [
+       -0.08,
+       0.2
+      ],
+      [
+       -0.19,
+       0.36
+      ],
+      [
+       -0.19,
+       0.52
+      ]
+     ]
+    }
+   },
+   "shooter": {
+    "type": "fixed",
+    "facing": "front",
+    "lanes": [
+     -0.205,
+     0,
+     0.205
+    ],
+    "exit": {
+     "x": -0.07,
+     "y": 0.68
+    },
+    "bps": 18,
+    "hoodMin": 40,
+    "hoodMax": 78,
+    "speedMax": 17,
+    "spinTau": 0.35,
+    "shotDrop": 0.003,
+    "speedSigma": 0.016,
+    "angleSigma": 0.8,
+    "yawSigma": 0.8
+   },
+   "climber": null,
+   "stats": {
+    "Shot rate": "18 BPS (3 lanes)",
+    "Aiming": "Chassis",
+    "Top speed": "13.2 ft/s (15.0 free)",
+    "Trench": "No (BUMPS)"
+   },
+   "colors": {
+    "frame": 11844033,
+    "accent": 4170573,
+    "trim": 13134773
+   }
+  },
+  "4946": {
+   "key": "4946",
+   "team": 4946,
+   "teamName": "The Alpha Dogs",
+   "robotName": "Moto Moto",
+   "archetype": "Round Dye Rotor",
+   "blurb": "A round robot: a 35in hopper around a turret on the center of rotation, fed by a Dye Rotor tray. Its intake slides out with a net stretched from the hopper down to it. Too tall for the TRENCH, it goes over the BUMPS.",
+   "frame": {
+    "length": 0.77,
+    "width": 0.83185,
+    "round": {
+     "r": 0.415925,
+     "cx": 0.03092499999999998,
+     "front": 0.762
+    }
+   },
+   "height": 0.7493,
+   "mass": 66,
+   "drive": {
+    "ratio": 7.91,
+    "maxSpeed": 3.4326261960356215,
+    "maxAccel": 12.753000000000002,
+    "maxOmega": 10.140717669856166,
+    "maxAlpha": 27.447936425983865
+   },
+   "intake": {
+    "width": 0.6858,
+    "reach": 0.22,
+    "rate": 200,
+    "pull": 5,
+    "deployTime": 0.35,
+    "side": "front",
+    "latched": false
+   },
+   "storage": {
+    "extLen": 0.2,
+    "extend": "intake"
+   },
+   "bay": {
+    "x0": -0.415,
+    "x1": 0.37,
+    "hw": 0.445,
+    "top": 0.64,
+    "round": {
+     "x": 0.03092499999999998,
+     "r": 0.4445
+    },
+    "taper": {
+     "pts": [
+      [
+       0.031,
+       0.445
+      ],
+      [
+       0.385,
+       0.41
+      ]
+     ]
+    },
+    "slope": {
+     "x": 0.37,
+     "y": 0.46
+    },
+    "floor": {
+     "a": 0.2,
+     "b": 0,
+     "lo": 0.2,
+     "hi": 0.2
+    },
+    "obstacles": [
+     {
+      "x": 0.02,
+      "z": 0,
+      "r": 0.15,
+      "y0": 0.15,
+      "y1": 1
+     }
+    ],
+    "drive": "rotor",
+    "rotor": {
+     "x": 0.02,
+     "z": 0,
+     "y": 0.2,
+     "r": 0.38,
+     "grip": 30,
+     "drag": 6,
+     "finR0": 0.16,
+     "sweep": 0.6,
+     "pull": 1,
+     "spin": 9,
+     "idle": -0.5
+    },
+    "funnel": {
+     "slope": 1.8,
+     "cap": 0.13
+    },
+    "feed": {
+     "x": 0.217,
+     "z": -0.14,
+     "rotates": true,
+     "via": [
+      [
+       0.142,
+       0.3,
+       -0.087
+      ],
+      [
+       0.061,
+       0.5,
+       -0.029
+      ],
+      [
+       0.02,
+       0.66,
+       0
+      ]
+     ]
+    }
+   },
+   "shooter": {
+    "type": "turret",
+    "turretPos": {
+     "x": 0.02,
+     "z": 0
+    },
+    "exitRadius": 0.1,
+    "exitY": 0.72,
+    "turretRange": 200,
+    "turretRate": 720,
+    "bps": 14,
+    "hoodMin": 40,
+    "hoodMax": 80,
+    "speedMax": 17,
+    "spinTau": 0.28,
+    "shotDrop": 0.004,
+    "speedSigma": 0.013,
+    "angleSigma": 0.6,
+    "yawSigma": 0.6
+   },
+   "climber": null,
+   "stats": {
+    "Shot rate": "14 BPS",
+    "Aiming": "Turret",
+    "Top speed": "11.3 ft/s (12.8 free)",
+    "Trench": "No (BUMPS)"
+   },
+   "colors": {
+    "frame": 10133672,
+    "accent": 13840175,
+    "trim": 1908516
+   }
+  },
+  "6328": {
+   "key": "6328",
+   "team": 6328,
+   "teamName": "Mechanical Advantage",
+   "robotName": "Darwin",
+   "archetype": "Drum dumper",
+   "blurb": "Full-width drum launcher: a slap-down single-roller intake pulls the hopper's front out with it on a pin and slot, a nine-roller floor (their \"Superdexer\") feeds two kickers up into a 4in drum under a carbon-fiber hood, throwing FUEL out over the back. The robot turns to aim and launches on the move; while it launches the intake comes slowly back up, sweeping the load toward the launcher. A net over the hopper flexes up as it fills. Fits under the TRENCH.",
+   "physical": "6328",
+   "frame": {
+    "length": 0.6730999999999999,
+    "width": 0.6985
+   },
+   "height": 0.556,
+   "mass": 68,
+   "drive": {
+    "ratio": 7.03125,
+    "wheel": 0.101092,
+    "stator": 80,
+    "supply": 50,
+    "teleop": {
+     "stator": 80,
+     "supply": 35
+    },
+    "moduleAt": [
+     0.269875,
+     0.28257499999999997
+    ],
+    "maxSpeed": 3.842320049008151,
+    "maxAccel": 11.81033512292026,
+    "maxOmega": 9.833334913637305,
+    "maxAlpha": 40.81465412333202
+   },
+   "intake": {
+    "width": 0.5461,
+    "reach": 0.19,
+    "rate": 200,
+    "pull": 5,
+    "deployTime": 0.35,
+    "retractTime": 0.7,
+    "side": "front",
+    "latched": false,
+    "fold": {
+     "pivot": [
+      0.317,
+      0.1855
+     ],
+     "stowDeg": 128.4,
+     "hw": 0.325,
+     "hull": [
+      [
+       -0.03,
+       0.04
+      ],
+      [
+       0.17,
+       0.09
+      ],
+      [
+       0.334,
+       0.045
+      ],
+      [
+       0.335,
+       -0.035
+      ],
+      [
+       0.29,
+       -0.06
+      ],
+      [
+       0.175,
+       -0.141
+      ],
+      [
+       0.14,
+       -0.141
+      ],
+      [
+       0,
+       -0.05
+      ]
+     ]
+    }
+   },
+   "storage": {
+    "extLen": 0.313,
+    "extend": "intake",
+    "box": {
+     "y0": 0.25,
+     "y1": 0.51,
+     "hw": 0.346
+    }
+   },
+   "bay": {
+    "x0": -0.1,
+    "x1": 0.34,
+    "hw": 0.334,
+    "top": 0.555,
+    "slope": {
+     "x": 0,
+     "y": 0.555
+    },
+    "dome": {
+     "h": 0.08,
+     "x0": 0,
+     "cx": 0,
+     "cz": 0,
+     "rHole": -1
+    },
+    "floor": {
+     "a": 0.21,
+     "b": 0.11,
+     "lo": 0.19,
+     "hi": 0.235
+    },
+    "drive": "floor",
+    "driveSpeed": 3,
+    "feed": {
+     "x": -0.1,
+     "via": [
+      [
+       -0.16,
+       0.26
+      ],
+      [
+       -0.17,
+       0.36
+      ],
+      [
+       -0.16,
+       0.48
+      ]
+     ]
+    }
+   },
+   "shooter": {
+    "type": "fixed",
+    "facing": "back",
+    "lanes": [
+     -0.2,
+     -0.067,
+     0.067,
+     0.2
+    ],
+    "hood": {
+     "x": -0.2639,
+     "y": 0.4861,
+     "r": 0.115,
+     "cadDeg": 80,
+     "stowDeg": 80
+    },
+    "exit": {
+     "x": -0.18,
+     "y": 0.6
+    },
+    "bps": 24,
+    "hoodMin": 49,
+    "hoodMax": 80,
+    "speedMax": 12,
+    "spin": 0.4,
+    "spinTau": 0.3,
+    "shotDrop": 0.002,
+    "speedSigma": 0.013,
+    "angleSigma": 0.6,
+    "yawSigma": 0.6
+   },
+   "climber": null,
+   "stats": {
+    "Shot rate": "24 BPS (binder)",
+    "Aiming": "Chassis",
+    "Top speed": "12.6 ft/s (14.3 free)",
+    "Trench": "Yes"
+   },
+   "colors": {
+    "frame": 1908516,
+    "accent": 2052031,
+    "trim": 14725152
+   }
+  },
+  "7769": {
+   "key": "7769",
+   "team": 7769,
+   "teamName": "The CREW",
+   "robotName": "CHUNK",
+   "archetype": "Dumper",
+   "blurb": "Michigan champion and Einstein alliance member, third in the world by EPA. A linear intake slides out on polycarbonate racks, pulling the hopper's front with it; ten timing belts carry FUEL back to a static ramp where compliant and vectored wheels roll them, two abreast, into a 16.5in-wide shooter: two stacks of 4in Stealth wheels flinging them out the back under a static hood. The intake shuffles in and out while it shoots (their \"Truffle Shuffle\"). Fits under the TRENCH.",
+   "physical": "7769",
+   "frame": {
+    "length": 0.6476999999999999,
+    "width": 0.7493
+   },
+   "height": 0.555,
+   "mass": 66,
+   "drive": {
+    "ratio": 7.03,
+    "moduleAt": [
+     0.2508,
+     0.3016
+    ],
+    "maxSpeed": 3.8623148237043767,
+    "maxAccel": 12.105230522074068,
+    "maxOmega": 9.846463847865826,
+    "maxAlpha": 39.65592098518852
+   },
+   "intake": {
+    "width": 0.56642,
+    "reach": 0.21,
+    "rate": 200,
+    "pull": 5,
+    "deployTime": 0.6,
+    "retractTime": 0.7,
+    "side": "front",
+    "latched": true
+   },
+   "storage": {
+    "extLen": 0.3,
+    "extend": "latched",
+    "box": {
+     "y0": 0.232,
+     "y1": 0.494,
+     "hw": 0.346
+    }
+   },
+   "bay": {
+    "x0": -0.17,
+    "x1": 0.31,
+    "hw": 0.34,
+    "top": 0.552,
+    "dome": {
+     "h": 0.02,
+     "x0": -0.02,
+     "cx": 0,
+     "cz": 0,
+     "rHole": -1
+    },
+    "floor": {
+     "a": 0.174,
+     "b": 0.222,
+     "lo": 0.15,
+     "hi": 0.22
+    },
+    "drive": "floor",
+    "driveSpeed": 2.9,
+    "feed": {
+     "x": -0.15,
+     "via": [
+      [
+       -0.2,
+       0.3
+      ],
+      [
+       -0.2,
+       0.42
+      ],
+      [
+       -0.15,
+       0.6
+      ]
+     ]
+    }
+   },
+   "shooter": {
+    "type": "fixed",
+    "facing": "back",
+    "lanes": [
+     -0.095,
+     0.095
+    ],
+    "hood": {
+     "x": -0.2286,
+     "y": 0.4953,
+     "r": 0.123,
+     "cadDeg": 79,
+     "stowDeg": 79
+    },
+    "bps": 20,
+    "hoodMin": 37,
+    "hoodMax": 79,
+    "speedMax": 11,
+    "spin": 0.9,
+    "spinTau": 0.2,
+    "shotDrop": 0.003,
+    "speedSigma": 0.012,
+    "angleSigma": 0.55,
+    "yawSigma": 0.55
+   },
+   "climber": null,
+   "stats": {
+    "Shot rate": "",
+    "Aiming": "Chassis",
+    "Top speed": "12.7 ft/s (14.4 free)",
+    "Trench": "Yes"
+   },
+   "colors": {
+    "frame": 12107204,
+    "accent": 2311848,
+    "trim": 2763825
+   }
+  },
+  "8793": {
+   "key": "8793",
+   "team": 8793,
+   "teamName": "Pumpkin Bots",
+   "robotName": "Hopperless",
+   "archetype": "Hopperless",
+   "blurb": "No hopper: a 4-wide intake feeds a conveyor that funnels FUEL to single file, up through the turret and out a hooded flywheel. Holds only what fits in the ball path — intake and shoot at the same time.",
+   "frame": {
+    "length": 0.6985,
+    "width": 0.6985
+   },
+   "height": 0.5461,
+   "mass": 58,
+   "drive": {
+    "ratio": 6.84,
+    "stator": 120,
+    "supply": 40,
+    "maxSpeed": 3.9696013465850544,
+    "maxAccel": 12.753000000000002,
+    "maxOmega": 10.234939036563508,
+    "maxAlpha": 39.34464205423493
+   },
+   "intake": {
+    "width": 0.6604,
+    "reach": 0.254,
+    "rate": 14,
+    "deployTime": 0.9,
+    "side": "front",
+    "latched": false,
+    "fold": {
+     "pivot": [
+      0.292,
+      0.336
+     ],
+     "stowDeg": 145,
+     "yields": true,
+     "hull": [
+      [
+       -0.026,
+       -0.018
+      ],
+      [
+       0.161,
+       -0.305
+      ],
+      [
+       0.176,
+       -0.306
+      ],
+      [
+       0.298,
+       -0.196
+      ],
+      [
+       0.328,
+       -0.105
+      ],
+      [
+       0.191,
+       0.009
+      ],
+      [
+       0.005,
+       0.032
+      ],
+      [
+       -0.025,
+       0.02
+      ]
+     ]
+    }
+   },
+   "storage": {
+    "capacity": 12,
+    "extLen": 0.2,
+    "extend": "intake"
+   },
+   "bay": {
+    "x0": -0.28,
+    "x1": 0.34,
+    "hw": 0.31,
+    "above": 0.2,
+    "pack": false,
+    "taper": {
+     "pts": [
+      [
+       0.03,
+       0.087
+      ],
+      [
+       0.17,
+       0.165
+      ],
+      [
+       0.23,
+       0.31
+      ]
+     ],
+     "center": 60,
+     "spin": -1
+    },
+    "floor": {
+     "pts": [
+      [
+       -0.21,
+       0.165
+      ],
+      [
+       -0.12,
+       0.045
+      ],
+      [
+       0.03,
+       0.06
+      ],
+      [
+       0.34,
+       0.175
+      ]
+     ]
+    },
+    "drive": "belt",
+    "driveSpeed": 2.2,
+    "grip": 80,
+    "feed": {
+     "x": -0.2,
+     "reach": 0.1,
+     "via": [
+      [
+       -0.19,
+       0.34
+      ],
+      [
+       -0.14,
+       0.42
+      ]
+     ]
+    }
+   },
+   "physical": "8793",
+   "shooter": {
+    "type": "turret",
+    "turretPos": {
+     "x": -0.127,
+     "z": 0,
+     "center": 35,
+     "start": 0
+    },
+    "exitRadius": 0.09,
+    "exitY": 0.57,
+    "turretRange": 235,
+    "turretRate": 600,
+    "bps": 5,
+    "hoodMin": 52,
+    "hoodMax": 72,
+    "speedMax": 11.4,
+    "spin": 0.15,
+    "spinTau": 0.28,
+    "shotDrop": 0.007,
+    "speedSigma": 0.017,
+    "angleSigma": 0.9,
+    "yawSigma": 0.9
+   },
+   "climber": null,
+   "stats": {
+    "Shot rate": "8 BPS (ideal)",
+    "Aiming": "Turret",
+    "Top speed": "13.0 ft/s (14.8 free)",
+    "Trench": "Yes (it knocks the arm down)"
+   },
+   "colors": {
+    "frame": 2040102,
+    "accent": 15759898,
+    "trim": 15759898
+   }
+  }
+ },
+ "climbers": {
+  "none": null,
+  "l1": {
+   "maxLevel": 1,
+   "times": [
+    0,
+    1.6
+   ]
+  },
+  "l3": {
+   "maxLevel": 3,
+   "times": [
+    0,
+    1.6,
+    4,
+    7
+   ]
+  }
+ },
+ "autoRoutines": {
+  "best": {
+   "name": "Best for this robot",
+   "desc": "The team's own AUTO where their code is public (8793, 2910, 1678, 604, 1114, 581: from the side it starts on), otherwise the highest-scoring AUTO found for the robot (its own start position, NEUTRAL ZONE sweeps and DEPOT runs), or else the preload and a NEUTRAL ZONE sweep."
+  },
+  "none": {
+   "name": "No auto",
+   "desc": "Robot sits still."
+  },
+  "preload": {
+   "name": "Score preload",
+   "desc": "Spin up and shoot the preloaded FUEL from the start line."
+  },
+  "depot": {
+   "name": "Preload + Depot",
+   "desc": "Shoot the preload, collect the 24 FUEL in the DEPOT, drive back and shoot."
+  },
+  "sweep": {
+   "name": "Neutral Zone sweep",
+   "desc": "Through the TRENCH to the NEUTRAL ZONE, sweep the FUEL line, return over the BUMP shooting on the move."
+  },
+  "sweep2": {
+   "name": "Double sweep",
+   "desc": "Two NEUTRAL ZONE sweeps (2910-style), shooting on the move each time back in the ALLIANCE ZONE."
+  },
+  "climb": {
+   "name": "Preload + Climb L1",
+   "desc": "Shoot the preload then climb LEVEL 1 for 15 points (needs a climber add-on)."
+  },
+  "defendStage": {
+   "name": "Preload + defensive position",
+   "desc": "Shoot the preload, then drive over the BUMP to the middle of the field (own side of the CENTER LINE) to start TELEOP on defense."
+  }
+ }
+}

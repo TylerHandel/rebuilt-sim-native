@@ -8,3 +8,6 @@ jsmath = { path = "../jsmath" }
 rapier3d.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+[build-dependencies]
+serde_json = { version = "1", features = ["float_roundtrip"] }

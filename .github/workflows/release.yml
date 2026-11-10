@@ -49,7 +49,7 @@ jobs:
           (cd tools && npm ci --no-audit --no-fund)
           node tools/sync-assets.mjs _web
           # the committed data must be what that commit exports
-          git diff --exit-code assets/world.json assets/parity-engine.json
+          git add -N assets && git diff --exit-code -- assets/world.json assets/constants.json assets/robots.json assets/parity-engine.json assets/parity
 
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2

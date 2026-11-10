@@ -20,6 +20,10 @@ pub struct PhysicsData {
     pub dt: f32,
     pub solver_iterations: usize,
     pub prediction_distance: Option<f32>,
+    /// Every integration parameter the JS API has, as the JS game's engine holds them (checked
+    /// against this sim's in tests/basics.rs)
+    #[serde(default)]
+    pub integration: serde_json::Map<String, serde_json::Value>,
 }
 
 /// The collision group bits (js/constants.js GROUP).

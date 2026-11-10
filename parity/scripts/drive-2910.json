@@ -1,0 +1,15 @@
+{
+  "name": "drive-2910",
+  "about": "2910 alone in TELEOP: accelerate, strafe, spin, brake, then drive into the FUEL line (M2c).",
+  "seed": 3,
+  "slots": [{ "robot": "2910", "alliance": "blue", "pose": [-5.0, 0.0, 0.0] }],
+  "phase": "teleop",
+  "steps": 720,
+  "commands": [
+    { "from": 0, "robot": 0, "cmd": { "vx": 3.0 } },
+    { "from": 120, "robot": 0, "cmd": { "vz": -2.5 } },
+    { "from": 240, "robot": 0, "cmd": { "omega": 6.0 } },
+    { "from": 300, "robot": 0, "cmd": {} },
+    { "from": 360, "robot": 0, "cmd": { "vx": 4.0, "vz": 0.4 } }
+  ]
+}

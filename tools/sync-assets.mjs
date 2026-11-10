@@ -1,5 +1,7 @@
 // Brings the game's world over from the browser version (github.com/TylerHandel/rebuilt-sim-2026):
 //   assets/world.json  the field's colliders and the FUEL, exported by its tools/export-native.mjs
+//   assets/constants.json, assets/robots.json  its constants and robot configs, by the same tool
+//   assets/parity/<script>.json  its traces of each parity/scripts/<script>.json (native-trace.mjs)
 //   assets/parity-engine.json  digests of that world stepped by its Rapier (tools/native-parity.mjs)
 //   assets/cad/        its CAD models (field and robots), made loadable here: Bevy doesn't read
 //                      KHR_mesh_quantization, so quantized meshes are written back as plain floats
@@ -21,6 +23,14 @@ const sha = execFileSync('git', ['-C', src, 'rev-parse', 'HEAD'], { encoding: 'u
 execFileSync('node', ['--import', './tools/node-env.mjs', 'tools/export-native.mjs', join(assets, 'world.json')], { cwd: src, stdio: 'inherit' });
 // (what its Rapier makes of that world, for the sim's parity test: PLAN.md)
 execFileSync('node', ['tools/native-parity.mjs', join(assets, 'world.json'), join(assets, 'parity-engine.json')], { cwd: src, stdio: 'inherit' });
+// (and what the game does with each script in parity/scripts: its traces, which the sim's parity
+// tests match)
+const scripts = join(here, 'parity', 'scripts'), traces = join(assets, 'parity');
+rmSync(traces, { recursive: true, force: true });
+mkdirSync(traces, { recursive: true });
+for (const f of readdirSync(scripts).filter((f) => f.endsWith('.json')).sort()) {
+  execFileSync('node', ['--import', './tools/node-env.mjs', 'tools/native-trace.mjs', join(scripts, f), join(traces, f)], { cwd: src, stdio: 'inherit' });
+}
 
 const cad = join(assets, 'cad');
 rmSync(cad, { recursive: true, force: true });
