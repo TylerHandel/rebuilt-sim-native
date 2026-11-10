@@ -3,8 +3,8 @@
 //! (js/main.js driverCommand, js/input.js). Behind the menus it's the field with its FUEL.
 //!
 //! Keyboard: WASD drive, Q/E (or the arrows, or J/L) turn, Shift intake, Space shoot, R pass, F
-//! eject, G CHUTE DOOR, H throw (your HUMAN PLAYER), X slow, Esc pause, Backspace restart. Controller: left stick drive, right stick turn, left
-//! trigger intake, right trigger shoot, right bumper pass, left bumper eject, X CHUTE DOOR, Y throw,
+//! eject, G CHUTE DOOR, H throw (your HUMAN PLAYER), C climber up / down, X slow, Esc pause, Backspace restart. Controller: left stick drive, right stick turn, left
+//! trigger intake, right trigger shoot, right bumper pass, left bumper eject, X CHUTE DOOR, Y throw, A climber,
 //! left stick click slow,
 //! Menu pause, View restart. Stick up drives away from the camera (from the
 //! driver station, downfield); [ ] or the D-pad change the camera (camera.rs).
@@ -64,6 +64,8 @@ pub fn new_world(setup: Option<&MatchSetup>) -> World {
     let mut w = World::new(sim::WorldData::bundled(), &settings);
     if let Some(m) = setup {
         w.match_.player = m.alliance;
+        // (js createGame humanDriven: you drive it; its climber is yours to work, in TELEOP)
+        if let Some(r) = w.robots.first_mut() { r.human_driven = true; }
         // (js createGame: your HUMAN PLAYER throws by itself unless you've set it to manual)
         w.hps[sim::game_match::ai(m.alliance)].auto = m.hp_auto;
     }
@@ -180,6 +182,10 @@ fn keys(keys: Res<ButtonInput<KeyCode>>, pads: Query<&Gamepad>, screen: Res<Stat
     let hp = &mut game.0.hp_controls;
     hp.toggle_door |= keys.just_pressed(KeyCode::KeyG) || pads.iter().any(|p| p.just_pressed(GamepadButton::West));
     hp.throw_held = keys.pressed(KeyCode::KeyH) || pads.iter().any(|p| p.pressed(GamepadButton::North));
+    // your robot's climber (js main.js: C or A raises it or lowers it, in TELEOP; 1678's lid with it)
+    if (keys.just_pressed(KeyCode::KeyC) || pads.iter().any(|p| p.just_pressed(GamepadButton::South))) && game.0.match_.is_teleop() {
+        if let Some(r) = game.0.robots.first_mut() { if r.climber.is_some() { r.toggle_climber(); } }
+    }
     if keys.just_pressed(KeyCode::Escape) || pads.iter().any(|p| p.just_pressed(GamepadButton::Start)) { cmds.write(GameCmd::Pause); }
     if keys.just_pressed(KeyCode::Backspace) || pads.iter().any(|p| p.just_pressed(GamepadButton::Select)) { cmds.write(GameCmd::Restart); }
 }

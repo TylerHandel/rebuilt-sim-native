@@ -88,7 +88,7 @@ impl World {
     /// js `stepGame(game, world, dt, probe)`: one physics step
     pub fn step(&mut self, probe: Probe) {
         let dt = PHYSICS_DT;
-        let climbs: Vec<_> = self.robots.iter().map(|r| (r.alliance, 0u8)).collect();
+        let climbs: Vec<_> = self.robots.iter().map(|r| (r.alliance, r.climb_level)).collect();
         self.match_.update(dt, &climbs, &mut self.rng);
         let on = self.match_.robot_enabled();
         for r in &mut self.robots { r.enabled = on; }

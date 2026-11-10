@@ -23,6 +23,15 @@ const DEG: f64 = m::PI / 180.0;
 /// js AIM_VEL_TAU, AIM_GAIN
 const AIM_VEL_TAU: f64 = 0.05;
 const AIM_GAIN: f64 = 14.0;
+/// js CLIMB_LIFT: the body's lift that makes LEVEL 1, 2, 3
+pub const CLIMB_LIFT: [f64; 4] = [0.0, 0.16, 0.74, 1.2];
+
+/// js robot.climbState (no automatic lining up here: a climber is worked by hand)
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ClimbState { None, Climbing, Hanging, Descending }
+/// js cfg.climber: { maxLevel, times }
+#[derive(Clone, Debug)]
+pub struct ClimberCfg { pub max_level: usize, pub times: Vec<f64> }
 
 fn num(v: &Value, k: &str) -> f64 { v[k].as_f64().unwrap_or_else(|| panic!("config: no number {k}")) }
 fn opt(v: &Value, k: &str) -> Option<f64> { v.get(k).and_then(|x| x.as_f64()) }
@@ -151,6 +160,22 @@ pub struct Robot {
     pub intake_deploy: f64,
     /// js intakeWant: whether the game wants a physical robot's intake down (its arm, 8793's)
     pub intake_want: bool,
+    /// js humanDriven: a person drives it (its climber is theirs to work, in TELEOP)
+    pub human_driven: bool,
+    /// js climberCfg, and the climb (climbState, climbLift, climbLevel, climbTarget; a climber worked
+    /// by hand: climberUp, climberExt, hooked, _manual; climbBase)
+    pub climber: Option<ClimberCfg>,
+    pub climb_state: ClimbState,
+    pub climb_lift: f64,
+    pub climb_level: u8,
+    pub climb_target: usize,
+    pub climber_up: bool,
+    pub climber_ext: f64,
+    pub hooked: bool,
+    manual: bool,
+    climb_base: [f64; 3],
+    /// whether it's TELEOP (as its last step was told)
+    pub teleop: bool,
     /// js armGroups, armGroupsRigid: a folding arm's collision groups (yielding to a TRENCH arm, or not)
     pub arm_groups: u32,
     pub arm_groups_rigid: u32,
@@ -284,7 +309,8 @@ impl Robot {
             key: key.into(), cfg, alliance, body: RigidBodyHandle::invalid(), bumper: ColliderHandle::invalid(), frame: ColliderHandle::invalid(),
             hopper: None, hopper_y: 0.0, arm_collider: ColliderHandle::invalid(), arm_wall: None, intake_block: None, lid: None,
             wheel_pts: Vec::new(), half_l, half_w, height, swerve,
-            max_speed: 0.0, max_omega: 0.0, phys: None, cmd: Cmd::default(), enabled: false, intake_deploy: 0.0, intake_want: false, arm_groups: 0, arm_groups_rigid: 0, hopper_deploy: 0.0,
+            max_speed: 0.0, max_omega: 0.0, phys: None, cmd: Cmd::default(), enabled: false, intake_deploy: 0.0, intake_want: false, human_driven: false, climber: None, climb_state: ClimbState::None, climb_lift: 0.0, climb_level: 0, climb_target: 0,
+            climber_up: false, climber_ext: 0.0, hooked: false, manual: false, climb_base: [0.0; 3], teleop: false, arm_groups: 0, arm_groups_rigid: 0, hopper_deploy: 0.0,
             last_t: 0.0, pos: [0.0; 3], quat: [0.0, 0.0, 0.0, 1.0], yaw: 0.0, vel: [0.0; 3], omega: 0.0, traction: 0.0,
             aim_vel: [0.0; 2], stored: Vec::new(), stats: Stats::default(), full: false, last_in_zone: false, want_shoot: false, shot_setpoint: 0.0,
             shot: None, last_pass: false, aim_override: None, aim_err: None, pass_clear: None, out: PostOut::default(),
@@ -299,6 +325,10 @@ impl Robot {
             assert!(list.len() == 1, "twin turrets arrive with 1706 (M3c)");
             r.turrets = list.iter().map(|t| [num(t, "x"), num(t, "z")]).collect();
         }
+        r.climber = r.cfg.get("climber").filter(|c| c.is_object()).map(|c| ClimberCfg {
+            max_level: c["maxLevel"].as_u64().unwrap() as usize,
+            times: c["times"].as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect(),
+        });
         r.max_speed = num(&r.cfg["drive"], "maxSpeed");
         r.max_omega = num(&r.cfg["drive"], "maxOmega");
         r.create_body(phys, under);
@@ -442,6 +472,11 @@ impl Robot {
         self.last_t = 0.0;
         self.intake_deploy = 0.0;
         self.hopper_deploy = 0.0;
+        self.climb_state = ClimbState::None;
+        self.climb_lift = 0.0;
+        self.climb_target = self.climber.as_ref().map_or(0, |c| c.max_level);
+        self.climb_level = 0;
+        self.climber_up = false; self.climber_ext = 0.0; self.hooked = false; self.manual = false;
         self.enabled = false;
         self.cmd = Cmd::default();
         self.stored.clear();
@@ -488,9 +523,11 @@ impl Robot {
 
     /// js `preStep(dt)` for a robot alone (its mechanisms between its two halves)
     pub fn pre_step(&mut self, phys: &mut PhysicsWorld, fuel: &mut Fuel, dt: f64, teleop: bool) {
+        self.teleop = teleop;
         self.pre_step_drive(phys, dt, teleop);
         let (on, t) = (self.enabled, self.last_t);
         let (bay_top, lift_h) = (opt(&self.cfg["bay"], "top").unwrap_or(0.0), self.lift_h());
+        let driver_climb = self.driver_climb();
         let mut c = Ctx { body: self.body, alliance: self.alliance, frame: self.frame_lw(), fuel, phys };
         match &mut self.phys {
             Some(Phys::R2910(p)) => { p.pre_mech(dt, on, teleop); p.mechanisms(&mut c, dt, t); self.intake_deploy = p.post_mech(dt); }
@@ -500,7 +537,7 @@ impl Robot {
                 self.intake_deploy = p.post_mech(dt);
             }
             Some(Phys::R1678(p)) => {
-                p.pre_mech(c.phys, c.fuel, self.body, dt, &crate::mech::phys1678::PreIn { enabled: on, bay_top, lift_h });
+                p.pre_mech(c.phys, c.fuel, self.body, dt, &crate::mech::phys1678::PreIn { enabled: on, bay_top, lift_h, driver_climb, climber_ext: self.climber_ext });
                 p.mechanisms(&mut c, dt, t);
                 self.intake_deploy = p.post_mech(dt);
             }
@@ -747,6 +784,9 @@ impl Robot {
             b.reset_forces(true);
             b.reset_torques(true);
         }
+        // (a climber a person works: their button raises it and lowers it, and its hooks do the climb)
+        if self.driver_climb() { self.manual_climb(phys, dt); } else { self.manual = false; }
+        if self.climb_state != ClimbState::None { return; }
         let (mut tvx, mut tvz, mut tw) = (0.0, 0.0, 0.0);
         if self.enabled {
             tvx = self.cmd.vx; tvz = self.cmd.vz; tw = self.cmd.omega;
@@ -776,6 +816,69 @@ impl Robot {
         let yaw = m::atan2(2.0 * (qw * qy + qx * qz), 1.0 - 2.0 * (qy * qy + qz * qz));
         self.swerve.d.limits_for(teleop);
         self.swerve.step(b, yaw, tvx, tvz, tw, down, dt);
+    }
+
+    /// js `climbPose()`: where it backs up to its TOWER's RUNGS (its climber's on its back)
+    pub fn climb_pose(&self) -> [f64; 3] {
+        let s = if self.alliance == Alliance::Blue { 1.0 } else { -1.0 };
+        let ladder_x = -HALF_L + TOWER::uprightFx + TOWER::uprightDeep / 2.0;
+        let x = ladder_x + self.half_l + 0.03;
+        let z = HALF_W - TOWER::fy;
+        [s * x, s * z, if self.alliance == Alliance::Blue { 0.0 } else { m::PI }]
+    }
+    /// js `driverClimb`: a person drives it and it has a climber, in TELEOP: the climber is theirs
+    pub fn driver_climb(&self) -> bool { self.human_driven && self.climber.is_some() && self.teleop }
+    /// js `toggleClimber()` (the driver's button): what it says
+    pub fn toggle_climber(&mut self) -> &'static str {
+        if self.climber.is_none() { return "No climber installed"; }
+        self.climber_up = !self.climber_up;
+        if self.climber_up { if self.climb_state != ClimbState::None { "Climber up: letting the robot down" } else { "Climber up" } }
+        else if self.hooked { "Climber down: climbing" } else { "Climber down" }
+    }
+    /// js `_manualClimb(dt)`: the climber as the driver works it. Raised with the robot's back at its
+    /// TOWER, its hooks go over the RUNG; lowered then, they pull the robot up to climbTarget's LEVEL
+    /// over that LEVEL's climb time, and raised again they let it back down
+    fn manual_climb(&mut self, phys: &mut PhysicsWorld, dt: f64) {
+        let c = self.climber.clone().unwrap();
+        if !self.manual {
+            self.manual = true;
+            let lh = self.cfg["bay"].get("lift").filter(|x| !x.is_null()).and_then(|l| opt(l, "h")).unwrap_or(0.0);
+            self.climber_ext = match &self.phys { Some(Phys::R1678(p)) => p.lift_now(lh), _ => 0.0 };
+            self.climber_up |= self.climber_ext > 0.5;
+        }
+        let lvl = self.climb_target.max(1);
+        let lift = CLIMB_LIFT[lvl];
+        let t_up = m::max(0.3, c.times.get(1).copied().unwrap_or(1.6));
+        let t_climb = m::max(0.3, c.times.get(lvl).copied().unwrap_or(2.0));
+        if self.climb_state == ClimbState::None {
+            let p = self.climb_pose();
+            let at_tower = m::hypot2(self.pos[0] - p[0], self.pos[2] - p[1]) < 0.3 && m::abs(wrap_angle(p[2] - self.yaw)) < 20.0 * DEG;
+            if self.hooked && !at_tower { self.hooked = false; }
+            if !self.hooked && at_tower && self.climber_ext >= 0.98 { self.hooked = true; }
+        }
+        let rate = if self.hooked { 1.0 / t_climb } else { 1.0 / t_up };
+        self.climber_ext = crate::fuel::clamp(self.climber_ext + (if self.climber_up { rate } else { -rate }) * dt, 0.0, 1.0);
+        if !self.hooked { return; }
+        let want = (1.0 - self.climber_ext) * lift;
+        let b = &mut phys.bodies[self.body];
+        if self.climb_state == ClimbState::None {
+            if want <= 0.0 { return; }
+            // (the hooks bite: from here the climber carries the robot)
+            let h = self.yaw / 2.0;
+            b.set_rotation(Rotation::from_xyzw(0.0, m::sin(h) as f32, 0.0, m::cos(h) as f32), true);
+            b.set_body_type(RigidBodyType::KinematicPositionBased, true);
+            self.climb_base = self.pos;
+        }
+        self.climb_lift = want;
+        self.climb_state = if want <= 0.0 { ClimbState::None } else if self.climber_ext <= 0.0 { ClimbState::Hanging } else if self.climber_up { ClimbState::Descending } else { ClimbState::Climbing };
+        self.climb_level = if self.climb_state == ClimbState::None { 0 } else { climb_level_from_lift(want) };
+        if self.climb_state == ClimbState::None {
+            b.set_body_type(RigidBodyType::Dynamic, true);
+            b.set_linvel(vf(0.0, 0.0, 0.0), true);
+        } else {
+            let cb = self.climb_base;
+            b.set_next_kinematic_translation(vf(cb[0], cb[1] + want, cb[2]));
+        }
     }
 
     /// js `_alongWalls(vx, vz)`
@@ -850,7 +953,7 @@ impl Robot {
         let mv = self.loc.vel(self.yaw).unwrap_or([lv.x as f64, lv.z as f64]);
         self.aim_vel[0] += ka * (mv[0] - self.aim_vel[0]);
         self.aim_vel[1] += ka * (mv[1] - self.aim_vel[1]);
-        let on = self.enabled;
+        let on = self.enabled && self.climb_state == ClimbState::None;
         self.last_t = t;
         self.step_dt = dt;
         // (2910's intake pivot is its mechanisms': its hopper still slides out with the first deploy)
@@ -866,6 +969,7 @@ impl Robot {
             target: self.shot.map(|s| s.target), pos: [self.pos[0], self.pos[2]], est_vel,
             aim_hub, aim_err: self.aim_err, pass_clear: self.pass_clear, legal: self.last_in_zone,
         };
+        let dc = self.driver_climb();
         let mut c = Ctx { body: self.body, alliance: self.alliance, frame: self.frame_lw(), fuel, phys };
         match &mut self.phys {
             Some(Phys::R2910(p)) => {
@@ -917,7 +1021,7 @@ impl Robot {
                 self.flywheel = self.out.flywheel;
                 self.ready = self.out.ready;
                 let lift_h = self.cfg["bay"].get("lift").filter(|x| !x.is_null()).and_then(|l| opt(l, "h")).unwrap_or(0.0);
-                self.full = p.watch_full(c.phys, c.fuel, self.body, dt, on && self.cmd.intake, lift_h);
+                self.full = p.watch_full(c.phys, c.fuel, self.body, dt, on && self.cmd.intake, lift_h, dc);
             }
             Some(Phys::R8793(p)) => {
                 let pin8 = crate::mech::phys8793::PostIn {
@@ -996,6 +1100,13 @@ impl Robot {
             phys.colliders[self.arm_collider].set_collision_groups(grp(if self.intake_deploy > 0.05 { groups(GROUP::INTAKE, GROUP::STATIC | GROUP::ROBOT | GROUP::INTAKE | GROUP::ROBOT_BARRIER) } else { 0 }));
         }
     }
+}
+
+/// js `climbLevelFromLift(lift)`
+pub fn climb_level_from_lift(lift: f64) -> u8 {
+    let mut l = 0;
+    for i in 1..=3 { if lift >= CLIMB_LIFT[i] - 1e-3 { l = i as u8; } }
+    l
 }
 
 /// js util `approach(cur, target, maxStep)`

@@ -234,7 +234,7 @@ const CONTROLS: [(&str, &str, &str, bool); 15] = [
     ("Outtake / eject", "LB", "F", true),
     ("Human player: open/close CHUTE DOOR", "X", "G", true),
     ("Human player: throw FUEL at HUB", "Y (hold)", "H", true),
-    ("Climb / cancel / lower (add-on)", "A", "C", false),
+    ("Climber up / down (at your TOWER its hooks climb; 1678: its lid too)", "A", "C", true),
     ("Toggle field / robot-relative", "B", "B", false),
 ];
 

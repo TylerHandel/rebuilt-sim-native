@@ -100,7 +100,7 @@ window.exportRobot = async (key) => {
   if (ok0 !== true) errors.push('rest: ' + ok0);
   const rest = all.map(pose);
   // inputs anim sets a pose from: [name, lo, hi]
-  const POSE = [['intakeDeploy', 0, 1], ['hopperDeploy', 0, 1], ['hoodDeg', hoodLo, hoodHi], ['turretYaw', -Math.PI, Math.PI]];
+  const POSE = [['intakeDeploy', 0, 1], ['hopperDeploy', 0, 1], ['hoodDeg', hoodLo, hoodHi], ['turretYaw', -Math.PI, Math.PI], ['lift', 0, 1]];
   const N = 16;
   const poseOut = {}, moving = new Set();
   for (const [name, lo, hi] of POSE) {

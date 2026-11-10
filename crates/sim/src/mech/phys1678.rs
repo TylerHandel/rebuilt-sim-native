@@ -102,7 +102,7 @@ pub fn ferry(alliance: Alliance, pos: [f64; 3]) -> (Kind, [f64; 2]) {
 }
 
 /// What its preStep reads of the robot
-pub struct PreIn { pub enabled: bool, pub bay_top: f64, pub lift_h: f64 }
+pub struct PreIn { pub enabled: bool, pub bay_top: f64, pub lift_h: f64, pub driver_climb: bool, pub climber_ext: f64 }
 /// What its postStep reads of the robot
 pub struct PostIn {
     pub on: bool, pub feeding: bool, pub outtake: bool, pub setpoint: f64, pub pass: bool, pub legal: bool, pub intake: bool, pub has_shot: bool,
@@ -216,7 +216,7 @@ impl Phys1678 {
         self.hood_set = profile(self.hood_set[0], self.hood_set[1], self.hood_goal, HOOD_V, HOOD_A, dt);
         self.hood_deg = self.hood_set[0];
         if self.expanded && self.p.held.len() < LID_N - 6 && self.load_top(phys, fuel, body) < r.bay_top - LID_DOWN * R { self.expanded = false; }
-        let ls = self.lift_scale(phys, fuel, body, r.bay_top, r.lift_h);
+        let ls = self.lift_scale(phys, fuel, body, r.bay_top, r.lift_h, r.driver_climb.then_some(r.climber_ext));
         self.lift += clamp(ls * r.lift_h - self.lift, -LID_DOWN_SPEED * dt, LID_UP * dt);
         let ext = slot_ext(self.arm_deg);
         let k = slot_rate(self.arm_deg);
@@ -384,7 +384,9 @@ impl Phys1678 {
     /// js `liftNow()` (lift_h: cfg.bay.lift.h, 0 if none)
     pub fn lift_now(&self, lift_h: f64) -> f64 { if lift_h != 0.0 { clamp(self.lift / lift_h, 0.0, 1.0) } else { 0.0 } }
     /// js `watchFull(dt, intaking)`
-    pub fn watch_full(&mut self, phys: &PhysicsWorld, fuel: &crate::fuel::Fuel, body: RigidBodyHandle, dt: f64, intaking: bool, lift_h: f64) -> bool {
+    pub fn watch_full(&mut self, phys: &PhysicsWorld, fuel: &crate::fuel::Fuel, body: RigidBodyHandle, dt: f64, intaking: bool, lift_h: f64, driver_climb: bool) -> bool {
+        // (a person raises the lid themselves: full is full under it as it is)
+        if driver_climb { return self.p.watch_full(phys, fuel, body, dt, intaking); }
         let lid = lift_h != 0.0;
         if intaking && lid && !self.expanded && !self.tucked && self.p.held.len() >= LID_N { self.expanded = true; }
         let full = self.p.watch_full(phys, fuel, body, dt, intaking);
@@ -395,10 +397,13 @@ impl Phys1678 {
         false
     }
     /// js `liftScale()`
-    fn lift_scale(&mut self, phys: &PhysicsWorld, fuel: &crate::fuel::Fuel, body: RigidBodyHandle, bay_top: f64, h: f64) -> f64 {
+    /// (driver: how far out the climber is, when a person works it by hand: the lid as far up as it
+    /// is, but never down onto the FUEL under it)
+    fn lift_scale(&mut self, phys: &PhysicsWorld, fuel: &crate::fuel::Fuel, body: RigidBodyHandle, bay_top: f64, h: f64, driver: Option<f64>) -> f64 {
         if h == 0.0 { return 0.0; }
         let now = self.lift_now(h);
         let on_load = clamp((self.load_top(phys, fuel, body) - 0.01 - bay_top) / h, 0.0, 1.0);
+        if let Some(ext) = driver { return m::max(ext, m::min(now, on_load)); }
         let fits = bay_top + h * on_load + 0.01 <= TRENCH::clearHeight - 0.005;
         let up = !self.tucked && self.expanded && !(self.near_trench && fits);
         if up { 1.0 } else if fits { m::min(now, on_load) } else { now }

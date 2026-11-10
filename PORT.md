@@ -32,6 +32,7 @@ is ported and proven.
 | `js/mech/phys1678.js`, `r1678.js` (the trains, the arm's position loop, the extension on its pin and slot, the net, the lid on the climber, the tunnel's loop, prefill, the shot verifier, contractHopper, ferries, `watchFull`) | `crates/sim/src/mech/r1678.rs`, `phys1678.rs` | 0e2e9d1 | ported | `intake-1678`, `shoot-1678` |
 | `js/mech/phys1690.js`, `r1690.js` (the carriage on its racks and its agitation, the kicker bar on its pin, the floor's rolling resistance, the belts, kickers and feeder wheels' loops, the top plate's bow, the turret's aim; the code-built surfaces as data, `gen1690.json`), `phys1706.js` (`speedLoop profile`) | `crates/sim/src/mech/r1690.rs`, `phys1690.rs` | 0e2e9d1 | ported | `intake-1690`, `shoot-1690` |
 | `js/echain.js` (`chainLoad1690`, the swivel chain's arm table as data), `js/mech/turretDrive.js` (`drive1690`) | `crates/sim/src/mech/turret_drive.rs` | 0e2e9d1 | ported | `shoot-1690` |
+| `js/robot.js` (the climber worked by hand: `driverClimb toggleClimber _manualClimb climbPose climbLevelFromLift`; the automatic climb, `requestClimb _alignCommand _climbStep`, comes with the AIs) | `crates/sim/src/robot.rs` | f325b3c | ported | `tests/climb.rs` |
 | `js/robot.js` (a folding arm's collider, `_intakePhys`, `_shooter`'s autoShuttle, the turret's travel center, a hood the robot sets) | `crates/sim/src/robot.rs` | 0e2e9d1 | ported | `intake-8793`, `trench-8793` |
 
 ## Scripts

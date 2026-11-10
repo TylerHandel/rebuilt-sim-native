@@ -174,7 +174,9 @@ fn animate(game: Res<Game>, time: Res<Time>, mut models: Query<(&mut RobotModel,
         // (an arm its mechanisms turn, 8793's, drawn where it is: lifted by FUEL under it, or pushed
         // round by a TRENCH arm; its rig's arm swings linearly with intakeDeploy)
         let deploy = match &r.phys { Some(sim::robot::Phys::R8793(p)) => 1.0 - p.arm_turn() / p.arm.stow, _ => r.intake_deploy };
-        let inputs: [(&str, f32); 4] = [("intakeDeploy", deploy as f32), ("hopperDeploy", r.hopper_deploy as f32), ("hoodDeg", r.hood_deg as f32), ("turretYaw", r.turret_yaw as f32)];
+        // (a lid on a climber, 1678's: up as far as its climber has it, 0-1)
+        let lift = match &r.phys { Some(sim::robot::Phys::R1678(p)) => p.lift_now(r.cfg["bay"]["lift"]["h"].as_f64().unwrap_or(0.0)), _ => 0.0 };
+        let inputs: [(&str, f32); 5] = [("lift", lift as f32), ("intakeDeploy", deploy as f32), ("hopperDeploy", r.hopper_deploy as f32), ("hoodDeg", r.hood_deg as f32), ("turretYaw", r.turret_yaw as f32)];
         // (the hopper floor's rollers as fast as they turn, 2910's; the rest at the rates the robot's
         // drawing spins them: the intake's rollers, the flywheel, the feed when it's feeding, its
         // floor's when that's not simulated)

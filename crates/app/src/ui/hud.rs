@@ -27,7 +27,7 @@ impl Plugin for HudPlugin {
 #[derive(Component)]
 struct HudRoot;
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
-enum T { Cam, ScoreBlue, ScoreRed, Phase, Clock, MyHubState, MyHubSub, RpTeam, RpName, FuelText, Shooter, Zone, Intake, Drive, Chute, Corral, Door, HpMode, Fouls }
+enum T { Cam, ScoreBlue, ScoreRed, Phase, Clock, MyHubState, MyHubSub, RpTeam, RpName, FuelText, Shooter, Zone, Intake, Climb, Drive, Chute, Corral, Door, HpMode, Fouls }
 #[derive(Component)]
 struct HubPill(Alliance);
 #[derive(Component)]
@@ -116,7 +116,7 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>, existing: Query<(), With<Hud
                         b.spawn((Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: Val::Px(0.0), bottom: Val::Px(0.0), width: Val::Percent(0.0), ..default() }, BackgroundGradient::from(LinearGradient::to_right(vec![color::rgba(0xd9, 0xb2, 0x1c, 1.0).into(), color::FUEL.into()])), FuelFill));
                         b.spawn((f.text("", Face::Inter(700), 13.0, color::DARK), T::FuelText));
                     });
-                for (k, t) in [("Shooter", T::Shooter), ("Zone", T::Zone), ("Intake", T::Intake), ("Drive", T::Drive)] { row(p, f, k, t); }
+                for (k, t) in [("Shooter", T::Shooter), ("Zone", T::Zone), ("Intake", T::Intake), ("Climb", T::Climb), ("Drive", T::Drive)] { row(p, f, k, t); }
             });
             // the HUMAN PLAYER (css #hpPanel)
             panel(h, Node { right: Val::Px(14.0), bottom: Val::Px(14.0), width: Val::Px(220.0), ..panel_node() }, |p| {
@@ -134,7 +134,7 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>, existing: Query<(), With<Hud
                     row.spawn((Node { padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)), border: UiRect::all(Val::Px(1.0)), border_radius: radius(6.0), ..default() }, BackgroundColor(color::PANEL), BorderColor::all(color::LINE)))
                         .with_children(|t| {
                             t.spawn((Text::default(), f.font(Face::Inter(400), 12.0), TextColor(color::MUTED))).with_children(|s| {
-                                for (i, (k, v)) in [("WASD", "Drive"), ("Q/E", "Rotate"), ("Shift", "Intake"), ("X", "Slow"), ("[ ]", "Camera"), ("T", "Turn around"), ("Backspace", "Restart"), ("Esc", "Pause")].iter().enumerate() {
+                                for (i, (k, v)) in [("WASD", "Drive"), ("Q/E", "Rotate"), ("Shift", "Intake"), ("C", "Climber"), ("X", "Slow"), ("[ ]", "Camera"), ("T", "Turn around"), ("Backspace", "Restart"), ("Esc", "Pause")].iter().enumerate() {
                                     s.spawn((TextSpan::new(format!("{}{k}", if i > 0 { " · " } else { "" })), f.font(Face::Inter(700), 12.0), TextColor(color::TEXT)));
                                     s.spawn((TextSpan::new(format!(" {v}")), f.font(Face::Inter(400), 12.0), TextColor(color::MUTED)));
                                 }
@@ -228,6 +228,18 @@ fn refresh(
             }
             T::Zone => (if in_zone { "ALLIANCE ZONE (can score)" } else { "Outside — pass only" }.into(), Some(if in_zone { color::OK } else { color::WARN })),
             T::Intake => (if r.out.intake_speed > 0.0 { if r.full { "Intaking (full)" } else { "Intaking" } } else if r.out.intake_speed < 0.0 { "Ejecting" } else if r.intake_deploy > 0.5 { "Deployed" } else { "Stowed" }.into(), None),
+            // (js ui.js rpClimb: a climber worked by hand says where it is)
+            T::Climb => (match &r.climber {
+                None => "None".into(),
+                Some(_) => {
+                    use sim::robot::ClimbState as C;
+                    let s = match r.climb_state {
+                        C::Climbing => "Climbing", C::Hanging => "Hanging", C::Descending => "Descending",
+                        C::None => if r.hooked { "Hooked" } else if r.climber_ext > 0.98 { "Up" } else if r.climber_ext < 0.02 { "Down" } else if r.climber_up { "Raising" } else { "Lowering" },
+                    };
+                    format!("{s} · target L{}{}", r.climb_target, if r.climb_level > 0 { format!(" · at L{}", r.climb_level) } else { String::new() })
+                }
+            }, None),
             T::Drive => (format!("Field-relative{}{}", if driver.1 { " · SLOW" } else { "" }, if m.is_auto() { " · AUTO" } else { "" }), None),
             T::Chute => (w.fuel.chute_count(me).to_string(), None),
             T::Corral => (w.fuel.corral_balls(me).len().to_string(), None),
