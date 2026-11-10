@@ -456,6 +456,11 @@ impl Robot {
         }
     }
 
+    /// js `capacity()`: how many it holds, about (a physical robot's own rating)
+    pub fn capacity(&self) -> usize {
+        match &self.phys { Some(Phys::R2910(p)) => p.capacity(), None => 0 }
+    }
+
     /// js `aimPt(p)`: where its pose estimate puts world point p, seen from its true pose
     pub fn aim_pt(&self, p: [f64; 2]) -> [f64; 2] { self.loc.aim_pt(p, self.pos, self.yaw) }
     /// js `aimHub()`

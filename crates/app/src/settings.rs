@@ -86,7 +86,6 @@ pub struct RobotInfo {
     pub blurb: String,
     /// (name, value): "Capacity" and the config's stats
     pub stats: Vec<(String, String)>,
-    pub capacity: u32,
     /// whether this version's sim can build it yet
     pub ported: bool,
 }
@@ -131,7 +130,7 @@ impl Roster {
                 }
                 RobotInfo {
                     key: k.clone(), team: c["team"].as_u64().unwrap_or(0) as u32, team_name: s("teamName"), robot_name: s("robotName"),
-                    archetype: s("archetype"), blurb: s("blurb"), stats, capacity, ported: sim::robot::ported(c),
+                    archetype: s("archetype"), blurb: s("blurb"), stats, ported: sim::robot::ported(c),
                 }
             }).collect();
             let starts = all["startOrder"].as_array().unwrap().iter().filter_map(|k| k.as_str()).map(|k| {

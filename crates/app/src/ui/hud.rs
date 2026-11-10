@@ -220,7 +220,7 @@ fn refresh(
             T::MyHubSub => (sub.clone(), None),
             T::RpTeam => (info.team.to_string(), None),
             T::RpName => (if info.robot_name.is_empty() || info.robot_name == info.archetype { format!("{} · {}", info.team_name, info.archetype) } else { format!("{} · {}", info.robot_name, info.archetype) }, None),
-            T::FuelText => (if r.full { format!("{} FUEL · FULL", r.stored.len()) } else { format!("{} / ~{} FUEL", r.stored.len(), info.capacity) }, None),
+            T::FuelText => (if r.full { format!("{} FUEL · FULL", r.stored.len()) } else { format!("{} / ~{} FUEL", r.stored.len(), r.capacity()) }, None),
             T::Shooter => {
                 let st = &r.status;
                 let c = if r.ready { color::OK } else if st.contains("range") || st.contains("Outside") || st.contains("Disabled") { color::BAD } else if st == "Empty" { color::TEXT } else { color::WARN };
@@ -273,7 +273,7 @@ fn refresh(
             }
         } else { mine };
     }
-    let pct = if r.full { 100.0 } else { (100.0 * r.stored.len() as f32 / info.capacity.max(1) as f32).min(100.0) };
+    let pct = if r.full { 100.0 } else { (100.0 * r.stored.len() as f32 / r.capacity().max(1) as f32).min(100.0) };
     for mut n in &mut fill { if n.width != Val::Percent(pct) { n.width = Val::Percent(pct); } }
 }
 

@@ -43,11 +43,14 @@ fn shoot(
     mut cmds: MessageWriter<GameCmd>,
     mut controls: ResMut<ControlsOpen>,
     mut game: ResMut<Game>,
+    time: Res<Time<Real>>,
 ) {
     if shot.taken || !assets.is_loaded_with_dependencies(&field.0) {
         return;
     }
     shot.frames += 1;
+    // (how it's going, every 30 frames: a slow machine's run shows where it's spending its time)
+    if shot.frames % 30 == 0 { eprintln!("shot: frame {} at {:.1} s, {} steps", shot.frames, time.elapsed_secs(), game.0.steps); }
     if shot.frames == 1 && std::env::var("REBUILT_SHOT_COLLIDERS").is_ok_and(|v| v == "1") {
         for mut v in &mut views { *v = Visibility::Visible; }
     }
