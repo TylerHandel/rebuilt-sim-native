@@ -220,10 +220,10 @@ fn refresh(
             T::MyHubSub => (sub.clone(), None),
             T::RpTeam => (info.team.to_string(), None),
             T::RpName => (if info.robot_name.is_empty() || info.robot_name == info.archetype { format!("{} · {}", info.team_name, info.archetype) } else { format!("{} · {}", info.robot_name, info.archetype) }, None),
-            T::FuelText => (format!("0 / ~{} FUEL", info.capacity), None),
+            T::FuelText => (if r.full { format!("{} FUEL · FULL", r.stored.len()) } else { format!("{} / ~{} FUEL", r.stored.len(), info.capacity) }, None),
             T::Shooter => ("Not in this version yet".into(), Some(color::MUTED)),
             T::Zone => (if in_zone { "ALLIANCE ZONE (can score)" } else { "Outside — pass only" }.into(), Some(if in_zone { color::OK } else { color::WARN })),
-            T::Intake => (if r.intake_deploy > 0.5 { "Deployed" } else { "Stowed" }.into(), None),
+            T::Intake => (if r.out.intake_speed > 0.0 { if r.full { "Intaking (full)" } else { "Intaking" } } else if r.out.intake_speed < 0.0 { "Ejecting" } else if r.intake_deploy > 0.5 { "Deployed" } else { "Stowed" }.into(), None),
             T::Drive => (format!("Field-relative{}{}", if driver.1 { " · SLOW" } else { "" }, if m.is_auto() { " · AUTO" } else { "" }), None),
             T::Chute => (w.fuel.chute_count(me).to_string(), None),
             T::Corral => (w.fuel.corral_balls(me).len().to_string(), None),
@@ -269,7 +269,8 @@ fn refresh(
             }
         } else { mine };
     }
-    for mut n in &mut fill { n.width = Val::Percent(0.0); }
+    let pct = if r.full { 100.0 } else { (100.0 * r.stored.len() as f32 / info.capacity.max(1) as f32).min(100.0) };
+    for mut n in &mut fill { if n.width != Val::Percent(pct) { n.width = Val::Percent(pct); } }
 }
 
 /// css @keyframes pulse: a warning HUB blinks

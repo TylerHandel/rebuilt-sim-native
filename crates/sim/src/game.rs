@@ -15,7 +15,7 @@ pub struct Settings {
     pub seed: u32,
     /// the HUMAN PLAYERS throw at their HUBS while active (js hps[a].auto)
     pub human_players: bool,
-    /// FUEL preloaded in robots, in all
+    /// FUEL preloaded in each robot (js settings.preload, 8 in a match)
     pub preload: usize,
     /// the robots, made in this order (blue's first, as createGame makes them): robots.json key,
     /// alliance, and where each starts (x, z, yaw)
@@ -50,13 +50,14 @@ impl World {
             hps: [HumanPlayer::new(Alliance::Blue), HumanPlayer::new(Alliance::Red)],
             rng: Mulberry32::new(s.seed), robots: Vec::new(), under: Vec::new(), steps: 0,
         };
-        w.fuel.stage(&mut w.physics, s.preload, &mut w.rng);
+        let pre = w.fuel.stage(&mut w.physics, s.preload * s.robots.len(), &mut w.rng);
         let all: serde_json::Value = serde_json::from_str(include_str!("../../../assets/robots.json")).unwrap();
-        for (key, alliance, [x, z, yaw]) in &s.robots {
+        for (k, (key, alliance, [x, z, yaw])) in s.robots.iter().enumerate() {
             let cfg = all["robots"][key.as_str()].clone();
             assert!(!cfg.is_null(), "no robot {key}");
             let mut r = Robot::new(key, cfg, *alliance, &mut w.physics, &mut w.under);
             r.spawn(&mut w.physics, *x, *z, *yaw);
+            r.load_fuel(&mut w.physics, &mut w.fuel, &pre[k * s.preload..(k + 1) * s.preload]);
             w.robots.push(r);
         }
         for hp in &mut w.hps { hp.auto = s.human_players; }
@@ -82,7 +83,7 @@ impl World {
         probe(self, "match");
         probe(self, "drivers");
         let teleop = self.match_.is_teleop();
-        for r in &mut self.robots { r.pre_step(&mut self.physics, dt, teleop); }
+        for r in &mut self.robots { r.pre_step(&mut self.physics, &mut self.fuel, dt, teleop); }
         probe(self, "robotsPre");
         self.fuel.pre_step(&mut self.physics, dt);
         probe(self, "fuelPre");
@@ -92,7 +93,7 @@ impl World {
         let t = self.match_.t;
         self.fuel.post_step(&mut self.physics, dt, t);
         probe(self, "fuelPost");
-        for r in &mut self.robots { r.post_step(&mut self.physics, dt, t); }
+        for r in &mut self.robots { r.post_step(&mut self.physics, &mut self.fuel, dt, t); }
         probe(self, "robotsPost");
         assert!(self.robots.len() < 2, "the rules between robots arrive with M4");
         probe(self, "rules");

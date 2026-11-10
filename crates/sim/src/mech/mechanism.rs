@@ -13,6 +13,8 @@ use rapier3d::prelude::*;
 pub type V3 = [f64; 3];
 
 const R: f64 = FUEL::radius;
+/// js BUMPER_MU: what a bumper's fabric grips FUEL with
+pub const BUMPER_MU: f64 = 0.35;
 const MB: f64 = FUEL::mass;
 const IB: f64 = 0.4 * MB * R * R;
 const TWIST_K: f64 = (3.0 * m::PI) / 16.0;

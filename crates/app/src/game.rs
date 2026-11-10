@@ -53,7 +53,7 @@ pub fn new_world(setup: Option<&MatchSetup>) -> World {
         seed: rand_seed(),
         // (their throws need the shot solver, which arrives with the mechanisms: M3)
         human_players: false,
-        preload: 0,
+        preload: if setup.is_some() { 8 } else { 0 },
         robots,
     };
     let mut w = World::new(sim::WorldData::bundled(), &settings);

@@ -4,7 +4,9 @@
 //! intake's FUEL and the pose estimate arrive with the mechanisms (M3).
 use crate::constants::*;
 use crate::drivetrain::{DriveCfg, Drivetrain, SwerveDrive};
-use crate::mech::r2910::Phys2910;
+use crate::mech::phys2910::{Phys2910, PostIn, PostOut};
+use crate::mech::physical::{Ctx, Stats};
+use crate::fuel::Fuel;
 use crate::parity::Cmd;
 use jsmath as m;
 use rapier3d::prelude::*;
@@ -13,6 +15,10 @@ use serde_json::Value;
 const WHEEL_R: f64 = 0.05;
 const TIP_RATE: f64 = 2.5;
 const TIP_DAMP: f64 = 4.0;
+/// js AIM_VEL_TAU, AIM_GAIN
+const AIM_VEL_TAU: f64 = 0.05;
+#[allow(dead_code)]
+const AIM_GAIN: f64 = 14.0;
 
 fn num(v: &Value, k: &str) -> f64 { v[k].as_f64().unwrap_or_else(|| panic!("config: no number {k}")) }
 fn opt(v: &Value, k: &str) -> Option<f64> { v.get(k).and_then(|x| x.as_f64()) }
@@ -104,7 +110,7 @@ pub enum Top { Frame { body: RigidBodyHandle, pts: Vec<f64> }, Lid { body: Rigid
 #[derive(Debug, Clone)]
 pub struct UnderArm { pub collider: ColliderHandle, pub top: Top, pub under: bool }
 
-pub enum Phys { R2910(Phys2910) }
+pub enum Phys { R2910(Box<Phys2910>) }
 
 pub struct Robot {
     pub key: String,
@@ -138,7 +144,28 @@ pub struct Robot {
     pub vel: [f64; 3],
     pub omega: f64,
     pub traction: f64,
+    /// js aimVel: the chassis' velocity as a moving shot is aimed with (smoothed: AIM_VEL_TAU)
+    pub aim_vel: [f64; 2],
+    /// the FUEL it holds (fuel.balls indices), its counts, full
+    pub stored: Vec<usize>,
+    pub stats: Stats,
+    pub full: bool,
+    /// js lastInZone, wantShoot, shotSetpoint, aimOverride, aimErr, passClear
+    pub last_in_zone: bool,
+    pub want_shoot: bool,
+    pub shot_setpoint: f64,
+    pub shot: Option<Shot>,
+    pub last_pass: bool,
+    pub aim_override: Option<f64>,
+    pub aim_err: Option<f64>,
+    pub pass_clear: Option<bool>,
+    /// what its mechanisms say (js hoodDeg, flywheel, ready, feeding, intakeSpeed)
+    pub out: PostOut,
 }
+
+/// js robot.shot: the shot it's lined up (what its physical robot reads of it)
+#[derive(Debug, Clone, Copy)]
+pub struct Shot { pub pass: bool, pub target: [f64; 2] }
 
 impl Robot {
     /// js `new Robot(...)`: its body made in the world now (after the FUEL and any robot before it);
@@ -159,12 +186,14 @@ impl Robot {
             wheel_pts: Vec::new(), half_l, half_w, height, swerve,
             max_speed: 0.0, max_omega: 0.0, phys: None, cmd: Cmd::default(), enabled: false, intake_deploy: 0.0, hopper_deploy: 0.0,
             last_t: 0.0, pos: [0.0; 3], quat: [0.0, 0.0, 0.0, 1.0], yaw: 0.0, vel: [0.0; 3], omega: 0.0, traction: 0.0,
+            aim_vel: [0.0; 2], stored: Vec::new(), stats: Stats::default(), full: false, last_in_zone: false, want_shoot: false, shot_setpoint: 0.0,
+            shot: None, last_pass: false, aim_override: None, aim_err: None, pass_clear: None, out: PostOut::default(),
         };
         r.max_speed = num(&r.cfg["drive"], "maxSpeed");
         r.max_omega = num(&r.cfg["drive"], "maxOmega");
         r.create_body(phys, under);
         r.phys = match r.cfg.get("physical").and_then(|x| x.as_str()) {
-            Some("2910") => Some(Phys::R2910(Phys2910::new())), // (and in PORTED)
+            Some("2910") => Some(Phys::R2910(Box::new(Phys2910::new(r.body)))), // (and in PORTED)
             Some(p) => panic!("robot {p}'s mechanisms aren't ported yet"),
             None => panic!("robot {key} isn't physical: not in the native game (PLAN.md D11)"),
         };
@@ -278,6 +307,14 @@ impl Robot {
         self.hopper_deploy = 0.0;
         self.enabled = false;
         self.cmd = Cmd::default();
+        self.stored.clear();
+        self.full = false;
+        self.aim_override = None;
+        self.aim_vel = [0.0; 2];
+        self.shot = None;
+        self.stats = Stats::default();
+        self.last_in_zone = false;
+        self.out = PostOut::default();
     }
 
     /// js `spawn(x, z, yaw)`
@@ -295,17 +332,50 @@ impl Robot {
         self.pos = [x, 0.0, z];
         self.vel = [0.0; 3];
         self.omega = 0.0;
+        self.aim_vel = [0.0; 2];
         self.swerve.reset();
     }
 
+    /// js `loadFuel(balls)`: its preload
+    pub fn load_fuel(&mut self, phys: &mut PhysicsWorld, fuel: &mut Fuel, balls: &[usize]) {
+        let mut c = Ctx { body: self.body, alliance: self.alliance, frame: self.frame_lw(), fuel, phys };
+        if let Some(Phys::R2910(p)) = &mut self.phys { self.stored = p.p.load(&mut c, balls); }
+    }
+
     /// js `preStep(dt)` for a robot alone (its mechanisms between its two halves)
-    pub fn pre_step(&mut self, phys: &mut PhysicsWorld, dt: f64, teleop: bool) {
+    pub fn pre_step(&mut self, phys: &mut PhysicsWorld, fuel: &mut Fuel, dt: f64, teleop: bool) {
         self.pre_step_drive(phys, dt, teleop);
-        let on = self.enabled;
+        let (on, t) = (self.enabled, self.last_t);
+        let mut c = Ctx { body: self.body, alliance: self.alliance, frame: self.frame_lw(), fuel, phys };
         match &mut self.phys {
-            Some(Phys::R2910(p)) => { p.pre_mech(dt, on); p.mech_run(dt); self.intake_deploy = p.post_mech(dt); }
+            Some(Phys::R2910(p)) => { p.pre_mech(dt, on, teleop); p.mechanisms(&mut c, dt, t); self.intake_deploy = p.post_mech(dt); }
             None => {}
         }
+    }
+    /// cfg.frame's length and width
+    fn frame_lw(&self) -> (f64, f64) { (num(&self.cfg["frame"], "length"), num(&self.cfg["frame"], "width")) }
+
+    /// js `localToWorld(lx, ly, lz)`
+    pub fn local_to_world(&self, lx: f64, ly: f64, lz: f64) -> [f64; 3] {
+        let (c, s) = (m::cos(self.yaw), m::sin(self.yaw));
+        [self.pos[0] + lx * c + lz * s, self.pos[1] + ly, self.pos[2] - lx * s + lz * c]
+    }
+    /// js `inAllianceZone(alliance)`: its BUMPERS partly or fully within the ALLIANCE ZONE (G407)
+    pub fn in_alliance_zone(&self, a: Alliance) -> bool {
+        let lx = crate::field::alliance_line_x(a);
+        [[1.0, 1.0], [1.0, -1.0], [-1.0, 1.0], [-1.0, -1.0]].iter().any(|[sa, sb]| {
+            let x = self.local_to_world(sa * self.half_l, 0.0, sb * self.half_w)[0];
+            if a == Alliance::Blue { x <= lx } else { x >= lx }
+        })
+    }
+
+    /// js `_shooter(dt, t, on)` (so far: what a robot not shooting does)
+    fn shooter_step(&mut self, on: bool) {
+        self.want_shoot = on && (self.cmd.shoot || self.cmd.pass);
+        self.aim_override = None;
+        self.shot = None;
+        self.last_in_zone = self.in_alliance_zone(self.alliance);
+        self.shot_setpoint = 0.0;
     }
 
     fn pre_step_drive(&mut self, phys: &mut PhysicsWorld, dt: f64, teleop: bool) {
@@ -319,6 +389,7 @@ impl Robot {
             tvx = self.cmd.vx; tvz = self.cmd.vz; tw = self.cmd.omega;
             let w = self.along_walls(phys, tvx, tvz);
             tvx = w[0]; tvz = w[1];
+            if let Some(a) = self.aim_override { tw = a; }
         }
         let sp = m::hypot2(tvx, tvz);
         if sp > self.max_speed { tvx *= self.max_speed / sp; tvz *= self.max_speed / sp; }
@@ -395,7 +466,7 @@ impl Robot {
     }
 
     /// js `postStep(dt, t)` (what moves the robot: its pose read back, the hopper, the intake's collider)
-    pub fn post_step(&mut self, phys: &mut PhysicsWorld, dt: f64, t: f64) {
+    pub fn post_step(&mut self, phys: &mut PhysicsWorld, fuel: &mut Fuel, dt: f64, t: f64) {
         let b = &phys.bodies[self.body];
         let (tr, q) = (b.translation(), *b.rotation());
         self.pos = [tr.x as f64, tr.y as f64, tr.z as f64];
@@ -407,12 +478,34 @@ impl Robot {
         let lv = b.linvel();
         self.vel = [lv.x as f64, 0.0, lv.z as f64];
         self.omega = b.angvel().y as f64;
+        // (what a moving shot is aimed with: AIM_VEL_TAU; the velocity its wheels measure. The pose
+        // estimate, js/localize.js, isn't ported yet: its truth)
+        let ka = 1.0 - m::exp(-dt / AIM_VEL_TAU);
+        let mv = [lv.x as f64, lv.z as f64];
+        self.aim_vel[0] += ka * (mv[0] - self.aim_vel[0]);
+        self.aim_vel[1] += ka * (mv[1] - self.aim_vel[1]);
         let on = self.enabled;
         self.last_t = t;
         // (2910's intake pivot is its mechanisms': its hopper still slides out with the first deploy)
         self.hopper_step(phys, dt, on);
+        self.shooter_step(on);
         self.step_top_colliders(phys);
-        if let Some(Phys::R2910(p)) = &mut self.phys { p.post_step(on, on && self.cmd.intake, false); }
+        let lv = phys.bodies[self.body].linvel();
+        let aim_hub = crate::field::hub_center(self.alliance);
+        let pin = PostIn {
+            on, feeding: self.want_shoot, outtake: on && self.cmd.outtake, setpoint: self.shot_setpoint,
+            pass: match self.shot { Some(s) => s.pass, None => self.last_pass }, intake: self.cmd.intake,
+            target: self.shot.map(|s| s.target), pos: [self.pos[0], self.pos[2]], est_vel: [lv.x as f64, lv.z as f64],
+            aim_hub: [aim_hub.0, aim_hub.1], aim_err: self.aim_err, pass_clear: self.pass_clear, legal: self.last_in_zone,
+        };
+        let mut c = Ctx { body: self.body, alliance: self.alliance, frame: self.frame_lw(), fuel, phys };
+        match &mut self.phys {
+            Some(Phys::R2910(p)) => {
+                self.stored = p.post_step(&mut c, dt, t, &pin, &mut self.stats, &mut self.out);
+                self.full = p.p.watch_full(c.phys, c.fuel, self.body, dt, on && self.cmd.intake);
+            }
+            None => {}
+        }
     }
 
     /// js `_hopper(dt, on)` (nothing held: what the load needs of the extension is nothing)
