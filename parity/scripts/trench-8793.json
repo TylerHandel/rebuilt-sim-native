@@ -1,0 +1,50 @@
+{
+  "name": "trench-8793",
+  "about": "8793 drives backward under its TRENCH with its arm stowed: the TRENCH arm meets the back of the folded arm above its pivot and pushes it down round its backdrivable pivot as the robot goes under, against their position loop, and the robot feels that push; then forward again, the TRENCH arm meeting the arm's front face with it on its upper stop, where it can't give and stops the robot as anything solid (M3c).",
+  "seed": 3,
+  "slots": [
+    {
+      "robot": "8793",
+      "alliance": "blue",
+      "pose": [
+        -1.6,
+        3.39,
+        0.0
+      ]
+    }
+  ],
+  "humanPlayers": false,
+  "phase": "teleop",
+  "steps": 1080,
+  "commands": [
+    {
+      "from": 0,
+      "robot": 0,
+      "cmd": {}
+    },
+    {
+      "from": 30,
+      "robot": 0,
+      "cmd": {
+        "vx": -1.5
+      }
+    },
+    {
+      "from": 420,
+      "robot": 0,
+      "cmd": {}
+    },
+    {
+      "from": 540,
+      "robot": 0,
+      "cmd": {
+        "vx": 1.5
+      }
+    },
+    {
+      "from": 960,
+      "robot": 0,
+      "cmd": {}
+    }
+  ]
+}

@@ -41,3 +41,17 @@ const surface = (s) => ({
   writeFileSync(join(out, 'gen4414.json'), JSON.stringify(data));
   console.log(`4414: ${Object.keys(s).length} surfaces, ${data.hookRollers.length} + ${data.rampRollers.length} rollers, chain ${n + 1} -> ${join(out, 'gen4414.json')}`);
 }
+
+// ---- 8793
+{
+  const ec = await load('js/echain.js');
+  // (its turret's chain, as chainLoad8793 reads it: the runs' pin lines, the U, its links, and
+  // where the U is for a yaw, insideLinks)
+  const c = new ec.TrackChain();
+  const data = {
+    source: 'rebuilt-sim-2026 js/echain.js (tools/export-mech.mjs)',
+    chain: { ro: c.ro, ri: c.ri, rho: c.rho, aF: c.aF, n: c.n, mountA: c.o.mountA, pitch: c.link.pitch, stop: c.link.stop, mass: c.link.mass },
+  };
+  writeFileSync(join(out, 'gen8793.json'), JSON.stringify(data));
+  console.log(`8793: chain of ${c.n} links -> ${join(out, 'gen8793.json')}`);
+}

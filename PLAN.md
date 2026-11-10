@@ -334,6 +334,12 @@ JS builds in code (no CAD) gets them as data, the JS Surface's own triangles (to
 assets/mech/gen<robot>.json, with curve-placed rollers, a chain's arm table, shot fits), so only its
 control code and drives are ported by hand. Turrets (turretGoal, the turret on its motor, a camera
 on it) are in; twin turrets (1706) and hoods that swing the exit (1114) come with their robots.
+*8793 done (Nov 10):* identical at every step (intake-8793: 32 in and shuttled back; shoot-8793;
+trench-8793: driving backward under the TRENCH the arm is pushed down round its pivot, forward
+with it stowed the robot is stopped). Its arm is its mechanisms' (the pivot's position loop, FUEL
+lifting it, a TRENCH arm pushing it); out of its zone it shuttles on its own (autoShuttle). A
+collider rotation set through rapier.js goes through its scaled axis (normalized first): the arm's
+collider is set the same way, or its first contact differs.
 
 **M3d. Mechanisms in parallel, and the speed check.** `preStepRobots`'s phases under `rayon` (D8),
 gated by the same scripts (same bits as serial). A native `perf3v3` (as `tools/perf3v3.mjs`): six

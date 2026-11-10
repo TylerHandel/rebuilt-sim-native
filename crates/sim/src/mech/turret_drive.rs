@@ -18,6 +18,8 @@ pub struct Load { pub torque: f64, pub friction: f64, pub viscous: f64 }
 const ETA: f64 = 0.25;
 const MU_PIN: f64 = 0.3;
 const R_PIN: f64 = 0.0035;
+const MU_SLIDE: f64 = 0.3;
+const G: f64 = 9.81;
 
 /// js `chainLoad4414(chain, psi)` (EI 3e-3, bushings 4 N)
 pub fn chain_load4414(c: &GenChain, psi: f64) -> Load {
@@ -42,9 +44,49 @@ fn arm_at(c: &GenChain, psi: f64) -> f64 {
     c.arm[iu] + (c.arm[iu + 1] - c.arm[iu]) * (f - i)
 }
 
+/// js `TrackChain` (8793's), as its load reads it (assets/mech/gen8793.json)
+#[derive(Clone, Copy, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackChain { pub ro: f64, pub ri: f64, pub rho: f64, pub a_f: f64, pub n: f64, pub mount_a: f64, pub pitch: f64, pub stop: f64, pub mass: f64 }
+#[derive(serde::Deserialize)]
+struct Gen8793 { chain: TrackChain }
+/// 8793's chain
+pub fn track8793() -> TrackChain {
+    static G: std::sync::OnceLock<TrackChain> = std::sync::OnceLock::new();
+    *G.get_or_init(|| serde_json::from_str::<Gen8793>(include_str!("../../../../assets/mech/gen8793.json")).expect("gen8793.json").chain)
+}
+impl TrackChain {
+    /// js `_aU(L, aM)`
+    fn a_u(&self, l: f64, a_m: f64) -> f64 { (l - m::PI * self.rho + self.ro * self.a_f + self.ri * a_m) / (self.ro + self.ri) }
+    /// js `insideLinks(psi)`
+    pub fn inside_links(&self, psi: f64) -> f64 {
+        let a_m = self.mount_a + psi;
+        let a_u = self.a_u(self.n * self.pitch, a_m);
+        m::max(0.0, (self.ri * (a_u - a_m)) / self.pitch)
+    }
+}
+/// js `chainLoad8793(chain, psi)` (EI 1.5e-3, wireMass 0.0012)
+pub fn chain_load8793(c: &TrackChain, psi: f64) -> Load {
+    let (ei, wire_mass) = (1.5e-3, 0.0012);
+    let p = c.pitch;
+    let per_rad = (c.ro * c.ri) / ((c.ro + c.ri) * p);
+    let j_u = m::min(c.stop, 2.0 * m::asin(p / (2.0 * c.rho)));
+    let (j_o, j_i) = (2.0 * m::asin(p / (2.0 * c.ro)), 2.0 * m::asin(p / (2.0 * c.ri)));
+    let swing = (j_u - j_o) + (j_u + j_i);
+    let mu = ei / c.rho;
+    let hyst = ETA * mu * swing * per_rad;
+    let fwall = mu / c.rho;
+    let pin = MU_PIN * R_PIN * fwall * swing * per_rad;
+    let slide_wall = MU_SLIDE * fwall * c.ri;
+    let slide_floor = MU_SLIDE * c.inside_links(psi) * (c.mass + wire_mass) * G * c.ri;
+    let k = ei / p;
+    let spring = -per_rad * 0.5 * k * (j_i * j_i - j_o * j_o);
+    Load { torque: spring, friction: hyst + pin + slide_wall + slide_floor, viscous: 0.0 }
+}
+
 /// What a turret's chain is
 #[derive(Clone, Copy, Debug)]
-pub enum Chain { Spool4414 }
+pub enum Chain { Spool4414, Track8793 }
 
 /// js `TurretDrive`
 #[derive(Clone, Debug)]
@@ -70,7 +112,7 @@ pub struct TurretDrive {
 
 impl TurretDrive {
     fn chain_load(&self, yaw: f64) -> Option<Load> {
-        match self.chain { Some(Chain::Spool4414) => Some(chain_load4414(&crate::mech::r4414::gen4414().chain, yaw)), None => None }
+        match self.chain { Some(Chain::Spool4414) => Some(chain_load4414(&crate::mech::r4414::gen4414().chain, yaw)), Some(Chain::Track8793) => Some(chain_load8793(&track8793(), yaw)), None => None }
     }
 
     /// js `step(cur, goal, dt, t)`: from cur toward goal; where the turret is after
@@ -123,6 +165,17 @@ pub fn drive4414() -> TurretDrive {
     TurretDrive {
         motor, j, friction: 1.5, viscous: 0.02, kp: 1.5, kd: 0.05, kv: 0.095, ks: 0.09, ff_v_per_nm: Some(v_per_nm),
         max_rate: 360.0 * DEG, limits: [-200.0 * DEG, 200.0 * DEG], chain: Some(Chain::Spool4414), sub: 8,
+        yaw: None, omega: 0.0, goal: None, t: None, current: 0.0, load: 0.0,
+    }
+}
+
+/// js `drive8793()`: an X60 through 10:1, their loop, against the chain (no feedforward)
+pub fn drive8793() -> TurretDrive {
+    let motor = Motor::new("krakenX60", 1.0, 10.0, 0.9, 40.0, 30.0);
+    let j = 0.06 + motor.j;
+    TurretDrive {
+        motor, j, friction: 4.0, viscous: 0.02, kp: 4.0, kd: 0.25, kv: 0.25, ks: 0.65, ff_v_per_nm: None,
+        max_rate: 360.0 * DEG, limits: [-200.0 * DEG, 270.0 * DEG], chain: Some(Chain::Track8793), sub: 8,
         yaw: None, omega: 0.0, goal: None, t: None, current: 0.0, load: 0.0,
     }
 }

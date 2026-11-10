@@ -1,0 +1,57 @@
+{
+  "name": "intake-8793",
+  "about": "8793 alone in TELEOP, out of its ALLIANCE ZONE: its arm swings down on its pivot's motors, it drives into the NEUTRAL ZONE's FUEL with its rollers running, the arm's rollers lift them over the bumper, the conveyor's mecanums and vertical rollers bring them single file through the neck to the turret indexer; out of its zone its ShooterMode shuttles them (the turret swings round against its energy chain, the flywheel spins up, passes go); then it turns with what it has and the arm stows (M3c).",
+  "seed": 5,
+  "slots": [
+    {
+      "robot": "8793",
+      "alliance": "blue",
+      "pose": [
+        -1.75,
+        1.0,
+        0.0
+      ]
+    }
+  ],
+  "humanPlayers": false,
+  "phase": "teleop",
+  "steps": 1200,
+  "commands": [
+    {
+      "from": 0,
+      "robot": 0,
+      "cmd": {
+        "intake": true
+      }
+    },
+    {
+      "from": 120,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.8,
+        "intake": true
+      }
+    },
+    {
+      "from": 600,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.5,
+        "omega": 1.2,
+        "intake": true
+      }
+    },
+    {
+      "from": 840,
+      "robot": 0,
+      "cmd": {
+        "intake": true
+      }
+    },
+    {
+      "from": 960,
+      "robot": 0,
+      "cmd": {}
+    }
+  ]
+}

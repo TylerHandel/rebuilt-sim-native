@@ -171,7 +171,10 @@ fn animate(game: Res<Game>, time: Res<Time>, mut models: Query<(&mut RobotModel,
         if !m.ready { continue }
         let m = &mut *m;
         // the state anim reads (js robot.js visualState().anim); what isn't simulated yet rests
-        let inputs: [(&str, f32); 4] = [("intakeDeploy", r.intake_deploy as f32), ("hopperDeploy", r.hopper_deploy as f32), ("hoodDeg", r.hood_deg as f32), ("turretYaw", r.turret_yaw as f32)];
+        // (an arm its mechanisms turn, 8793's, drawn where it is: lifted by FUEL under it, or pushed
+        // round by a TRENCH arm; its rig's arm swings linearly with intakeDeploy)
+        let deploy = match &r.phys { Some(sim::robot::Phys::R8793(p)) => 1.0 - p.arm_turn() / p.arm.stow, _ => r.intake_deploy };
+        let inputs: [(&str, f32); 4] = [("intakeDeploy", deploy as f32), ("hopperDeploy", r.hopper_deploy as f32), ("hoodDeg", r.hood_deg as f32), ("turretYaw", r.turret_yaw as f32)];
         // (the hopper floor's rollers as fast as they turn, 2910's; the rest at the rates the robot's
         // drawing spins them: the intake's rollers, the flywheel, the feed when it's feeding, its
         // floor's when that's not simulated)
