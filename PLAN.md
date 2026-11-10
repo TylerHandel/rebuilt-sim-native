@@ -329,6 +329,11 @@ Order: 4414, 8793 (with 2910, the default blue alliance), 1678, 1690, then 7769,
 6328, 604, 2056, 581. Each is `phys<robot>.js` (220 to 390 lines) plus the per-step parts of
 `r<robot>.js`. New mechanism features a robot needs (`turretDrive.js` for turrets, 1706's twin
 turrets, `shot4414.js`, nets) are ported with the first robot that uses them.
+*4414 done (Nov 10):* identical at every step (intake-4414, shoot-4414). A robot whose surfaces its
+JS builds in code (no CAD) gets them as data, the JS Surface's own triangles (tools/export-mech.mjs:
+assets/mech/gen<robot>.json, with curve-placed rollers, a chain's arm table, shot fits), so only its
+control code and drives are ported by hand. Turrets (turretGoal, the turret on its motor, a camera
+on it) are in; twin turrets (1706) and hoods that swing the exit (1114) come with their robots.
 
 **M3d. Mechanisms in parallel, and the speed check.** `preStepRobots`'s phases under `rayon` (D8),
 gated by the same scripts (same bits as serial). A native `perf3v3` (as `tools/perf3v3.mjs`): six
