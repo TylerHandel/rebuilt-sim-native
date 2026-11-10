@@ -1,23 +1,21 @@
-//! The game: the ported simulation (sim::game::World) with 2910 on the field, stepped at the
-//! physics rate, and driven by the keyboard or a controller the way the browser game drives it
-//! (js/main.js driverCommand, js/input.js).
+//! The game: the ported simulation (sim::game::World), stepped at the physics rate while a match is
+//! being played, and driven by the keyboard or a controller the way the browser game drives it
+//! (js/main.js driverCommand, js/input.js). Behind the menus it's the field with its FUEL.
 //!
-//! Keyboard: WASD drive, Q/E (or the arrows, or J/L) turn, Shift intake, X slow, Backspace restart.
-//! Controller: left stick drive, right stick turn, left trigger intake, left stick click slow, View
-//! restart. Stick up drives away from the camera (field-relative from wherever the camera is).
+//! Keyboard: WASD drive, Q/E (or the arrows, or J/L) turn, Shift intake, X slow, Esc pause,
+//! Backspace restart. Controller: left stick drive, right stick turn, left trigger intake, left
+//! stick click slow, Menu pause, View restart. Stick up drives away from the camera.
 
 use bevy::prelude::*;
-use sim::constants::{Alliance, PHYSICS_DT};
-use sim::game::{Settings, World};
+use sim::constants::{Alliance, PHYSICS_DT, TIMING};
+use sim::game::{Settings as SimSettings, World};
 use sim::game_match::Phase;
 use sim::parity::Cmd;
 use std::time::Instant;
 
+use crate::settings::{start_pose, Settings};
+use crate::ui::Screen;
 use crate::update::InMatch;
-
-/// The robot you drive, and where it starts (blue, by its driver station, facing downfield).
-const ROBOT: &str = "2910";
-const START: [f64; 3] = [-6.2, 2.4, 0.0];
 
 #[derive(Resource)]
 pub struct Game(pub World);
@@ -26,48 +24,73 @@ pub struct Game(pub World);
 #[derive(Resource, Default)]
 pub struct StepTime(pub f32);
 
-/// Bumped each time the World is replaced (a restart), so the views know to remake themselves.
+/// Bumped each time the World is replaced, so the views know to remake themselves.
 #[derive(Resource, Default)]
 pub struct WorldGen(pub u32);
 
-/// The driver's command, read each frame and applied at each step.
+/// The driver's command, read each frame and applied at each step, and whether it's slow mode.
 #[derive(Resource, Default)]
-pub struct Driver(pub Cmd);
+pub struct Driver(pub Cmd, pub bool);
 
-pub fn new_world() -> World {
-    let settings = Settings {
-        seed: 1,
+/// What the match being played was started with
+#[derive(Resource, Clone)]
+pub struct MatchSetup {
+    pub robot: String,
+    pub alliance: Alliance,
+    pub start: String,
+    pub skip_auto: bool,
+}
+
+/// What the screens ask of the game (js ui.js handlers: onStart, onRestart, onResume, onMenu)
+#[derive(Message, Clone, Copy, PartialEq, Eq, Debug)]
+pub enum GameCmd { Start, Restart, Resume, Pause, ToMenu }
+
+/// The field and its FUEL, and the robot of `setup` (none behind the menus)
+pub fn new_world(setup: Option<&MatchSetup>) -> World {
+    let robots = setup.map(|m| vec![(m.robot.clone(), m.alliance, start_pose(&m.robot, &m.start, m.alliance))]).unwrap_or_default();
+    let settings = SimSettings {
+        seed: rand_seed(),
         // (their throws need the shot solver, which arrives with the mechanisms: M3)
         human_players: false,
         preload: 0,
-        robots: vec![(ROBOT.into(), Alliance::Blue, START)],
+        robots,
     };
     let mut w = World::new(sim::WorldData::bundled(), &settings);
-    w.jump_to(Phase::Teleop);
+    if let Some(m) = setup { w.match_.player = m.alliance; }
     w
+}
+
+fn rand_seed() -> u32 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.subsec_nanos() ^ d.as_secs() as u32).unwrap_or(1)
 }
 
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(Game(new_world()))
+        app.insert_resource(Game(new_world(None)))
             .insert_resource(Time::<Fixed>::from_seconds(PHYSICS_DT))
             .init_resource::<StepTime>()
             .init_resource::<Driver>()
             .init_resource::<WorldGen>()
-            .add_systems(FixedUpdate, step)
-            .add_systems(Update, (drive, restart, in_match));
+            .add_message::<GameCmd>()
+            .add_systems(FixedUpdate, step.run_if(in_state(Screen::Playing)))
+            .add_systems(Update, (drive.run_if(in_state(Screen::Playing)), keys, commands, in_match).chain());
     }
 }
 
-fn step(mut game: ResMut<Game>, driver: Res<Driver>, mut st: ResMut<StepTime>) {
+fn step(mut game: ResMut<Game>, driver: Res<Driver>, setup: Option<Res<MatchSetup>>, mut st: ResMut<StepTime>) {
     let t = Instant::now();
     let w = &mut game.0;
     if let Some(r) = w.robots.first_mut() { r.cmd = driver.0; }
     w.step(&mut |_, _| {});
     // (frameGame runs every second step, as the headless game and the parity traces run it)
     if w.steps % 2 == 0 { w.frame(2.0 * PHYSICS_DT); }
+    // no AUTO routines yet: "skip" goes from AUTO straight to where TELEOP is decided
+    if setup.is_some_and(|s| s.skip_auto) && w.match_.phase == Phase::Auto {
+        w.match_.go(Phase::AutoGap);
+        w.match_.phase_time = TIMING::autoGap;
+    }
     let ms = t.elapsed().as_secs_f32() * 1000.0;
     st.0 = if st.0 == 0.0 { ms } else { st.0 * 0.95 + ms * 0.05 };
 }
@@ -119,25 +142,62 @@ fn drive(
     let f = cam.single().map(|t| { let f = t.forward(); Vec2::new(f.x, f.z).normalize_or(Vec2::X) }).unwrap_or(Vec2::X);
     let (fx, fz) = (f.x as f64, f.y as f64);
     let rx = rx as f64;
-    driver.0 = Cmd {
+    *driver = Driver(Cmd {
         vx: (fx * up - fz * right) * max_speed * scale,
         vz: (fz * up + fx * right) * max_speed * scale,
         omega: -rx.signum() * rx * rx * max_omega * if slow { 0.5 } else { 1.0 },
         intake: lt > 0.3,
         ..default()
-    };
+    }, slow);
 }
 
-/// Backspace or the controller's View button: a new match
-fn restart(keys: Res<ButtonInput<KeyCode>>, pads: Query<&Gamepad>, mut game: ResMut<Game>, mut world_gen: ResMut<WorldGen>) {
-    if keys.just_pressed(KeyCode::Backspace) || pads.iter().any(|p| p.just_pressed(GamepadButton::Select)) {
-        game.0 = new_world();
-        world_gen.0 += 1;
+/// In a match: Esc / Menu pauses, Backspace / View restarts
+fn keys(keys: Res<ButtonInput<KeyCode>>, pads: Query<&Gamepad>, screen: Res<State<Screen>>, mut cmds: MessageWriter<GameCmd>) {
+    if *screen.get() != Screen::Playing { return }
+    if keys.just_pressed(KeyCode::Escape) || pads.iter().any(|p| p.just_pressed(GamepadButton::Start)) { cmds.write(GameCmd::Pause); }
+    if keys.just_pressed(KeyCode::Backspace) || pads.iter().any(|p| p.just_pressed(GamepadButton::Select)) { cmds.write(GameCmd::Restart); }
+}
+
+/// js main.js startMatch / onResume / onMenu
+fn commands(
+    mut cmds: MessageReader<GameCmd>,
+    mut commands: Commands,
+    mut game: ResMut<Game>,
+    mut world_gen: ResMut<WorldGen>,
+    settings: Res<Settings>,
+    setup: Option<Res<MatchSetup>>,
+    mut next: ResMut<NextState<Screen>>,
+    mut driver: ResMut<Driver>,
+) {
+    for c in cmds.read() {
+        match c {
+            GameCmd::Start | GameCmd::Restart => {
+                let m = match (&setup, c) {
+                    (Some(s), GameCmd::Restart) => (**s).clone(),
+                    _ => MatchSetup { robot: settings.robot.clone(), alliance: settings.alliance(), start: settings.start.clone(), skip_auto: settings.auto == "skip" },
+                };
+                game.0 = new_world(Some(&m));
+                commands.insert_resource(m);
+                world_gen.0 += 1;
+                *driver = Driver::default();
+                next.set(Screen::Playing);
+            }
+            GameCmd::Resume => next.set(Screen::Playing),
+            GameCmd::Pause => next.set(Screen::Paused),
+            GameCmd::ToMenu => {
+                game.0 = new_world(None);
+                commands.remove_resource::<MatchSetup>();
+                world_gen.0 += 1;
+                next.set(Screen::Menu);
+            }
+        }
     }
 }
 
-/// An update waits while a match is being played.
-fn in_match(game: Res<Game>, mut m: ResMut<InMatch>) {
-    let on = game.0.match_.robot_enabled();
+/// An update waits while a match is being played; the results come up when it's over.
+fn in_match(game: Res<Game>, screen: Res<State<Screen>>, mut m: ResMut<InMatch>, mut next: ResMut<NextState<Screen>>) {
+    let s = *screen.get();
+    let on = matches!(s, Screen::Playing | Screen::Paused) && !game.0.match_.over();
     if m.0 != on { m.0 = on; }
+    if s == Screen::Playing && game.0.match_.over() { next.set(Screen::Results); }
 }

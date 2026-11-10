@@ -1,12 +1,16 @@
 //! For checking a build without a person at it: with REBUILT_SHOT=<file.png> set, the game waits for
 //! the field to load and the FUEL to settle, saves a screenshot there, and exits.
 //! REBUILT_SHOT_COLLIDERS=1 shows the colliders in it (F1). REBUILT_SHOT_KEYS=KeyW,KeyE holds those
-//! keys down the whole time (Bevy's KeyCode names), to see the robot driven.
+//! keys down the whole time (Bevy's KeyCode names), to see the robot driven. REBUILT_SHOT_FLOW
+//! walks the screens first, in order: "practice" (open the Practice page), "settings", "start" (start
+//! a match), "pause", "controls", "results" (end the match).
 
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{save_to_disk, Screenshot, ScreenshotCaptured};
 
 use crate::field::{ColliderView, FieldScene};
+use crate::game::{Game, GameCmd};
+use crate::ui::menu::{ControlsOpen, Menu, Page};
 
 pub struct ShotPlugin;
 
@@ -27,12 +31,17 @@ struct Shot {
     taken: bool,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn shoot(
     mut commands: Commands,
     mut shot: ResMut<Shot>,
     assets: Res<AssetServer>,
     field: Res<FieldScene>,
     mut views: Query<&mut Visibility, With<ColliderView>>,
+    mut menu: ResMut<Menu>,
+    mut cmds: MessageWriter<GameCmd>,
+    mut controls: ResMut<ControlsOpen>,
+    mut game: ResMut<Game>,
 ) {
     if shot.taken || !assets.is_loaded_with_dependencies(&field.0) {
         return;
@@ -41,7 +50,22 @@ fn shoot(
     if shot.frames == 1 && std::env::var("REBUILT_SHOT_COLLIDERS").is_ok_and(|v| v == "1") {
         for mut v in &mut views { *v = Visibility::Visible; }
     }
-    if shot.frames < 90 {
+    // the screens to walk, one every 15 frames
+    let flow: Vec<String> = std::env::var("REBUILT_SHOT_FLOW").map(|v| v.split(',').map(|x| x.trim().to_string()).collect()).unwrap_or_default();
+    if shot.frames % 15 == 0 {
+        if let Some(step) = flow.get((shot.frames / 15) as usize - 1) {
+            match step.as_str() {
+                "practice" => { menu.page = Page::Practice; menu.focus = 0; menu.dirty = true; }
+                "settings" => { menu.page = Page::Settings; menu.focus = 0; menu.dirty = true; }
+                "start" => { cmds.write(GameCmd::Start); }
+                "pause" => { cmds.write(GameCmd::Pause); }
+                "controls" => controls.0 = true,
+                "results" => game.0.match_.go(sim::game_match::Phase::Done),
+                _ => {}
+            }
+        }
+    }
+    if shot.frames < 90 + 15 * flow.len() as u32 {
         return;
     }
     shot.taken = true;

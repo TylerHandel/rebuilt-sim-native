@@ -2849,5 +2849,53 @@
    "name": "Preload + defensive position",
    "desc": "Shoot the preload, then drive over the BUMP to the middle of the field (own side of the CENTER LINE) to start TELEOP on defense."
   }
- }
+ },
+ "capacity": {
+  "341": 16,
+  "581": 60,
+  "604": 92,
+  "971": 61,
+  "1114": 96,
+  "1678": 105,
+  "1690": 77,
+  "1706": 73,
+  "2056": 76,
+  "2910": 77,
+  "3928": 140,
+  "4414": 126,
+  "4930": 58,
+  "4946": 96,
+  "6328": 68,
+  "7769": 66,
+  "8793": 16
+ },
+ "startPositions": {
+  "leftTrench": {
+   "name": "Left Trench",
+   "fy": 7.429000000000001
+  },
+  "leftBump": {
+   "name": "Left Bump",
+   "fy": 5.5614
+  },
+  "hub": {
+   "name": "Hub",
+   "fy": 4.0345
+  },
+  "rightBump": {
+   "name": "Right Bump",
+   "fy": 2.5076000000000005
+  },
+  "rightTrench": {
+   "name": "Right Trench",
+   "fy": 0.64
+  }
+ },
+ "startOrder": [
+  "leftTrench",
+  "leftBump",
+  "hub",
+  "rightBump",
+  "rightTrench"
+ ]
 }

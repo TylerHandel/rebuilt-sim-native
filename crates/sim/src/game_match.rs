@@ -30,6 +30,10 @@ pub enum LaunchBy { Robot, Hp, Test }
 pub const fn ai(a: Alliance) -> usize { match a { Alliance::Blue => 0, Alliance::Red => 1 } }
 pub const ALLIANCES: [Alliance; 2] = [Alliance::Blue, Alliance::Red];
 
+/// A HUB's lights (js hubLightMode's strings)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HubLight { Off, White, Green, Chase, Warning, Active }
+
 #[derive(Debug, Clone)]
 pub struct Match {
     pub player: Alliance,
@@ -57,6 +61,68 @@ impl Match {
     pub fn is_auto(&self) -> bool { self.phase == Phase::Auto }
     pub fn is_teleop(&self) -> bool { self.phase == Phase::Teleop }
     pub fn over(&self) -> bool { self.phase == Phase::Done }
+
+    /// js `teleopElapsed()`
+    pub fn teleop_elapsed(&self) -> f64 {
+        match self.phase { Phase::Teleop => self.phase_time, Phase::Post | Phase::Done => TIMING::teleop, _ => 0.0 }
+    }
+
+    /// js `shiftName()`
+    pub fn shift_name(&self) -> &'static str {
+        const SHIFT_NAMES: [&str; 6] = ["TRANSITION SHIFT", "SHIFT 1", "SHIFT 2", "SHIFT 3", "SHIFT 4", "END GAME"];
+        let i = self.shift_index();
+        if i >= 0 { SHIFT_NAMES[i as usize] } else { "" }
+    }
+
+    /// js `hubNextChange(a)`: seconds until this HUB's active status changes (None if it won't again)
+    pub fn hub_next_change(&self, a: Alliance) -> Option<f64> {
+        if self.phase != Phase::Teleop { return None; }
+        let tt = self.phase_time;
+        let now = self.hub_active(a);
+        let mut probe = self.clone();
+        for k in 0..=4 {
+            let b = TIMING::transition + k as f64 * TIMING::shift;
+            if b <= tt + 1e-6 { continue; }
+            probe.phase_time = b + 0.001;
+            if probe.hub_active(a) != now { return Some(b - tt); }
+        }
+        if now { Some(TIMING::teleop - tt) } else { None }
+    }
+
+    /// js `hubLightMode(a)` (Table 5-3)
+    pub fn hub_light_mode(&self, a: Alliance) -> HubLight {
+        match self.phase {
+            Phase::Pre | Phase::AutoGap => return HubLight::Off,
+            Phase::Post => return HubLight::White,
+            Phase::Done => return HubLight::Green,
+            _ => {}
+        }
+        if !self.hub_active(a) { return HubLight::Off; }
+        if self.phase == Phase::Teleop && self.shift_index() == 0 && Some(a) == self.first_inactive { return HubLight::Chase; }
+        let nc = if self.phase == Phase::Auto { Some(TIMING::auto - self.phase_time) } else { self.hub_next_change(a) };
+        if nc.is_some_and(|n| n <= 3.0) { HubLight::Warning } else { HubLight::Active }
+    }
+
+    /// js `clockText()`
+    pub fn clock_text(&self) -> String {
+        // (js util.js fmtClock)
+        let fmt = |s: f64| { let s = (s - 1e-6).ceil().max(0.0) as i64; format!("{}:{:02}", s / 60, s % 60) };
+        match self.phase {
+            Phase::Pre => fmt(TIMING::auto),
+            Phase::Auto => fmt(TIMING::auto - self.phase_time),
+            Phase::AutoGap => fmt(TIMING::teleop),
+            Phase::Teleop => fmt(TIMING::teleop - self.phase_time),
+            _ => "0:00".into(),
+        }
+    }
+
+    /// js `phaseLabel()`
+    pub fn phase_label(&self) -> &'static str {
+        match self.phase {
+            Phase::Pre => "GET READY", Phase::Auto => "AUTO", Phase::AutoGap => "AUTO COMPLETE",
+            Phase::Teleop => self.shift_name(), Phase::Post => "SCORING…", Phase::Done => "MATCH OVER",
+        }
+    }
 
     pub fn shift_index(&self) -> i32 {
         if self.phase != Phase::Teleop { return -1; }

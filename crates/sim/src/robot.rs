@@ -29,6 +29,17 @@ pub fn apply_quat(v: [f64; 3], q: [f64; 4]) -> [f64; 3] {
     [vx + qw * tx + qy * tz - qz * ty, vy + qw * ty + qz * tx - qx * tz, vz + qw * tz + qx * ty - qy * tx]
 }
 
+/// The robots whose mechanisms are ported (a robot.json config's "physical"): the others' Robot::new
+/// panics until theirs are
+pub const PORTED: &[&str] = &["2910"];
+
+/// Whether this sim can build robot `cfg` yet (its mechanisms and intake are ported)
+pub fn ported(cfg: &Value) -> bool {
+    let ic = &cfg["intake"];
+    let folds = ic.get("fold").is_some_and(|x| !x.is_null()) || ic.get("slide").is_some_and(|x| !x.is_null());
+    cfg.get("physical").and_then(|x| x.as_str()).is_some_and(|p| PORTED.contains(&p)) && !folds
+}
+
 /// js robotConfigs `frameShape(cfg)`
 pub fn frame_shape(cfg: &Value) -> Vec<[f64; 2]> {
     let f = &cfg["frame"];
@@ -153,7 +164,7 @@ impl Robot {
         r.max_omega = num(&r.cfg["drive"], "maxOmega");
         r.create_body(phys, under);
         r.phys = match r.cfg.get("physical").and_then(|x| x.as_str()) {
-            Some("2910") => Some(Phys::R2910(Phys2910::new())),
+            Some("2910") => Some(Phys::R2910(Phys2910::new())), // (and in PORTED)
             Some(p) => panic!("robot {p}'s mechanisms aren't ported yet"),
             None => panic!("robot {key} isn't physical: not in the native game (PLAN.md D11)"),
         };

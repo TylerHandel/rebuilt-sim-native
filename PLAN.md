@@ -289,8 +289,14 @@ model as a GLB once its CAD is in, and finds how its parts move by running the m
 one input at a time (assets/models/<key>.rig.json: poses for intakeDeploy, hopperDeploy, hoodDeg,
 turretYaw; spin rates for the rollers; the swerve modules). robot_model.rs plays that rig from the
 sim's robot, so a robot's look needs no port: what its physics adds (a physical arm's turn, 1706's
-spindexers) joins the rig as those inputs are ported. Still to do: the sim thread, the cameras,
-presets.
+spindexers) joins the rig as those inputs are ported. The UI is the browser game's (crates/app/src/ui:
+index.html, style.css, ui.js): the home page's mode tiles, the Practice page (robot picker with
+every physical robot, those not ported yet marked; AUTO, starting spot, ALLIANCE), Settings (a
+graphics preset, FPS), Controls, the match HUD (score bar, HUBS, the TELEOP timeline, robot and
+HUMAN PLAYER panels), pause and results, with its fonts (Barlow Condensed, Inter: OFL) and its
+colors mixed as the browser mixes them. Settings are kept in the user's app data. 1 v 1 and 3 v 3
+wait for the AI drivers; what isn't simulated yet says so. Still to do: the sim thread, the other
+cameras.
 
 ### M3: mechanisms
 
