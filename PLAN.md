@@ -299,6 +299,10 @@ wait for the AI drivers; what isn't simulated yet says so. Still to do: the sim 
 cameras.
 
 ### M3: mechanisms
+Owner (Nov 10): the HUMAN PLAYER throws by itself by default ("nobody presses a button to throw while
+driving"), as the browser game now does (rebuilt-sim-2026 33e4f12); manual stays a setting. 2910 is
+made fully playable (intake, hopper, shooter, scoring, the HUMAN PLAYERS' throws) before any other
+robot is ported.
 
 **M3a. The mechanism core.** `mech/mechanism.rs`, whole file, and the `assets/mech/*.json`
 export. Gate: `tools/mechlab2910.mjs`'s `rollers`, `path` and `shooter` set-ups as scripts (a
