@@ -262,6 +262,8 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "rapier3d",
+ "serde",
+ "serde_json",
  "sim",
  "velopack",
 ]

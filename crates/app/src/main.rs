@@ -7,6 +7,7 @@ mod field;
 mod draw;
 mod game;
 mod hud;
+mod robot_model;
 mod shot;
 mod update;
 
@@ -33,6 +34,7 @@ fn main() {
                 .set(AssetPlugin { file_path: assets.into(), ..default() }),
         )
         .insert_resource(ClearColor(Color::srgb(0.05, 0.06, 0.08)))
-        .add_plugins((game::GamePlugin, camera::OrbitCameraPlugin, field::FieldPlugin, draw::DrawPlugin, hud::HudPlugin, update::UpdatePlugin, shot::ShotPlugin))
+        .insert_resource(robot_model::AssetDir(bevy::asset::io::file::FileAssetReader::get_base_path().join(assets)))
+        .add_plugins((game::GamePlugin, robot_model::RobotModelPlugin, camera::OrbitCameraPlugin, field::FieldPlugin, draw::DrawPlugin, hud::HudPlugin, update::UpdatePlugin, shot::ShotPlugin))
         .run();
 }

@@ -7,20 +7,22 @@ use sim::constants::Alliance;
 
 use crate::field::collider_mesh;
 use crate::game::{Game, WorldGen};
+use crate::robot_model::{self, AssetDir, RobotModel};
 
 pub struct DrawPlugin;
 
 impl Plugin for DrawPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup).add_systems(PostUpdate, (respawn, sync).chain());
+        app.add_systems(Startup, setup).add_systems(PostUpdate, (respawn, sync, hide_boxes).chain());
     }
 }
 
 #[derive(Component)]
 struct FuelView(usize);
 
+/// One of robot `.1`'s colliders, drawn (until its model is in)
 #[derive(Component)]
-struct PartView(ColliderHandle);
+struct PartView(ColliderHandle, usize);
 
 #[derive(Resource)]
 struct Looks {
@@ -55,15 +57,19 @@ fn respawn(
     mut meshes: ResMut<Assets<Mesh>>,
     fuel: Query<Entity, With<FuelView>>,
     parts: Query<Entity, With<PartView>>,
+    models: Query<Entity, With<RobotModel>>,
+    assets: Res<AssetServer>,
+    dir: Res<AssetDir>,
 ) {
     if *made == Some(world_gen.0) { return }
     *made = Some(world_gen.0);
     let w = &game.0;
-    for e in fuel.iter().chain(parts.iter()) { commands.entity(e).despawn(); }
+    for e in fuel.iter().chain(parts.iter()).chain(models.iter()) { commands.entity(e).despawn(); }
     for i in 0..w.fuel.balls.len() {
         commands.spawn((Mesh3d(looks.fuel.0.clone()), MeshMaterial3d(looks.fuel.1.clone()), Transform::default(), FuelView(i)));
     }
-    for r in &w.robots {
+    for (i, r) in w.robots.iter().enumerate() {
+        robot_model::spawn(&mut commands, &assets, &dir, i, &r.key);
         let body = &w.physics.bodies[r.body];
         for &h in body.colliders() {
             let c = &w.physics.colliders[h];
@@ -77,7 +83,7 @@ fn respawn(
             } else {
                 looks.part.clone()
             };
-            commands.spawn((Mesh3d(meshes.add(mesh)), MeshMaterial3d(mat), Transform::default(), PartView(h)));
+            commands.spawn((Mesh3d(meshes.add(mesh)), MeshMaterial3d(mat), Transform::default(), PartView(h, i)));
         }
     }
 }
@@ -97,5 +103,14 @@ fn sync(game: Res<Game>, mut fuel: Query<(&FuelView, &mut Transform, &mut Visibi
         let pose = c.position();
         t.translation = pose.translation;
         t.rotation = pose.rotation;
+    }
+}
+
+/// A robot whose model is in isn't drawn as its colliders.
+fn hide_boxes(models: Query<&RobotModel>, mut parts: Query<(&PartView, &mut Visibility)>) {
+    for (p, mut v) in &mut parts {
+        let hide = models.iter().any(|m| m.robot == p.1 && m.ready);
+        let want = if hide { Visibility::Hidden } else { Visibility::Inherited };
+        if *v != want { *v = want; }
     }
 }

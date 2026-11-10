@@ -283,7 +283,14 @@ no MSAA), in a settings menu.
 *Started:* the app runs the ported game (sim::game::World) with 2910 in TELEOP, drawn as its
 colliders, driven by keyboard or controller (input.js and driverCommand: field-relative from the
 camera), the camera following it; Backspace or View starts a new match. HUMAN PLAYERS are off until
-their throws are ported (M3). Still to do: the CAD models (D9), the sim thread, the cameras, presets.
+their throws are ported (M3). The robots are drawn as the browser game draws them (D9, done
+another way): tools/export-models.mjs loads the game in Chromium, saves each physical robot's
+model as a GLB once its CAD is in, and finds how its parts move by running the model's own anim()
+one input at a time (assets/models/<key>.rig.json: poses for intakeDeploy, hopperDeploy, hoodDeg,
+turretYaw; spin rates for the rollers; the swerve modules). robot_model.rs plays that rig from the
+sim's robot, so a robot's look needs no port: what its physics adds (a physical arm's turn, 1706's
+spindexers) joins the rig as those inputs are ported. Still to do: the sim thread, the cameras,
+presets.
 
 ### M3: mechanisms
 

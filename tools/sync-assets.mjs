@@ -3,8 +3,9 @@
 //   assets/constants.json, assets/robots.json  its constants and robot configs, by the same tool
 //   assets/parity/<script>.json  its traces of each parity/scripts/<script>.json (native-trace.mjs)
 //   assets/parity-engine.json  digests of that world stepped by its Rapier (tools/native-parity.mjs)
-//   assets/cad/        its CAD models (field and robots), made loadable here: Bevy doesn't read
+//   assets/cad/        its field's CAD model, made loadable here: Bevy doesn't read
 //                      KHR_mesh_quantization, so quantized meshes are written back as plain floats
+//   assets/models/     its robots as it draws them, and how their parts move (export-models.mjs)
 //   assets/SOURCE      the commit they came from
 // It needs that repo checked out with its npm dependencies installed:
 //   node tools/sync-assets.mjs ../rebuilt-sim-2026
@@ -34,7 +35,9 @@ for (const f of readdirSync(scripts).filter((f) => f.endsWith('.json')).sort()) 
 
 const cad = join(assets, 'cad');
 rmSync(cad, { recursive: true, force: true });
-cpSync(join(src, 'cad'), cad, { recursive: true, filter: (p) => !/\.(md)$/i.test(p) });
+// (the field's; the robots' CAD parts come inside their models, below)
+mkdirSync(cad, { recursive: true });
+cpSync(join(src, 'cad', 'field'), join(cad, 'field'), { recursive: true, filter: (p) => !/\.(md)$/i.test(p) });
 
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const glbs = [];
@@ -48,5 +51,8 @@ for (const p of glbs) {
   await io.write(p, doc);
   n++;
 }
+// the robots, as the game draws them
+rmSync(join(assets, 'models'), { recursive: true, force: true });
+execFileSync('node', [join(here, 'tools', 'export-models.mjs'), src], { cwd: join(here, 'tools'), stdio: 'inherit' });
 writeFileSync(join(assets, 'SOURCE'), sha + '\n');
-console.log(`assets from rebuilt-sim-2026 ${sha.slice(0, 7)}: world.json, ${glbs.length} models (${n} dequantized)`);
+console.log(`assets from rebuilt-sim-2026 ${sha.slice(0, 7)}: world.json, ${glbs.length} field models (${n} dequantized), the robots' models`);

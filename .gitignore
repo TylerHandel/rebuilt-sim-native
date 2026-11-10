@@ -2,5 +2,6 @@
 /dist
 /_web
 /assets/cad
+/assets/models
 /tools/node_modules
 /Releases

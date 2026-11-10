@@ -46,7 +46,7 @@ jobs:
         shell: bash
         run: |
           (cd _web && npm ci --no-audit --no-fund)
-          (cd tools && npm ci --no-audit --no-fund)
+          (cd tools && npm ci --no-audit --no-fund && npx playwright install chromium)
           node tools/sync-assets.mjs _web
           # the committed data must be what that commit exports
           git add -N assets && git diff --exit-code -- assets/world.json assets/constants.json assets/robots.json assets/parity-engine.json assets/parity

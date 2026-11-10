@@ -25,7 +25,12 @@ pub struct Orbit {
 fn spawn(mut commands: Commands, game: Res<Game>) {
     let focus = game.0.robots.first().map(|r| robot_at(&game, r.body)).unwrap_or(Vec3::ZERO);
     // (yaw -90 degrees: behind a robot facing +x, which is downfield for blue)
-    let o = Orbit { focus, yaw: -std::f32::consts::FRAC_PI_2, pitch: 0.85, dist: 4.5 };
+    let mut o = Orbit { focus, yaw: -std::f32::consts::FRAC_PI_2, pitch: 0.85, dist: 4.5 };
+    // (screenshots: REBUILT_SHOT_CAM=<yaw deg>,<pitch>,<dist> to look from elsewhere)
+    if let Ok(v) = std::env::var("REBUILT_SHOT_CAM") {
+        let f: Vec<f32> = v.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+        if let [y, p, d] = f[..] { (o.yaw, o.pitch, o.dist) = (y.to_radians(), p, d); }
+    }
     let t = place(&o);
     commands.spawn((Camera3d::default(), t, o));
 }
