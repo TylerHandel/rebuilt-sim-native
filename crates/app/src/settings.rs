@@ -22,13 +22,15 @@ pub struct Settings {
     pub graphics: String,
     /// the starting camera (js cameras.js CAMERA_MODES)
     pub camera: String,
+    /// your HUMAN PLAYER: "auto" throws whenever your HUB is active, "manual" when you say (js hp)
+    pub hp: String,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Settings {
             robot: "2910".into(), alliance: "blue".into(), ds: 1, start: "rightTrench".into(), auto: "skip".into(),
-            fps: false, graphics: "high".into(), camera: "driver".into(),
+            fps: false, graphics: "high".into(), camera: "driver".into(), hp: "auto".into(),
         }
     }
 }
@@ -58,6 +60,7 @@ impl Settings {
         if !r.starts.iter().any(|(k, _, _)| *k == self.start) { self.start = d.start.clone(); }
         if self.auto != "skip" && self.auto != "none" { self.auto = d.auto.clone(); }
         if !["high", "medium", "low"].contains(&self.graphics.as_str()) { self.graphics = d.graphics; }
+        if self.hp != "auto" && self.hp != "manual" { self.hp = d.hp.clone(); }
         if crate::camera::CamMode::from_key(&self.camera).key() != self.camera { self.camera = d.camera; }
         self
     }

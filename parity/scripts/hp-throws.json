@@ -1,0 +1,8 @@
+{
+  "name": "hp-throws",
+  "about": "Both HUMAN PLAYERS throwing at their HUBS while active in TELEOP (the default now), from their CHUTES and CORRALS: the shot solver, their scatter (the match's random stream), the HUBS scoring them, the CHUTES reloading (M3a).",
+  "seed": 11,
+  "slots": [],
+  "phase": "teleop",
+  "steps": 2400
+}

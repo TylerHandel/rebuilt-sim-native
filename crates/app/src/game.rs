@@ -3,8 +3,9 @@
 //! (js/main.js driverCommand, js/input.js). Behind the menus it's the field with its FUEL.
 //!
 //! Keyboard: WASD drive, Q/E (or the arrows, or J/L) turn, Shift intake, Space shoot, R pass, F
-//! eject, X slow, Esc pause, Backspace restart. Controller: left stick drive, right stick turn, left
-//! trigger intake, right trigger shoot, right bumper pass, left bumper eject, left stick click slow,
+//! eject, G CHUTE DOOR, H throw (your HUMAN PLAYER), X slow, Esc pause, Backspace restart. Controller: left stick drive, right stick turn, left
+//! trigger intake, right trigger shoot, right bumper pass, left bumper eject, X CHUTE DOOR, Y throw,
+//! left stick click slow,
 //! Menu pause, View restart. Stick up drives away from the camera (from the
 //! driver station, downfield); [ ] or the D-pad change the camera (camera.rs).
 
@@ -41,6 +42,8 @@ pub struct MatchSetup {
     pub alliance: Alliance,
     pub start: String,
     pub skip_auto: bool,
+    /// your HUMAN PLAYER throws by itself (settings hp "auto")
+    pub hp_auto: bool,
 }
 
 /// What the screens ask of the game (js ui.js handlers: onStart, onRestart, onResume, onMenu)
@@ -52,13 +55,17 @@ pub fn new_world(setup: Option<&MatchSetup>) -> World {
     let robots = setup.map(|m| vec![(m.robot.clone(), m.alliance, start_pose(&m.robot, &m.start, m.alliance))]).unwrap_or_default();
     let settings = SimSettings {
         seed: rand_seed(),
-        // (their throws need the shot solver, which arrives with the mechanisms: M3)
-        human_players: false,
+        // (both throw at their HUBS while active; yours as the hp setting says, below)
+        human_players: setup.is_some(),
         preload: if setup.is_some() { 8 } else { 0 },
         robots,
     };
     let mut w = World::new(sim::WorldData::bundled(), &settings);
-    if let Some(m) = setup { w.match_.player = m.alliance; }
+    if let Some(m) = setup {
+        w.match_.player = m.alliance;
+        // (js createGame: your HUMAN PLAYER throws by itself unless you've set it to manual)
+        w.hps[sim::game_match::ai(m.alliance)].auto = m.hp_auto;
+    }
     w
 }
 
@@ -166,8 +173,12 @@ fn drive(
 }
 
 /// In a match: Esc / Menu pauses, Backspace / View restarts
-fn keys(keys: Res<ButtonInput<KeyCode>>, pads: Query<&Gamepad>, screen: Res<State<Screen>>, mut cmds: MessageWriter<GameCmd>) {
+fn keys(keys: Res<ButtonInput<KeyCode>>, pads: Query<&Gamepad>, screen: Res<State<Screen>>, mut cmds: MessageWriter<GameCmd>, mut game: ResMut<Game>) {
     if *screen.get() != Screen::Playing { return }
+    // your HUMAN PLAYER (js input.js: X or G opens / closes the CHUTE DOOR, Y or H held throws)
+    let hp = &mut game.0.hp_controls;
+    hp.toggle_door |= keys.just_pressed(KeyCode::KeyG) || pads.iter().any(|p| p.just_pressed(GamepadButton::West));
+    hp.throw_held = keys.pressed(KeyCode::KeyH) || pads.iter().any(|p| p.pressed(GamepadButton::North));
     if keys.just_pressed(KeyCode::Escape) || pads.iter().any(|p| p.just_pressed(GamepadButton::Start)) { cmds.write(GameCmd::Pause); }
     if keys.just_pressed(KeyCode::Backspace) || pads.iter().any(|p| p.just_pressed(GamepadButton::Select)) { cmds.write(GameCmd::Restart); }
 }
@@ -188,7 +199,7 @@ fn commands(
             GameCmd::Start | GameCmd::Restart => {
                 let m = match (&setup, c) {
                     (Some(s), GameCmd::Restart) => (**s).clone(),
-                    _ => MatchSetup { robot: settings.robot.clone(), alliance: settings.alliance(), start: settings.start.clone(), skip_auto: settings.auto == "skip" },
+                    _ => MatchSetup { robot: settings.robot.clone(), alliance: settings.alliance(), start: settings.start.clone(), skip_auto: settings.auto == "skip", hp_auto: settings.hp == "auto" },
                 };
                 game.0 = new_world(Some(&m));
                 commands.insert_resource(m);

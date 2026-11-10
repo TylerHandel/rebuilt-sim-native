@@ -232,7 +232,7 @@ fn refresh(
             T::Chute => (w.fuel.chute_count(me).to_string(), None),
             T::Corral => (w.fuel.corral_balls(me).len().to_string(), None),
             T::Door => (if w.hps[ai(me)].door_open { "OPEN" } else { "Closed" }.into(), None),
-            T::HpMode => ("Not in this version yet".into(), Some(color::MUTED)),
+            T::HpMode => (if w.hps[ai(me)].auto { "Auto-throw" } else { "Manual (Y / H)" }.into(), None),
             T::Fouls => (format!("{} ({} pts to opp.)", fouls.len(), foul_pts), None),
         };
         if text.0 != s { text.0 = s; }

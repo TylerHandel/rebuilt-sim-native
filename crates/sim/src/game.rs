@@ -34,6 +34,8 @@ pub struct World {
     /// js physics.underArm: the colliders the TRENCH arm rule watches
     pub under: Vec<UnderArm>,
     pub steps: u64,
+    /// what the driver tells their HUMAN PLAYER this frame (js game.hpControls), cleared by frame
+    pub hp_controls: HpControls,
 }
 
 /// The parts of a step, as the JS game's stepGame names them (its probe): see parity.rs PHASES
@@ -48,7 +50,7 @@ impl World {
         let mut w = World {
             physics, fixed, data, fuel, match_: Match::new(Alliance::Blue),
             hps: [HumanPlayer::new(Alliance::Blue), HumanPlayer::new(Alliance::Red)],
-            rng: Mulberry32::new(s.seed), robots: Vec::new(), under: Vec::new(), steps: 0,
+            rng: Mulberry32::new(s.seed), robots: Vec::new(), under: Vec::new(), steps: 0, hp_controls: HpControls::default(),
         };
         let pre = w.fuel.stage(&mut w.physics, s.preload * s.robots.len(), &mut w.rng);
         let all: serde_json::Value = serde_json::from_str(include_str!("../../../assets/robots.json")).unwrap();
@@ -106,7 +108,9 @@ impl World {
         self.fuel.update(&mut self.physics, dt, t, &mut self.match_, &mut self.rng);
         for a in ALLIANCES {
             let i = crate::game_match::ai(a);
-            self.hps[i].update(dt, t, HpControls::default(), &mut self.fuel, &mut self.physics, &self.match_, &mut self.rng);
+            let c = if a == self.match_.player { self.hp_controls } else { HpControls::default() };
+            self.hps[i].update(dt, t, c, &mut self.fuel, &mut self.physics, &self.match_, &mut self.rng);
         }
+        self.hp_controls = HpControls::default();
     }
 }

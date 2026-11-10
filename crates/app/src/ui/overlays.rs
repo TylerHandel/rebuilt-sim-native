@@ -232,8 +232,8 @@ const CONTROLS: [(&str, &str, &str, bool); 15] = [
     ("Shoot (auto-aim, shoot on the move)", "RT", "Space", true),
     ("Pass FUEL to your ALLIANCE ZONE corner", "RB (hold)", "R", true),
     ("Outtake / eject", "LB", "F", true),
-    ("Human player: open/close CHUTE DOOR", "X", "G", false),
-    ("Human player: throw FUEL at HUB", "Y (hold)", "H", false),
+    ("Human player: open/close CHUTE DOOR", "X", "G", true),
+    ("Human player: throw FUEL at HUB", "Y (hold)", "H", true),
     ("Climb / cancel / lower (add-on)", "A", "C", false),
     ("Toggle field / robot-relative", "B", "B", false),
 ];

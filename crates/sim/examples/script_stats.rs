@@ -19,6 +19,7 @@ fn main() {
         w.step(&mut |_, _| {});
         if step % 2 == 1 { w.frame(2.0 * sim::constants::PHYSICS_DT); }
         if (step + 1) % 120 == 0 {
+            if w.robots.is_empty() { println!("{:5.1}s HUMAN PLAYERS thrown {} / {} | blue {} red {}", (step + 1) as f64 * sim::constants::PHYSICS_DT, w.hps[0].thrown, w.hps[1].thrown, w.match_.total(Alliance::Blue), w.match_.total(Alliance::Red)); }
             for r in &w.robots {
                 println!("{:5.1}s {} held {:2} intaked {:2} shots {:2} passes {:2} | {} | at ({:.2}, {:.2}) yaw {:.2} arm {:.2} | blue {} red {}", (step + 1) as f64 * sim::constants::PHYSICS_DT, r.key, r.stored.len(), r.stats.intaked, r.stats.shots, r.stats.passes, r.status, r.pos[0], r.pos[2], r.yaw, r.intake_deploy, w.match_.total(Alliance::Blue), w.match_.total(Alliance::Red));
             }
