@@ -1,0 +1,59 @@
+{
+  "name": "intake-341",
+  "about": "341 alone in TELEOP: its slapdown intake held down on the bumper, it drives into the NEUTRAL ZONE's FUEL with its rollers running, the zipper's rollers bring them up over the bumper onto the serializer's tray (its top rollers and uptake off: it only feeds while it shoots); then it turns with its load and lets go (M3c).",
+  "seed": 5,
+  "slots": [
+    {
+      "robot": "341",
+      "alliance": "blue",
+      "pose": [
+        -1.75,
+        1.0,
+        0.0
+      ]
+    }
+  ],
+  "humanPlayers": false,
+  "phase": "teleop",
+  "steps": 1200,
+  "commands": [
+    {
+      "from": 0,
+      "robot": 0,
+      "cmd": {
+        "intake": true
+      }
+    },
+    {
+      "from": 72,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.8,
+        "intake": true
+      }
+    },
+    {
+      "from": 480,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.5,
+        "omega": 1.2,
+        "intake": true
+      }
+    },
+    {
+      "from": 720,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.8,
+        "vz": 0.4,
+        "intake": true
+      }
+    },
+    {
+      "from": 1080,
+      "robot": 0,
+      "cmd": {}
+    }
+  ]
+}

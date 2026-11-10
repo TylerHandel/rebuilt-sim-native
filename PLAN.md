@@ -355,7 +355,9 @@ touches (mechanism.rs Plate: it bows under the load, from the step's contacts); 
 code builds come as data (gen1690.json, with the swivel chain's arm table).
 *7769 done (Nov 10):* identical at every step (intake-7769, shoot-7769: its preload shot, then
 intaking and passing to its own pass point). Its slide's pinions are a shaft its racks hold still
-(drives.rs `racks`), its net a third surface with its own touches (mechanism.rs NetSheet). Next: 341.
+(drives.rs `racks`), its net a third surface with its own touches (mechanism.rs NetSheet).
+*341 done (Nov 10):* identical at every step (intake-341; shoot-341: its preload shot, then
+intaking while it ferries back). Next: 1114.
 
 **M3d. Mechanisms in parallel, and the speed check.** `preStepRobots`'s phases under `rayon` (D8),
 gated by the same scripts (same bits as serial). A native `perf3v3` (as `tools/perf3v3.mjs`): six
