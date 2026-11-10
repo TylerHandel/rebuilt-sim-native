@@ -27,7 +27,7 @@ impl Plugin for HudPlugin {
 #[derive(Component)]
 struct HudRoot;
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
-enum T { ScoreBlue, ScoreRed, Phase, Clock, MyHubState, MyHubSub, RpTeam, RpName, FuelText, Shooter, Zone, Intake, Drive, Chute, Corral, Door, HpMode, Fouls }
+enum T { Cam, ScoreBlue, ScoreRed, Phase, Clock, MyHubState, MyHubSub, RpTeam, RpName, FuelText, Shooter, Zone, Intake, Drive, Chute, Corral, Door, HpMode, Fouls }
 #[derive(Component)]
 struct HubPill(Alliance);
 #[derive(Component)]
@@ -127,14 +127,14 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>, existing: Query<(), With<Hud
             });
             // the camera (css #camName)
             h.spawn((Node { position_type: PositionType::Absolute, top: Val::Px(14.0), right: Val::Px(16.0), padding: UiRect::axes(Val::Px(10.0), Val::Px(4.0)), border: UiRect::all(Val::Px(1.0)), border_radius: radius(6.0), ..default() }, BackgroundColor(color::PANEL), BorderColor::all(color::LINE)))
-                .with_children(|c| { c.spawn(f.text("Follow camera · right-drag to turn it", Face::Inter(400), 12.0, color::MUTED)); });
+                .with_children(|c| { c.spawn((f.text("", Face::Inter(400), 12.0, color::MUTED), T::Cam)); });
             // the controls (css #hint): what works in this version
             h.spawn(Node { position_type: PositionType::Absolute, bottom: Val::Px(14.0), width: Val::Percent(100.0), justify_content: JustifyContent::Center, ..default() })
                 .with_children(|row| {
                     row.spawn((Node { padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)), border: UiRect::all(Val::Px(1.0)), border_radius: radius(6.0), ..default() }, BackgroundColor(color::PANEL), BorderColor::all(color::LINE)))
                         .with_children(|t| {
                             t.spawn((Text::default(), f.font(Face::Inter(400), 12.0), TextColor(color::MUTED))).with_children(|s| {
-                                for (i, (k, v)) in [("WASD", "Drive"), ("Q/E", "Rotate"), ("Shift", "Intake"), ("X", "Slow"), ("Backspace", "Restart"), ("Esc", "Pause")].iter().enumerate() {
+                                for (i, (k, v)) in [("WASD", "Drive"), ("Q/E", "Rotate"), ("Shift", "Intake"), ("X", "Slow"), ("[ ]", "Camera"), ("T", "Turn around"), ("Backspace", "Restart"), ("Esc", "Pause")].iter().enumerate() {
                                     s.spawn((TextSpan::new(format!("{}{k}", if i > 0 { " · " } else { "" })), f.font(Face::Inter(700), 12.0), TextColor(color::TEXT)));
                                     s.spawn((TextSpan::new(format!(" {v}")), f.font(Face::Inter(400), 12.0), TextColor(color::MUTED)));
                                 }
@@ -165,6 +165,7 @@ fn row(p: &mut ChildSpawnerCommands, f: &Fonts, k: &str, t: T) {
 fn refresh(
     game: Res<Game>,
     driver: Res<Driver>,
+    rig: Res<crate::camera::CameraRig>,
     mut texts: Query<(&T, &mut Text, &mut TextColor)>,
     mut pills: Query<(&HubPill, &mut BackgroundColor, &mut BorderColor, &mut Pulse, &Children)>,
     mut pill_text: Query<(&mut Text, &mut TextColor), (Without<T>, Without<HubPill>)>,
@@ -210,6 +211,7 @@ fn refresh(
     let foul_pts = fouls.iter().fold(0.0, |a, x| a + x.pts);
     for (t, mut text, mut col) in &mut texts {
         let (s, c): (String, Option<Color>) = match t {
+            T::Cam => (format!("{}{}", rig.mode.name(), if rig.flip { " · turned around" } else { "" }), None),
             T::ScoreBlue => (format!("{}", m.total(Alliance::Blue)), None),
             T::ScoreRed => (format!("{}", m.total(Alliance::Red)), None),
             T::Phase => (m.phase_label().into(), None),

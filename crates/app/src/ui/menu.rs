@@ -34,7 +34,7 @@ impl Mode {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum OptId { Auto, Start, Alliance, Graphics, Fps }
+pub enum OptId { Auto, Start, Alliance, Ds, Camera, Graphics, Fps }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Item {
@@ -74,11 +74,12 @@ fn items(page: Page) -> Vec<Item> {
         ],
         Page::Practice => vec![
             Item::Section("Robot"), Item::Robot,
-            Item::Section("Match"), Item::Opt(OptId::Auto), Item::Opt(OptId::Start), Item::Opt(OptId::Alliance),
+            Item::Section("Match"), Item::Opt(OptId::Auto), Item::Opt(OptId::Start), Item::Opt(OptId::Alliance), Item::Opt(OptId::Ds),
             btn("START MATCH", Act::Start, false, false, true),
             btn("BACK", Act::Open(Page::Home), true, false, true),
         ],
         Page::Settings => vec![
+            Item::Section("View"), Item::Opt(OptId::Camera),
             Item::Section("Graphics"), Item::Opt(OptId::Graphics), Item::Opt(OptId::Fps),
             btn("BACK", Act::Open(Page::Home), true, false, true),
         ],
@@ -89,7 +90,10 @@ fn focusables(page: Page) -> Vec<Item> { items(page).into_iter().filter(|i| !mat
 
 // ------------------------------------------------------------------ options (js ui.js OPT)
 fn opt_label(id: OptId) -> &'static str {
-    match id { OptId::Auto => "Auto routine", OptId::Start => "Starting position", OptId::Alliance => "Alliance", OptId::Graphics => "Graphics", OptId::Fps => "Show FPS" }
+    match id {
+        OptId::Auto => "Auto routine", OptId::Start => "Starting position", OptId::Alliance => "Alliance", OptId::Ds => "Driver station",
+        OptId::Camera => "Starting camera", OptId::Graphics => "Graphics", OptId::Fps => "Show FPS",
+    }
 }
 
 fn opt_values(id: OptId) -> Vec<(String, String)> {
@@ -98,6 +102,8 @@ fn opt_values(id: OptId) -> Vec<(String, String)> {
         OptId::Auto => vec![v("skip", "Skip AUTO"), v("none", "Stand still in AUTO")],
         OptId::Start => Roster::get().starts.iter().map(|(k, n, _)| (k.clone(), n.clone())).collect(),
         OptId::Alliance => vec![v("blue", "Blue"), v("red", "Red")],
+        OptId::Ds => vec![v("0", "Left (DS1)"), v("1", "Center (DS2)"), v("2", "Right (DS3)")],
+        OptId::Camera => crate::camera::CAMERA_MODES.iter().map(|m| v(m.key(), m.name())).collect(),
         OptId::Graphics => vec![v("high", "High"), v("medium", "Medium"), v("low", "Low")],
         OptId::Fps => vec![v("off", "Off"), v("on", "On")],
     }
@@ -106,6 +112,7 @@ fn opt_values(id: OptId) -> Vec<(String, String)> {
 fn opt_get(id: OptId, s: &Settings) -> String {
     match id {
         OptId::Auto => s.auto.clone(), OptId::Start => s.start.clone(), OptId::Alliance => s.alliance.clone(),
+        OptId::Ds => s.ds.to_string(), OptId::Camera => s.camera.clone(),
         OptId::Graphics => s.graphics.clone(), OptId::Fps => if s.fps { "on".into() } else { "off".into() },
     }
 }
@@ -113,6 +120,7 @@ fn opt_get(id: OptId, s: &Settings) -> String {
 fn opt_set(id: OptId, s: &mut Settings, v: &str) {
     match id {
         OptId::Auto => s.auto = v.into(), OptId::Start => s.start = v.into(), OptId::Alliance => s.alliance = v.into(),
+        OptId::Ds => s.ds = v.parse().unwrap_or(1), OptId::Camera => s.camera = v.into(),
         OptId::Graphics => s.graphics = v.into(), OptId::Fps => s.fps = v == "on",
     }
 }
@@ -123,6 +131,8 @@ fn opt_desc(id: OptId, s: &Settings) -> String {
             if s.auto == "skip" { "Skip: GET READY, then straight to TELEOP (who goes inactive first is decided as after an AUTO with no FUEL scored)." } else { "Stand still: the 20 s AUTO runs with the robot waiting." }),
         OptId::Start => "BUMPERS overlap the ROBOT STARTING LINE without touching a BUMP (G303).".into(),
         OptId::Alliance => "Which ALLIANCE you drive for: you start on its side of the field.".into(),
+        OptId::Ds => "Where you stand behind your ALLIANCE WALL (for the Driver Station camera).".into(),
+        OptId::Camera => "Change it any time in a match with D-pad ← → ([ / ]); right stick click (T) turns it around.".into(),
         OptId::Graphics => match s.graphics.as_str() {
             "high" => "High: shadows and 4x anti-aliasing.",
             "medium" => "Medium: shadows, no anti-aliasing.",

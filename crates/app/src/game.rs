@@ -4,7 +4,8 @@
 //!
 //! Keyboard: WASD drive, Q/E (or the arrows, or J/L) turn, Shift intake, X slow, Esc pause,
 //! Backspace restart. Controller: left stick drive, right stick turn, left trigger intake, left
-//! stick click slow, Menu pause, View restart. Stick up drives away from the camera.
+//! stick click slow, Menu pause, View restart. Stick up drives away from the camera (from the
+//! driver station, downfield); [ ] or the D-pad change the camera (camera.rs).
 
 use bevy::prelude::*;
 use sim::constants::{Alliance, PHYSICS_DT, TIMING};
@@ -105,7 +106,7 @@ fn deadband(v: f32, d: f32) -> f32 {
 fn drive(
     keys: Res<ButtonInput<KeyCode>>,
     pads: Query<&Gamepad>,
-    cam: Query<&Transform, With<Camera3d>>,
+    rig: Res<crate::camera::CameraRig>,
     game: Res<Game>,
     mut driver: ResMut<Driver>,
 ) {
@@ -138,8 +139,9 @@ fn drive(
     let mag = up.hypot(right).min(1.0);
     if mag > 0.0 { up *= mag; right *= mag; }
     let scale = if slow { 0.4 } else { 1.0 };
-    // stick up is away from the camera
-    let f = cam.single().map(|t| { let f = t.forward(); Vec2::new(f.x, f.z).normalize_or(Vec2::X) }).unwrap_or(Vec2::X);
+    // (js CameraRig.driveForward: away from the camera; from the driver station, downfield)
+    let rp = game.0.physics.bodies.get(r.body).map(|b| b.translation());
+    let f = rig.drive_forward(rp);
     let (fx, fz) = (f.x as f64, f.y as f64);
     let rx = rx as f64;
     *driver = Driver(Cmd {

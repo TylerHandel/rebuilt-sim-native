@@ -220,22 +220,21 @@ fn draw_results(mut commands: Commands, mut c: ResMut<Choice>, fonts: Res<Fonts>
 
 // ------------------------------------------------------------------ controls
 /// js ui.js CONTROLS: what this version does, then what's still to come
-const CONTROLS: [(&str, &str, &str, bool); 16] = [
+const CONTROLS: [(&str, &str, &str, bool); 15] = [
     ("Drive (field-relative)", "Left stick", "W A S D", true),
     ("Rotate", "Right stick X", "Q / E or ← →", true),
     ("Intake", "LT", "Shift", true),
     ("Slow mode (hold)", "Left stick click", "X", true),
     ("Pause", "Menu button", "Esc", true),
     ("Restart match", "View button", "Backspace", true),
-    ("Turn the camera", "—", "Right-drag / wheel to zoom", true),
+    ("Camera", "D-pad ← / →", "[ / ]", true),
+    ("Turn camera around 180°", "Right stick click", "T", true),
     ("Shoot (auto-aim, shoot on the move)", "RT", "Space", false),
     ("Pass FUEL to your ALLIANCE ZONE corner", "RB (hold)", "R", false),
     ("Outtake / eject", "LB", "F", false),
     ("Human player: open/close CHUTE DOOR", "X", "G", false),
     ("Human player: throw FUEL at HUB", "Y (hold)", "H", false),
     ("Climb / cancel / lower (add-on)", "A", "C", false),
-    ("Camera", "D-pad ← / →", "[ / ]", false),
-    ("Turn camera around 180°", "Right stick click", "T", false),
     ("Toggle field / robot-relative", "B", "B", false),
 ];
 
@@ -261,9 +260,9 @@ fn controls(
             .with_children(|g| {
                 for h in ["Action", "Xbox controller", "Keyboard"] { g.spawn(f.text(h, Face::Inter(600), 13.0, color::MUTED)); }
                 for (i, (a, pad, key, works)) in CONTROLS.iter().enumerate() {
-                    if i == 7 {
+                    if i == 8 {
                         g.spawn((Node { grid_column: GridPlacement::span(3), margin: UiRect::top(Val::Px(8.0)), ..default() },)).with_children(|s| {
-                            s.spawn(f.text("COMING WITH THE MECHANISMS AND THE OTHER CAMERAS", Face::Barlow(700), 14.0, color::MUTED));
+                            s.spawn(f.text("COMING WITH THE MECHANISMS", Face::Barlow(700), 14.0, color::MUTED));
                         });
                     }
                     let c = if *works { color::TEXT } else { color::MUTED };

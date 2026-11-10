@@ -1,61 +1,198 @@
-//! A camera that follows your robot from behind and above: right or middle drag turns it around the
-//! robot, the wheel zooms. A match starts with it behind the robot, looking downfield from its
-//! ALLIANCE's end; behind the menus it circles the field slowly. The graphics setting is applied
-//! here: anti-aliasing on the camera, shadows on the sun.
+//! The cameras (js cameras.js CameraRig): Driver Station (where your driver stands behind the
+//! ALLIANCE WALL, turning to keep the robot in view), Follow, Robot Chase, Overhead and Broadcast;
+//! [ ] or the D-pad's left / right cycle them, T or the right stick's click turns the view around.
+//! Behind the menus the camera circles the field slowly. The graphics setting is applied here too:
+//! anti-aliasing on the camera, shadows on the sun.
 
-use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
+use bevy::camera::{PerspectiveProjection, Projection};
 use bevy::prelude::*;
+use sim::constants::{Alliance, HALF_L, HALF_W};
 
-use crate::game::Game;
+use crate::game::{Game, WorldGen};
 use crate::settings::Settings;
 use crate::ui::Screen;
+
+/// js CAMERA_MODES
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum CamMode { Driver, Follow, Chase, Overhead, Broadcast }
+pub const CAMERA_MODES: [CamMode; 5] = [CamMode::Driver, CamMode::Follow, CamMode::Chase, CamMode::Overhead, CamMode::Broadcast];
+
+impl CamMode {
+    /// js CAMERA_NAMES
+    pub fn name(self) -> &'static str {
+        match self { CamMode::Driver => "Driver Station", CamMode::Follow => "Follow", CamMode::Chase => "Robot Chase", CamMode::Overhead => "Overhead", CamMode::Broadcast => "Broadcast" }
+    }
+    pub fn key(self) -> &'static str {
+        match self { CamMode::Driver => "driver", CamMode::Follow => "follow", CamMode::Chase => "chase", CamMode::Overhead => "overhead", CamMode::Broadcast => "broadcast" }
+    }
+    pub fn from_key(k: &str) -> CamMode { CAMERA_MODES.into_iter().find(|m| m.key() == k).unwrap_or(CamMode::Driver) }
+}
+
+/// js constants.js DRIVER_STATIONS[i].fy (from assets/constants.json: the generated constants
+/// carry its item types, not the array)
+pub fn driver_station_fy(i: usize) -> f64 {
+    static FY: std::sync::OnceLock<Vec<f64>> = std::sync::OnceLock::new();
+    let fy = FY.get_or_init(|| {
+        let c: serde_json::Value = serde_json::from_str(include_str!("../../../assets/constants.json")).expect("constants.json");
+        c["constants"]["DRIVER_STATIONS"].as_array().map(|a| a.iter().filter_map(|d| d["fy"].as_f64()).collect()).unwrap_or_default()
+    });
+    fy.get(i.min(fy.len().saturating_sub(1))).copied().unwrap_or(HALF_W)
+}
+
+/// js cameras.js: the driver's eyes, m behind the FIELD edge and above the carpet
+const DS_EYE_BACK: f32 = 0.06 + 0.12;
+const DS_EYE_H: f32 = 1.6;
+
+/// js CameraRig
+#[derive(Resource)]
+pub struct CameraRig {
+    pub mode: CamMode,
+    pos: Vec3,
+    look: Vec3,
+    up: Vec3,
+    pub alliance: Alliance,
+    pub ds: usize,
+    snap: bool,
+    pub flip: bool,
+}
+
+impl Default for CameraRig {
+    fn default() -> Self {
+        CameraRig { mode: CamMode::Driver, pos: Vec3::new(0.0, 10.0, 10.0), look: Vec3::ZERO, up: Vec3::Y, alliance: Alliance::Blue, ds: 1, snap: true, flip: false }
+    }
+}
+
+impl CameraRig {
+    pub fn cycle(&mut self, dir: i32) {
+        let i = CAMERA_MODES.iter().position(|m| *m == self.mode).unwrap_or(0) as i32;
+        self.mode = CAMERA_MODES[((i + dir).rem_euclid(5)) as usize];
+        self.snap = true;
+    }
+    pub fn toggle_flip(&mut self) { self.flip = !self.flip; self.snap = true; }
+
+    /// js driveForward(robot): which way "up" on the stick drives, field-relative (a unit x, z)
+    pub fn drive_forward(&self, robot: Option<Vec3>) -> Vec2 {
+        let s = if self.alliance == Alliance::Blue { 1.0 } else { -1.0 };
+        if self.mode == CamMode::Driver { return Vec2::new(s * if self.flip { -1.0 } else { 1.0 }, 0.0); }
+        let mut d = if self.mode == CamMode::Overhead { Vec2::new(self.up.x, self.up.z) } else {
+            let t = robot.unwrap_or(self.look);
+            Vec2::new(t.x - self.pos.x, t.z - self.pos.z)
+        };
+        // right under the camera: the way it looks instead
+        if self.mode != CamMode::Overhead && d.length() < 0.6 { d = Vec2::new(self.look.x - self.pos.x, self.look.z - self.pos.z); }
+        d.normalize_or(Vec2::X)
+    }
+
+    /// js update(dt, robot): robot is its position and its forward (x, z); returns the fov, degrees
+    fn update(&mut self, dt: f32, robot: Option<(Vec3, Vec2)>) -> f32 {
+        let s = if self.alliance == Alliance::Blue { 1.0 } else { -1.0 };
+        let (hl, hw) = (HALF_L as f32, HALF_W as f32);
+        let rp = robot.map(|r| r.0).unwrap_or(Vec3::ZERO);
+        let (mut p, mut l, fov) = match self.mode {
+            CamMode::Driver => {
+                let fy = driver_station_fy(self.ds) as f32;
+                let z = s * (hw - fy);
+                let p = Vec3::new(-s * (hl + DS_EYE_BACK), DS_EYE_H, z);
+                let l = if robot.is_some() { Vec3::new(rp.x + s * 1.0, 0.25, rp.z) } else { Vec3::new(-s * (hl - 8.5), 0.0, z * 0.3) };
+                (p, l, 55.0)
+            }
+            CamMode::Follow => (Vec3::new(rp.x - s * 3.4, 2.9, rp.z), Vec3::new(rp.x + s * 1.5, 0.3, rp.z), 60.0),
+            CamMode::Chase => {
+                let f = robot.map(|r| r.1).unwrap_or(Vec2::new(s, 0.0));
+                (Vec3::new(rp.x - f.x * 2.6, 1.9, rp.z - f.y * 2.6), Vec3::new(rp.x + f.x * 2.5, 0.5, rp.z + f.y * 2.5), 65.0)
+            }
+            CamMode::Overhead => (Vec3::new(-s * 1.2, 15.5, 0.001), Vec3::ZERO, 52.0),
+            CamMode::Broadcast => (Vec3::new(0.0, 7.5, hw + 7.5), Vec3::new(rp.x * 0.35, 0.0, 0.0), 50.0),
+        };
+        // turned around: the same shot from the other side of the robot
+        if self.flip && self.mode != CamMode::Overhead {
+            p.x = 2.0 * rp.x - p.x; p.z = 2.0 * rp.z - p.z;
+            l.x = 2.0 * rp.x - l.x; l.z = 2.0 * rp.z - l.z;
+        }
+        if self.snap {
+            (self.pos, self.look) = (p, l);
+            self.snap = false;
+        } else {
+            let k = 1.0 - (-dt * if self.mode == CamMode::Chase { 8.0 } else { 6.0 }).exp();
+            self.pos = self.pos.lerp(p, k);
+            self.look = self.look.lerp(l, k);
+        }
+        // overhead: "downfield" up the screen
+        self.up = if self.mode == CamMode::Overhead { Vec3::new(if self.flip { -s } else { s }, 0.0, 0.0) } else { Vec3::Y };
+        fov
+    }
+}
 
 pub struct OrbitCameraPlugin;
 
 impl Plugin for OrbitCameraPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn)
-            .add_systems(OnEnter(Screen::Playing), behind_robot)
-            .add_systems(Update, graphics)
-            .add_systems(PostUpdate, orbit.before(TransformSystems::Propagate));
+        app.init_resource::<CameraRig>()
+            .add_systems(Startup, spawn)
+            .add_systems(OnEnter(Screen::Playing), new_match)
+            .add_systems(Update, (graphics, keys.run_if(in_state(Screen::Playing))))
+            .add_systems(PostUpdate, place.before(TransformSystems::Propagate));
     }
 }
-
-#[derive(Component)]
-pub struct Orbit {
-    pub focus: Vec3,
-    pub yaw: f32,
-    pub pitch: f32,
-    pub dist: f32,
-}
-
-/// Behind the menus: the whole field, turning slowly
-const MENU_VIEW: Orbit = Orbit { focus: Vec3::ZERO, yaw: -0.6, pitch: 0.55, dist: 13.0 };
 
 fn spawn(mut commands: Commands) {
-    let mut o = MENU_VIEW;
-    // (screenshots: REBUILT_SHOT_CAM=<yaw deg>,<pitch>,<dist> to look from elsewhere)
-    if let Ok(v) = std::env::var("REBUILT_SHOT_CAM") {
-        let f: Vec<f32> = v.split(',').filter_map(|x| x.trim().parse().ok()).collect();
-        if let [y, p, d] = f[..] { (o.yaw, o.pitch, o.dist) = (y.to_radians(), p, d); }
-    }
-    let t = place(&o);
-    commands.spawn((Camera3d::default(), t, o));
+    commands.spawn((Camera3d::default(), Transform::from_xyz(0.0, 10.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y)));
 }
 
-/// A new match (not a resume): behind the robot, on its ALLIANCE's side
-fn behind_robot(mut q: Query<&mut Orbit>, game: Res<Game>, mut last: Local<u32>, world_gen: Res<crate::game::WorldGen>) {
+/// A new match (not a resume): the starting camera, on the robot's ALLIANCE's side
+fn new_match(mut rig: ResMut<CameraRig>, game: Res<Game>, settings: Res<Settings>, mut last: Local<u32>, world_gen: Res<WorldGen>) {
     if *last == world_gen.0 { return }
     *last = world_gen.0;
-    let Some(r) = game.0.robots.first() else { return };
-    let Ok(mut o) = q.single_mut() else { return };
-    o.focus = robot_at(&game, r.body);
-    // (yaw -90 degrees: behind a robot facing +x, which is downfield for blue)
-    o.yaw = if r.alliance == sim::constants::Alliance::Blue { -std::f32::consts::FRAC_PI_2 } else { std::f32::consts::FRAC_PI_2 };
-    (o.pitch, o.dist) = (0.85, 4.5);
-    if let Ok(v) = std::env::var("REBUILT_SHOT_CAM") {
-        let f: Vec<f32> = v.split(',').filter_map(|x| x.trim().parse().ok()).collect();
-        if let [y, p, d] = f[..] { (o.yaw, o.pitch, o.dist) = (y.to_radians(), p, d); }
+    rig.mode = CamMode::from_key(&settings.camera);
+    // (screenshots: REBUILT_SHOT_CAMERA=<mode> starts in that one)
+    if let Ok(m) = std::env::var("REBUILT_SHOT_CAMERA") { rig.mode = CamMode::from_key(&m); }
+    rig.alliance = game.0.robots.first().map(|r| r.alliance).unwrap_or(Alliance::Blue);
+    rig.ds = settings.ds;
+    rig.flip = false;
+    rig.snap = true;
+}
+
+/// [ ] or the D-pad cycle the cameras; T or the right stick's click turns it around
+fn keys(keys: Res<ButtonInput<KeyCode>>, pads: Query<&Gamepad>, mut rig: ResMut<CameraRig>) {
+    let p = |b: GamepadButton| pads.iter().any(|g| g.just_pressed(b));
+    if keys.just_pressed(KeyCode::BracketLeft) || p(GamepadButton::DPadLeft) { rig.cycle(-1); }
+    if keys.just_pressed(KeyCode::BracketRight) || keys.just_pressed(KeyCode::KeyV) || p(GamepadButton::DPadRight) { rig.cycle(1); }
+    if keys.just_pressed(KeyCode::KeyT) || p(GamepadButton::RightThumb) { rig.toggle_flip(); }
+}
+
+/// Where the camera is this frame
+fn place(
+    mut cams: Query<(&mut Transform, &mut Projection), With<Camera3d>>,
+    mut rig: ResMut<CameraRig>,
+    game: Res<Game>,
+    time: Res<Time>,
+    screen: Res<State<Screen>>,
+    mut menu_yaw: Local<f32>,
+) {
+    let Ok((mut t, mut proj)) = cams.single_mut() else { return };
+    let dt = time.delta_secs();
+    let fov = if *screen.get() == Screen::Menu {
+        // behind the menus: the whole field, circling slowly
+        *menu_yaw += 0.04 * dt;
+        let (y, p, d) = (-0.6 + *menu_yaw, 0.55f32, 13.0f32);
+        let eye = Quat::from_euler(EulerRot::YXZ, y, -p, 0.0) * Vec3::new(0.0, 0.0, d);
+        *t = Transform::from_translation(eye).looking_at(Vec3::ZERO, Vec3::Y);
+        rig.snap = true;
+        55.0
+    } else {
+        let robot = game.0.robots.first().and_then(|r| {
+            let b = game.0.physics.bodies.get(r.body)?;
+            let f = *b.rotation() * Vec3::X;
+            Some((b.translation(), Vec2::new(f.x, f.z).normalize_or(Vec2::X)))
+        });
+        let fov = rig.update(dt, robot);
+        *t = Transform::from_translation(rig.pos).looking_at(rig.look, rig.up);
+        fov
+    };
+    // (three.js's fov is vertical, in degrees, as Bevy's is in radians)
+    if let Projection::Perspective(pp) = &mut *proj {
+        let f = (fov as f32).to_radians();
+        if (pp.fov - f).abs() > 1e-4 { *pp = PerspectiveProjection { fov: f, ..pp.clone() }; }
     }
 }
 
@@ -64,44 +201,4 @@ fn graphics(settings: Res<Settings>, mut commands: Commands, cams: Query<Entity,
     if !settings.is_changed() { return }
     for c in &cams { commands.entity(c).insert(if settings.graphics == "high" { Msaa::Sample4 } else { Msaa::Off }); }
     for mut s in &mut suns { s.shadow_maps_enabled = settings.graphics != "low"; }
-}
-
-fn robot_at(game: &Game, body: rapier3d::prelude::RigidBodyHandle) -> Vec3 {
-    game.0.physics.bodies.get(body).map(|b| b.translation() + Vec3::Y * 0.3).unwrap_or(Vec3::ZERO)
-}
-
-fn place(o: &Orbit) -> Transform {
-    let rot = Quat::from_euler(EulerRot::YXZ, o.yaw, -o.pitch, 0.0);
-    let eye = o.focus + rot * Vec3::new(0.0, 0.0, o.dist);
-    Transform::from_translation(eye).looking_at(o.focus, Vec3::Y)
-}
-
-fn orbit(
-    mut q: Query<(&mut Orbit, &mut Transform)>,
-    buttons: Res<ButtonInput<MouseButton>>,
-    motion: Res<AccumulatedMouseMotion>,
-    scroll: Res<AccumulatedMouseScroll>,
-    game: Res<Game>,
-    time: Res<Time>,
-    screen: Res<State<Screen>>,
-) {
-    let Ok((mut o, mut t)) = q.single_mut() else { return };
-    if *screen.get() == Screen::Menu {
-        let yaw = o.yaw + 0.04 * time.delta_secs();
-        *o = Orbit { yaw, ..MENU_VIEW };
-        *t = place(&o);
-        return;
-    }
-    if buttons.pressed(MouseButton::Right) || buttons.pressed(MouseButton::Middle) {
-        o.yaw -= motion.delta.x * 0.005;
-        o.pitch = (o.pitch + motion.delta.y * 0.005).clamp(0.05, 1.5);
-    }
-    o.dist = (o.dist * (1.0 - scroll.delta.y * 0.1)).clamp(1.5, 30.0);
-    if let Some(r) = game.0.robots.first() {
-        let target = robot_at(&game, r.body);
-        // (a little lag, so the view doesn't shake with every bump)
-        let k = 1.0 - (-12.0 * time.delta_secs()).exp();
-        o.focus = o.focus.lerp(target, k);
-    }
-    *t = place(&o);
 }
