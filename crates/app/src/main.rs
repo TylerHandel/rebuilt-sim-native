@@ -6,6 +6,7 @@ mod camera;
 mod field;
 mod draw;
 mod game;
+mod net;
 mod robot_model;
 mod settings;
 mod shot;

@@ -11,6 +11,8 @@
 //             its samples and each part's pose at each (in between, linear: anim's are lerps)
 //     rate    inputs anim turns parts by, per second (intakeSpeed, flywheel...): per input, each
 //             part's Euler rates at 1
+//     nets    the nets over the load: each one's shape, the node it hangs on, how anim drapes it
+//             (its args at rest and per input, as pose); the app makes and drapes its own
 //     modules the swerve modules: each one's steering pivot and wheel, which the game turns itself
 //             (js/robot.js), and where its steering axis is
 // It loads the game in Chromium (Playwright) from a local server over the checkout, since the
@@ -93,6 +95,25 @@ window.exportRobot = async (key) => {
     rotorAngle: 0, load: [], lift: 0,
   };
   const run = (st, dt) => { try { m.anim(st, dt); return true; } catch (e) { return String(e); } };
+  // a state with input name (a dotted path into st.mech or st.turretYaws for the ones that take
+  // those: mech's other fields at their rest, MECH_REST) set to v
+  const MECH_REST = {
+    // (js/mech/phys1690.js mechPose, at rest: in, its kicker bar folded, the hood stowed)
+    '1690': () => ({ ext: st0.intakeDeploy, kick: 0, hood: ((st0.hoodDeg + 90) * Math.PI) / 180, wheel: 0, feeder: 0, floor: 0, top: 0, belts: [0, 0], vkick: 0, feed: 0, intakeRollers: 0, bow: 0 }),
+  };
+  const withInput = (name, v) => {
+    const st = { ...st0 };
+    const [root, ...rest] = name.split('.');
+    if (!rest.length) { st[name] = v; return st; }
+    if (root === 'mech') { if (!MECH_REST[key]) return null; st.mech = MECH_REST[key](); }
+    else if (root === 'turretYaws') st.turretYaws = [st0.turretYaw, st0.turretYaw];
+    let o = root === 'mech' ? st.mech : st;
+    if (root !== 'mech') o = st;
+    const path = root === 'mech' ? rest : [root, ...rest];
+    for (let i = 0; i < path.length - 1; i++) o = o[path[i]];
+    o[path[path.length - 1]] = v;
+    return st;
+  };
   const errors = [];
   // the rest pose: what anim makes of the state at rest (the model as built may differ from it)
   restore();
@@ -100,7 +121,14 @@ window.exportRobot = async (key) => {
   if (ok0 !== true) errors.push('rest: ' + ok0);
   const rest = all.map(pose);
   // inputs anim sets a pose from: [name, lo, hi]
-  const POSE = [['intakeDeploy', 0, 1], ['hopperDeploy', 0, 1], ['hoodDeg', hoodLo, hoodHi], ['turretYaw', -Math.PI, Math.PI], ['lift', 0, 1]];
+  // (and what a physical robot says of its parts itself, which take over from those where they
+  // move the same part: an arm's own turn, a hood's, a rotor's, a floor's, each turret of two; its
+  // mechanisms' pose, mech: 1690's carriage, kicker bar, hood and top plate)
+  const PI = Math.PI;
+  const POSE = [['intakeDeploy', 0, 1], ['hopperDeploy', 0, 1], ['hoodDeg', hoodLo, hoodHi], ['turretYaw', -PI, PI], ['lift', 0, 1],
+    ['armTurn', -PI, PI], ['hoodTurn', -PI, PI], ['rotorTurn', 0, 2 * PI], ['floorTurn', -PI, PI], ['rotorAngle', 0, 2 * PI],
+    ['turretYaws.0', -PI, PI], ['turretYaws.1', -PI, PI],
+    ['mech.ext', 0, 1], ['mech.kick', -PI, 0], ['mech.hood', PI / 2, PI], ['mech.bow', 0, 0.1]];
   const N = 16;
   const poseOut = {}, moving = new Set();
   for (const [name, lo, hi] of POSE) {
@@ -110,7 +138,9 @@ window.exportRobot = async (key) => {
       const v = lo + (hi - lo) * s / N;
       samples.push(v);
       restore();
-      const ok = run({ ...st0, [name]: v }, 0);
+      const st = withInput(name, v);
+      if (!st) break;
+      const ok = run(st, 0);
       if (ok !== true) { errors.push(name + ': ' + ok); break; }
       all.forEach((o, i) => { const p = pose(o); if (!same(p, rest[i])) rows[i] = true; });
     }
@@ -120,7 +150,7 @@ window.exportRobot = async (key) => {
     for (const i of idx) nodes[all[i].name] = [];
     for (const v of samples) {
       restore();
-      run({ ...st0, [name]: v }, 0);
+      run(withInput(name, v), 0);
       for (const i of idx) nodes[all[i].name].push(pose(all[i]));
     }
     idx.forEach((i) => moving.add(i));
@@ -128,11 +158,14 @@ window.exportRobot = async (key) => {
   }
   // inputs anim turns parts by: their Euler rates at 1 (one second's turn)
   const rateOut = {};
-  for (const name of ['intakeSpeed', 'flywheel', 'feeding', 'floorSpin']) {
+  for (const name of ['intakeSpeed', 'flywheel', 'feeding', 'floorSpin', 'mech.intakeRollers', 'mech.floor', 'mech.belts.0', 'mech.belts.1', 'mech.vkick', 'mech.feed', 'mech.wheel', 'mech.feeder']) {
+    const st1 = withInput(name, 1);
+    if (!st1) continue;
+    // (at rest first: a mech input's rest is with mech there, at its rest)
     restore();
-    run(st0, 0);
+    run(name.startsWith('mech.') ? withInput(name, 0) : st0, 0);
     const a = all.map(pose);
-    const ok = run({ ...st0, [name]: 1 }, 1);
+    const ok = run(st1, 1);
     if (ok !== true) { errors.push(name + ': ' + ok); continue; }
     const nodes = {};
     all.forEach((o, i) => {
@@ -141,17 +174,43 @@ window.exportRobot = async (key) => {
     });
     if (Object.keys(nodes).length) rateOut[name] = nodes;
   }
+  // the nets over the load (hopperNet): the app drapes its own over the FUEL each frame. Each one's
+  // shape (userData.netSpec), the node it hangs on, and how anim drapes it (userData.drapeArgs: ex,
+  // its back and front edges' heights, xBack; and whether it's shown) at rest and per input, as the
+  // poses are
+  const nets = [];
+  root.traverse((o) => { if (o.userData?.netSpec) nets.push(o); });
+  const argsOf = () => nets.map((o) => { const a = o.userData.drapeArgs ?? { ex: 0, y: null, yFront: null, xBack: null }; return [a.ex, a.y, a.yFront, a.xBack, o.visible ? 1 : 0]; });
+  const sameArg = (x, y) => x === y || (x !== null && y !== null && Math.abs(x - y) < 1e-9);
+  restore();
+  run(st0, 0);
+  const netRest = argsOf();
+  const netOut = nets.map((o, i) => ({ name: o.name, parent: o.parent.name, spec: o.userData.netSpec, rest: netRest[i], by: {} }));
+  for (const [name, lo, hi] of nets.length ? POSE : []) {
+    if (!(hi > lo)) continue;
+    const samples = [], rows = nets.map(() => []), moved = nets.map(() => false);
+    for (let s = 0; s <= N; s++) {
+      const v = lo + (hi - lo) * s / N, st = withInput(name, v);
+      if (!st) break;
+      restore();
+      if (run(st, 0) !== true) break;
+      samples.push(v);
+      argsOf().forEach((a, i) => { rows[i].push(a); if (a.some((x, j) => !sameArg(x, netRest[i][j]))) moved[i] = true; });
+    }
+    netOut.forEach((n, i) => { if (moved[i] && samples.length === N + 1) n.by[name] = { samples, rows: rows[i] }; });
+  }
   restore();
   run(st0, 0);
   const nodes = {};
   for (const i of moving) { const o = all[i]; nodes[o.name] = { rest: rest[i], order: o.rotation.order }; }
   for (const md of m.modules || []) for (const o of [md.pivot, md.wheel]) nodes[o.name] = { rest: pose(o), order: o.rotation.order };
+  for (const o of nets) o.visible = false; // (not in the GLB: the app makes its own)
   root.updateMatrixWorld(true);
   const glb = await new GLTFExporter().parseAsync(root, { binary: true, onlyVisible: true });
   let bin = '';
   const u8 = new Uint8Array(glb);
   for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
-  return { glb: btoa(bin), rig: { key, nodes, pose: poseOut, rate: rateOut, modules, errors } };
+  return { glb: btoa(bin), rig: { key, nodes, pose: poseOut, rate: rateOut, modules, nets: netOut, errors } };
 };
 window.ready = true;
 </script>`;

@@ -377,6 +377,16 @@ impl Phys1690 {
     pub fn turret_step(&mut self, cur: f64, goal: f64, dt: f64, t: f64) -> f64 {
         self.turret.get_or_insert_with(drive1690).step(cur, goal, dt, Some(t))
     }
+    /// js `mechPose()`: its moving parts, for drawing them: [name, value] as its drawing's rig names
+    /// them (the carriage out 0-1, the kicker bar's fall and the hood's angle in rad; the wheels',
+    /// rollers' and belts' speeds, rad/s and m/s)
+    pub fn mech_pose(&self) -> [(&'static str, f64); 11] {
+        let (d, t) = (&self.p.drives, &self.t);
+        [("mech.ext", self.deploy), ("mech.kick", self.kick * DEG), ("mech.hood", self.hood * DEG),
+         ("mech.wheel", d.omega(t.wheel)), ("mech.feeder", d.omega(t.hood_wheels[0])), ("mech.floor", d.trains[t.floor].omega),
+         ("mech.belts.0", d.omega(t.belts[0]) * belt_pitch()), ("mech.belts.1", d.omega(t.belts[1]) * belt_pitch()),
+         ("mech.vkick", d.omega(t.vkick)), ("mech.feed", d.trains[t.feed].omega), ("mech.intakeRollers", d.trains[t.intake].omega)]
+    }
     /// the roller floor's speed, for drawing
     pub fn floor_spin(&self) -> f64 { self.p.drives.trains[self.t.floor].omega }
     #[allow(dead_code)]

@@ -24,6 +24,9 @@ pub struct Rig {
     pose: HashMap<String, PoseInput>,
     rate: HashMap<String, HashMap<String, [f32; 3]>>,
     modules: Vec<Module>,
+    /// the nets over its load (net.rs)
+    #[serde(default)]
+    nets: Vec<crate::net::RigNet>,
 }
 
 #[derive(Deserialize)]
@@ -62,6 +65,9 @@ pub struct RobotModel {
     wheel_turn: Vec<f32>,
     steer: Vec<f32>,
     pub ready: bool,
+    /// the inputs its parts were posed from this frame (for its nets)
+    inputs: Vec<(String, f32)>,
+    nets_made: bool,
 }
 
 /// The model of robot `i` (its key), if it has one: spawned at the robot's pose
@@ -78,7 +84,7 @@ pub fn spawn(commands: &mut Commands, assets: &AssetServer, dir: &AssetDir, i: u
         .spawn((
             Transform::default(),
             Visibility::default(),
-            RobotModel { robot: i, rig: Arc::new(rig), parts: HashMap::new(), spun: HashMap::new(), wheel_turn: vec![0.0; n], steer: vec![0.0; n], ready: false },
+            RobotModel { robot: i, rig: Arc::new(rig), parts: HashMap::new(), spun: HashMap::new(), wheel_turn: vec![0.0; n], steer: vec![0.0; n], ready: false, inputs: Vec::new(), nets_made: false },
         ))
         .with_children(|p| { p.spawn((WorldAssetRoot(scene), Transform::default())).observe(on_ready); })
         .id();
@@ -154,7 +160,7 @@ pub struct RobotModelPlugin;
 
 impl Plugin for RobotModelPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(PostUpdate, animate.before(TransformSystems::Propagate));
+        app.add_systems(PostUpdate, (animate, drape_nets).chain().before(TransformSystems::Propagate));
     }
 }
 
@@ -171,29 +177,48 @@ fn animate(game: Res<Game>, time: Res<Time>, mut models: Query<(&mut RobotModel,
         if !m.ready { continue }
         let m = &mut *m;
         // the state anim reads (js robot.js visualState().anim); what isn't simulated yet rests
-        // (an arm its mechanisms turn, 8793's, drawn where it is: lifted by FUEL under it, or pushed
-        // round by a TRENCH arm; its rig's arm swings linearly with intakeDeploy)
-        let deploy = match &r.phys { Some(sim::robot::Phys::R8793(p)) => 1.0 - p.arm_turn() / p.arm.stow, _ => r.intake_deploy };
+        use sim::robot::Phys;
         // (a lid on a climber, 1678's: up as far as its climber has it, 0-1)
-        let lift = match &r.phys { Some(sim::robot::Phys::R1678(p)) => p.lift_now(r.cfg["bay"]["lift"]["h"].as_f64().unwrap_or(0.0)), _ => 0.0 };
-        let inputs: [(&str, f32); 5] = [("lift", lift as f32), ("intakeDeploy", deploy as f32), ("hopperDeploy", r.hopper_deploy as f32), ("hoodDeg", r.hood_deg as f32), ("turretYaw", r.turret_yaw as f32)];
+        let lift = match &r.phys { Some(Phys::R1678(p)) => p.lift_now(r.cfg["bay"]["lift"]["h"].as_f64().unwrap_or(0.0)), _ => 0.0 };
+        let mut inputs: Vec<(&str, f32)> = vec![("lift", lift as f32), ("intakeDeploy", r.intake_deploy as f32), ("hopperDeploy", r.hopper_deploy as f32), ("hoodDeg", r.hood_deg as f32), ("turretYaw", r.turret_yaw as f32)];
         // (the hopper floor's rollers as fast as they turn, 2910's; the rest at the rates the robot's
         // drawing spins them: the intake's rollers, the flywheel, the feed when it's feeding, its
         // floor's when that's not simulated)
-        let floor = match &r.phys { Some(sim::robot::Phys::R2910(p)) => p.floor_spin() as f32, _ => 0.0 };
+        let floor = match &r.phys { Some(Phys::R2910(p)) => p.floor_spin() as f32, _ => 0.0 };
         let feeding = if m.rig.rate.contains_key("floorSpin") { 0.0 } else { r.out.feeding as f32 };
-        let rates: [(&str, f32); 4] = [("floorSpin", floor), ("feeding", feeding), ("intakeSpeed", r.out.intake_speed as f32), ("flywheel", r.flywheel as f32)];
-        for (name, v) in rates {
-            let Some(ch) = m.rig.rate.get(name) else { continue };
+        let mut rates: Vec<(&str, f32)> = vec![("floorSpin", floor), ("feeding", feeding), ("intakeSpeed", r.out.intake_speed as f32), ("flywheel", r.flywheel as f32)];
+        // (what a physical robot says of its parts itself: an arm's turn, where its mechanisms have it
+        // (lifted by FUEL under it, pushed by a TRENCH arm); 4414's hood and Dye Rotor; 1690's
+        // mechanisms, mechPose)
+        match &r.phys {
+            Some(Phys::R8793(p)) => inputs.push(("armTurn", p.arm_turn() as f32)),
+            Some(Phys::R1678(p)) => inputs.push(("armTurn", p.arm_turn() as f32)),
+            Some(Phys::R4414(p)) => { inputs.push(("hoodTurn", p.hood_turn() as f32)); inputs.push(("rotorTurn", p.rotor_turn().rem_euclid(std::f64::consts::TAU) as f32)); }
+            Some(Phys::R1690(p)) => for (k, v) in p.mech_pose() { if m.rig.rate.contains_key(k) { rates.push((k, v as f32)); } else { inputs.push((k, v as f32)); } },
+            _ => {}
+        }
+        // (and those take over the parts they move from the inputs anim reads otherwise)
+        let pose_taken = |node: &str, b: &str| inputs.iter().any(|(a, _)| overrides(a, b) && m.rig.pose.get(*a).is_some_and(|ch| ch.nodes.contains_key(node)));
+        let rate_taken = |node: &str, b: &str| rates.iter().any(|(a, _)| overrides(a, b) && m.rig.rate.get(*a).is_some_and(|ch| ch.contains_key(node)));
+        let mut spin: Vec<(String, [f32; 3])> = Vec::new();
+        for (name, v) in &rates {
+            let Some(ch) = m.rig.rate.get(*name) else { continue };
             for (node, d) in ch {
-                let s = m.spun.entry(node.clone()).or_insert([0.0; 3]);
-                for j in 0..3 { s[j] = (s[j] + d[j] * v * dt) % std::f32::consts::TAU; }
+                if rate_taken(node, name) { continue; }
+                spin.push((node.clone(), [d[0] * v * dt, d[1] * v * dt, d[2] * v * dt]));
             }
         }
+        for (node, d) in spin {
+            let s = m.spun.entry(node).or_insert([0.0; 3]);
+            for j in 0..3 { s[j] = (s[j] + d[j]) % std::f32::consts::TAU; }
+        }
+        m.inputs = inputs.iter().map(|(k, v)| (k.to_string(), *v)).collect();
+        let skip: Vec<(String, String)> = m.rig.nodes.keys().flat_map(|node| inputs.iter().filter(|(b, _)| pose_taken(node, b)).map(|(b, _)| (node.clone(), b.to_string())).collect::<Vec<_>>()).collect();
         for (node, rest) in &m.rig.nodes {
             let Some(&e) = m.parts.get(node) else { continue };
             let mut p = rest.rest;
-            for (name, v) in inputs {
+            for &(name, v) in &inputs {
+                if skip.iter().any(|(n, b)| n == node && b == name) { continue; }
                 let Some(ch) = m.rig.pose.get(name) else { continue };
                 let Some(rows) = ch.nodes.get(node) else { continue };
                 let row = lerp_row(&ch.samples, rows, v);
@@ -201,6 +226,10 @@ fn animate(game: Res<Game>, time: Res<Time>, mut models: Query<(&mut RobotModel,
             }
             if let Some(s) = m.spun.get(node) { for j in 0..3 { p[3 + j] += s[j]; } }
             if let Ok(mut t) = parts.get_mut(e) {
+                // (REBUILT_RIG_LOG=1: each posed part where it's put, once a second)
+                if std::env::var_os("REBUILT_RIG_LOG").is_some() && (time.elapsed_secs() % 1.0) < dt && m.rig.pose.values().any(|ch| ch.nodes.contains_key(node)) {
+                    info!("rig {node}: {:?} (inputs {:?})", &p[..6], inputs);
+                }
                 t.translation = Vec3::new(p[0], p[1], p[2]);
                 t.rotation = euler(&rest.order, p[3], p[4], p[5]);
                 t.scale = Vec3::new(p[6], p[7], p[8]);
@@ -222,5 +251,79 @@ fn animate(game: Res<Game>, time: Res<Time>, mut models: Query<(&mut RobotModel,
                 if let Ok(mut t) = parts.get_mut(e) { t.rotation = euler(&rest.order, p[3], y, p[5]); }
             }
         }
+    }
+}
+
+/// Which of a robot's nets this is
+#[derive(Component)]
+struct NetOf { model: Entity, i: usize }
+
+/// js `net.drape(st.load, ex, at)` each frame: its nets made once its model's in (in the robot's
+/// frame, on the model), then draped over the FUEL it holds as its state has them
+fn drape_nets(
+    game: Res<Game>,
+    mut models: Query<(Entity, &mut RobotModel)>,
+    mut nets: Query<(&mut crate::net::Net, &NetOf, &mut Visibility)>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut mats: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
+    mut tex: Local<Option<Handle<Image>>>,
+    mut commands: Commands,
+) {
+    let w = &game.0;
+    for (e, mut m) in &mut models {
+        if !m.ready || m.nets_made || m.rig.nets.is_empty() { continue; }
+        m.nets_made = true;
+        let t = tex.get_or_insert_with(|| crate::net::net_texture(&mut images)).clone();
+        for (i, rn) in m.rig.nets.iter().enumerate() {
+            // (nets hang on the model's root: others, on a part that moves, aren't drawn yet)
+            if rn.parent != "rig0" { continue; }
+            let (net, mesh) = crate::net::Net::new(rn.spec.clone(), &mut meshes);
+            let c = rn.spec.color.unwrap_or(0x15171a);
+            let mat = mats.add(StandardMaterial {
+                base_color: Color::srgb_u8((c >> 16) as u8, (c >> 8) as u8, c as u8),
+                base_color_texture: Some(t.clone()),
+                alpha_mode: AlphaMode::Blend,
+                double_sided: true,
+                cull_mode: None,
+                perceptual_roughness: 0.9,
+                ..default()
+            });
+            let child = commands.spawn((Mesh3d(mesh), MeshMaterial3d(mat), Transform::default(), Visibility::Hidden, bevy::light::NotShadowCaster, net, NetOf { model: e, i })).id();
+            commands.entity(e).add_child(child);
+            info!("robot {} net {i}: {}x{} over x {:.2}..{:.2}", m.robot, rn.spec.nx, rn.spec.nz, rn.spec.x0, rn.spec.x1_out);
+        }
+    }
+    for (mut net, of, mut vis) in &mut nets {
+        let Ok((_, m)) = models.get(of.model) else { continue };
+        let Some(r) = w.robots.get(m.robot) else { continue };
+        let rn = &m.rig.nets[of.i];
+        // (an input another one takes over from: as the parts' poses, robot_model's overrides)
+        let taken = |b: &str| m.inputs.iter().any(|(a, _)| overrides(a, b) && rn.by.contains_key(a.as_str()));
+        let a = rn.args(&m.inputs, &taken);
+        let shown = a[4].unwrap_or(1.0) > 0.5;
+        let v = if shown { Visibility::Inherited } else { Visibility::Hidden };
+        if *vis != v { *vis = v; }
+        if !shown { continue; }
+        // (the FUEL it holds, in its frame: js netLoad)
+        let Some(b) = w.physics.bodies.get(r.body) else { continue };
+        let (bt, bq) = (b.translation(), b.rotation().inverse());
+        let load: Vec<[f64; 3]> = r.stored.iter().map(|&k| {
+            let p = w.fuel.balls[k].pos;
+            let l = bq * (Vec3::new(p[0] as f32, p[1] as f32, p[2] as f32) - bt);
+            [l.x as f64, l.y as f64, l.z as f64]
+        }).collect();
+        net.drape(&load, a[0].unwrap_or(0.0), a[1], a[2], a[3], &mut meshes);
+    }
+}
+
+/// Whether input a, when a robot gives it, takes over the parts input b would move
+fn overrides(a: &str, b: &str) -> bool {
+    match a {
+        "armTurn" => b == "intakeDeploy",
+        "hoodTurn" => b == "hoodDeg",
+        "rotorTurn" => b == "rotorAngle",
+        _ if a.starts_with("mech.") => matches!(b, "intakeDeploy" | "hopperDeploy" | "hoodDeg" | "intakeSpeed" | "flywheel" | "feeding" | "floorSpin"),
+        _ => false,
     }
 }
