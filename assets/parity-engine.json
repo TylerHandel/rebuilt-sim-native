@@ -1,0 +1,83 @@
+{
+ "source": "rebuilt-sim-2026 tools/native-parity.mjs",
+ "rapier": "@dimforge/rapier3d-simd-compat 0.21.0",
+ "heap": {
+  "n": 120,
+  "step": 0.15625,
+  "at": [
+   -1,
+   1,
+   1.125
+  ],
+  "thrown": [
+   3,
+   2,
+   -1.5,
+   8,
+   0,
+   -4
+  ]
+ },
+ "digests": [
+  {
+   "part": "start",
+   "step": 1,
+   "fuel": 456,
+   "digest": "a5c45658194b07bd"
+  },
+  {
+   "part": "start",
+   "step": 10,
+   "fuel": 456,
+   "digest": "4a8f37634e91270b"
+  },
+  {
+   "part": "start",
+   "step": 60,
+   "fuel": 456,
+   "digest": "65695e2d2f2156ac"
+  },
+  {
+   "part": "start",
+   "step": 120,
+   "fuel": 456,
+   "digest": "5f265467df22a0b7"
+  },
+  {
+   "part": "start",
+   "step": 360,
+   "fuel": 456,
+   "digest": "8f7d66c83471d76f"
+  },
+  {
+   "part": "heap",
+   "step": 1,
+   "fuel": 576,
+   "digest": "66cabd12c455bdcf"
+  },
+  {
+   "part": "heap",
+   "step": 10,
+   "fuel": 576,
+   "digest": "fba9f23264d560a5"
+  },
+  {
+   "part": "heap",
+   "step": 60,
+   "fuel": 576,
+   "digest": "66119603745b6475"
+  },
+  {
+   "part": "heap",
+   "step": 120,
+   "fuel": 576,
+   "digest": "7241731325057441"
+  },
+  {
+   "part": "heap",
+   "step": 360,
+   "fuel": 576,
+   "digest": "13c93bc97180d349"
+  }
+ ]
+}

@@ -48,14 +48,17 @@ jobs:
           (cd _web && npm ci --no-audit --no-fund)
           (cd tools && npm ci --no-audit --no-fund)
           node tools/sync-assets.mjs _web
-          # the committed world.json must be what that commit exports
-          git diff --exit-code assets/world.json
+          # the committed data must be what that commit exports
+          git diff --exit-code assets/world.json assets/parity-engine.json
 
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Version
         shell: bash
         run: echo "VERSION=0.1.${{ github.run_number }}" >> "$GITHUB_ENV"
+      # (the sim's tests here too: its parity with the browser game's engine, on Windows)
+      - name: Test
+        run: cargo test -p sim --release
       - name: Build
         shell: bash
         run: |

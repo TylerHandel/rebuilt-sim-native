@@ -12,11 +12,12 @@ downloads it in the background, and installs it the next time it starts.
 ## What's here
 | | |
 |---|---|
-| `crates/sim` | The simulation, with no graphics: native [Rapier](https://rapier.rs) physics on every core. Its tests and benchmark run headless. |
+| `crates/sim` | The simulation, with no graphics: native [Rapier](https://rapier.rs) physics. Its tests and benchmark run headless. |
 | `crates/app` | The game: [Bevy](https://bevyengine.org) drawing, input, the HUD and the update check ([Velopack](https://velopack.io)). |
 | `assets/world.json` | The field exactly as the browser game builds it: every collider's shape, pose, friction and groups, the physics settings, and the FUEL. Its `tools/export-native.mjs` exports it. |
 | `assets/cad/` | The field and robot models. These aren't committed; `tools/sync-assets.mjs` brings them over. |
-| `assets/SOURCE` | The rebuilt-sim-2026 commit both came from. |
+| `assets/parity-engine.json` | Digests of that world stepped by the browser game's engine, which the sim's tests must match. |
+| `assets/SOURCE` | The rebuilt-sim-2026 commit these came from. |
 
 ## Develop
 ```
@@ -30,14 +31,18 @@ cargo run --release -p sim --example bench                # physics time per sim
 In the game: right-drag turns the camera, the wheel zooms, WASD moves it. Space drops a heap of
 FUEL, R resets the field, and F1 shows the field's colliders.
 
-## Performance
+## Performance and parity
 The field and its 456 FUEL, the same scenario in each, on one 4-core machine (ms of CPU per
 simulated second, lower is better):
 
 | | browser (Rapier WASM) | native |
 |---|---:|---:|
-| FUEL settling after the start | 205 | 55 |
-| at rest | 56 | 13 |
-| a 120-FUEL heap dropped | 344 | 139 |
+| FUEL settling after the start | 205 | 28 |
+| at rest | 56 | 5.4 |
+| a 120-FUEL heap dropped | 344 | 105 |
 
-See [PLAN.md](PLAN.md) for what's left to port.
+The native engine is the same Rapier the browser game runs as WebAssembly, and it steps this world
+to the same bits (`crates/sim/tests/parity.rs`). The rest of the game is ported against that: each
+piece has to reproduce the browser game exactly before the next one starts.
+
+See [PLAN.md](PLAN.md) for the design, the order of work and what's left to port.

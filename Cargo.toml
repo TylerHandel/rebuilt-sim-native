@@ -8,9 +8,12 @@ edition = "2024"
 repository = "https://github.com/TylerHandel/rebuilt-sim-native"
 
 [workspace.dependencies]
-rapier3d = { version = "0.36", features = ["parallel"] }
+# The browser game's engine (@dimforge/rapier3d-simd-compat 0.21.0) is this Rapier compiled to
+# WebAssembly: pinned, and without the parallel and simd features, it steps the same world to the
+# same bits (crates/sim/tests/parity.rs). Serial is also the fastest on this game's world.
+rapier3d = { version = "=0.36.1" }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["float_roundtrip"] }
 
 # dependencies optimized even in debug builds, so a `cargo run` plays smoothly
 [profile.dev.package."*"]

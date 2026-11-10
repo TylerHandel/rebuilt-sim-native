@@ -1,5 +1,6 @@
 // Brings the game's world over from the browser version (github.com/TylerHandel/rebuilt-sim-2026):
 //   assets/world.json  the field's colliders and the FUEL, exported by its tools/export-native.mjs
+//   assets/parity-engine.json  digests of that world stepped by its Rapier (tools/native-parity.mjs)
 //   assets/cad/        its CAD models (field and robots), made loadable here: Bevy doesn't read
 //                      KHR_mesh_quantization, so quantized meshes are written back as plain floats
 //   assets/SOURCE      the commit they came from
@@ -18,6 +19,8 @@ const assets = join(here, 'assets');
 
 const sha = execFileSync('git', ['-C', src, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 execFileSync('node', ['--import', './tools/node-env.mjs', 'tools/export-native.mjs', join(assets, 'world.json')], { cwd: src, stdio: 'inherit' });
+// (what its Rapier makes of that world, for the sim's parity test: PLAN.md)
+execFileSync('node', ['tools/native-parity.mjs', join(assets, 'world.json'), join(assets, 'parity-engine.json')], { cwd: src, stdio: 'inherit' });
 
 const cad = join(assets, 'cad');
 rmSync(cad, { recursive: true, force: true });

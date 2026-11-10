@@ -1,6 +1,7 @@
 //! The simulation, without graphics: the field, the FUEL and (later) the robots, their mechanisms and
 //! the match rules, stepped at a fixed rate. The app renders it; tests and benchmarks run it headless.
 
+pub mod parity;
 pub mod world;
 
 use rapier3d::prelude::*;
