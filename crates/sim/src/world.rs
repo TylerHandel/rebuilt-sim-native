@@ -7,6 +7,10 @@ use serde::Deserialize;
 #[derive(Debug, Clone, Deserialize)]
 pub struct WorldData {
     pub source: String,
+    #[serde(default)]
+    pub outposts: Option<Outposts>,
+    #[serde(default, rename = "trenchArms")]
+    pub trench_arms: Option<TrenchArms>,
     pub physics: PhysicsData,
     pub groups: Groups,
     pub field: Vec<ColliderData>,
@@ -111,3 +115,29 @@ impl WorldData {
         Self::from_json(include_str!("../../../assets/world.json")).expect("assets/world.json")
     }
 }
+
+/// field.js outposts[a]: its world-space info
+#[derive(Debug, Clone, Deserialize)]
+pub struct Outposts { pub blue: Outpost, pub red: Outpost }
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct Rect { pub x0: f64, pub x1: f64, pub z0: f64, pub z1: f64 }
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Opening { pub x: f64, pub y: f64, pub z: f64, pub half_w: f64 }
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct Point { pub x: f64, pub y: f64, pub z: f64 }
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Outpost { pub corral: Rect, pub upper_opening: Opening, pub hp_throw_pos: Point, pub into_field: f64 }
+
+/// physics.js: the TRENCH arms' boxes and the solver groups of the rule that lets a frame under them
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrenchArms { pub arms: Vec<ArmBox>, pub arms_bottom: f64, pub arm_solver_groups: u32, pub under_solver_groups: u32 }
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct ArmBox { pub x: f64, pub z: f64, pub hx: f64, pub hz: f64 }

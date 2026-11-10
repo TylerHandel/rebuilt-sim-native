@@ -246,7 +246,11 @@ with auto-update, engine parity test.
 **M2b. FUEL.** `fuel.rs`: states, `stage`, `launch`, `own`, `unown`, `release`, `pre_step`,
 `post_step`, flight (drag and Magnus), and enough of `update` for FUEL leaving the field to come
 back. Gate: a script that launches FUEL with set velocities and spins at walls, the HUBs and the
-floor.
+floor. **Done:** `fuel.rs`, `game_match.rs`, `human_player.rs` (all but throwing), `field.rs`, the
+game `World` (createWorld, stepGame, frameGame without robots). `fuel-start` (the match's FUEL
+through the pre-match into AUTO) and `fuel-launch` (FUEL thrown spinning at walls, both HUBS, a BUMP,
+into a CORRAL and out of the FIELD and returned) are identical to the JS game after every part of
+every step.
 
 **M2c. The robot body and drive.** `drivetrain.rs`; `robot.rs` constructor, `_createBody`, `reset`,
 `spawn`, `_preStepDrive`, `_alongWalls`, `_wheelsDown`, tip damping, the sliding hopper and top

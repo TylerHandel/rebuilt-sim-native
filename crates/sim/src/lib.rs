@@ -1,7 +1,13 @@
 //! The simulation, without graphics: the field, the FUEL and (later) the robots, their mechanisms and
 //! the match rules, stepped at a fixed rate. The app renders it; tests and benchmarks run it headless.
 
+pub mod ballistics;
 pub mod constants;
+pub mod field;
+pub mod fuel;
+pub mod game;
+pub mod game_match;
+pub mod human_player;
 pub mod parity;
 pub mod rng;
 pub mod world;
@@ -46,6 +52,38 @@ fn shape(s: &world::ShapeData) -> ColliderBuilder {
     }
 }
 
+/// The physics world with the field in it: the settings, the fixed body and its colliders, made in
+/// the JS game's order (js/physics.js, js/field.js; as exported)
+pub fn field_physics(data: &WorldData) -> (PhysicsWorld, RigidBodyHandle) {
+    let mut physics = PhysicsWorld::default();
+    physics.gravity = Vector::new(0.0, -data.physics.gravity, 0.0);
+    let ip = &mut physics.integration_parameters;
+    ip.dt = data.physics.dt;
+    ip.num_solver_iterations = data.physics.solver_iterations;
+    if let Some(p) = data.physics.prediction_distance {
+        ip.normalized_prediction_distance = p;
+    }
+    let fixed = physics.insert_body(RigidBodyBuilder::fixed());
+    for c in &data.field {
+        let [x, y, z] = c.translation;
+        let [qx, qy, qz, qw] = c.rotation;
+        let pose = Pose::from_parts(Vector::new(x, y, z), Rotation::from_xyzw(qx, qy, qz, qw).normalize());
+        let col = shape(&c.shape)
+            .position(pose)
+            .friction(c.friction)
+            .restitution(c.restitution)
+            .friction_combine_rule(combine(c.friction_combine))
+            .restitution_combine_rule(combine(c.restitution_combine))
+            .collision_groups(groups(c.collision_groups))
+            .solver_groups(groups(c.solver_groups))
+            .sensor(c.sensor);
+        physics.insert_collider(col, Some(fixed));
+    }
+    (physics, fixed)
+}
+
+/// The field and the FUEL a match starts with, as bodies, and nothing else (the engine parity
+/// scenario and the benchmark; the game is game::World)
 pub struct Sim {
     pub physics: PhysicsWorld,
     pub data: WorldData,
@@ -57,32 +95,7 @@ pub struct Sim {
 
 impl Sim {
     pub fn new(data: WorldData) -> Self {
-        let mut physics = PhysicsWorld::default();
-        physics.gravity = Vector::new(0.0, -data.physics.gravity, 0.0);
-        let ip = &mut physics.integration_parameters;
-        ip.dt = data.physics.dt;
-        ip.num_solver_iterations = data.physics.solver_iterations;
-        if let Some(p) = data.physics.prediction_distance {
-            ip.normalized_prediction_distance = p;
-        }
-
-        let fixed = physics.insert_body(RigidBodyBuilder::fixed());
-        for c in &data.field {
-            let [x, y, z] = c.translation;
-            let [qx, qy, qz, qw] = c.rotation;
-            let pose = Pose::from_parts(Vector::new(x, y, z), Rotation::from_xyzw(qx, qy, qz, qw).normalize());
-            let col = shape(&c.shape)
-                .position(pose)
-                .friction(c.friction)
-                .restitution(c.restitution)
-                .friction_combine_rule(combine(c.friction_combine))
-                .restitution_combine_rule(combine(c.restitution_combine))
-                .collision_groups(groups(c.collision_groups))
-                .solver_groups(groups(c.solver_groups))
-                .sensor(c.sensor);
-            physics.insert_collider(col, Some(fixed));
-        }
-
+        let (physics, fixed) = field_physics(&data);
         let mut sim = Sim { physics, data, fixed, fuel: Vec::new(), time: 0.0 };
         let starts = sim.data.fuel.start.clone();
         for p in starts {

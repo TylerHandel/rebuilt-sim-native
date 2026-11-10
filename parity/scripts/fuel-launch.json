@@ -1,15 +1,152 @@
 {
   "name": "fuel-launch",
-  "about": "FUEL thrown at the walls, a HUB, a BUMP and each other in TELEOP, spinning: flight, bounces, HUB entry (M2b).",
+  "about": "FUEL thrown at the walls, a HUB, a BUMP and each other in TELEOP, spinning, one over the guardrail into the blue CORRAL and one out of the FIELD (returned by field staff): flight, bounces, HUB entry and scoring, the CORRAL, the return (M2b).",
   "seed": 7,
   "slots": [],
+  "humanPlayers": false,
   "phase": "teleop",
-  "steps": 600,
+  "steps": 1440,
   "launches": [
-    { "step": 0, "ball": 0, "pos": [-3.0, 1.2, 0.0], "vel": [-4.0, 5.0, 0.0], "spin": [0, 0, 30] },
-    { "step": 0, "ball": 1, "pos": [0.0, 0.5, 3.0], "vel": [0.0, 2.0, 6.0] },
-    { "step": 10, "ball": 2, "pos": [-6.0, 1.0, -2.0], "vel": [8.0, 1.0, 0.5], "spin": [5, 0, -20] },
-    { "step": 20, "ball": 3, "pos": [2.0, 2.0, 0.0], "vel": [0.0, 0.0, 0.0] },
-    { "step": 120, "ball": 4, "pos": [-8.0, 0.3, 3.5], "vel": [-3.0, 0.5, 2.0] }
+    {
+      "step": 0,
+      "ball": 0,
+      "pos": [
+        -3.0,
+        1.2,
+        0.0
+      ],
+      "vel": [
+        -4.0,
+        5.0,
+        0.0
+      ],
+      "spin": [
+        0,
+        0,
+        30
+      ]
+    },
+    {
+      "step": 0,
+      "ball": 1,
+      "pos": [
+        0.0,
+        0.5,
+        3.0
+      ],
+      "vel": [
+        0.0,
+        2.0,
+        6.0
+      ]
+    },
+    {
+      "step": 10,
+      "ball": 2,
+      "pos": [
+        -6.0,
+        1.0,
+        -2.0
+      ],
+      "vel": [
+        8.0,
+        1.0,
+        0.5
+      ],
+      "spin": [
+        5,
+        0,
+        -20
+      ]
+    },
+    {
+      "step": 20,
+      "ball": 3,
+      "pos": [
+        2.0,
+        2.0,
+        0.0
+      ],
+      "vel": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "step": 120,
+      "ball": 4,
+      "pos": [
+        -8.0,
+        0.3,
+        3.5
+      ],
+      "vel": [
+        -3.0,
+        0.5,
+        2.0
+      ]
+    },
+    {
+      "step": 30,
+      "ball": 5,
+      "pos": [
+        5.0,
+        1.0,
+        3.0
+      ],
+      "vel": [
+        0.0,
+        4.0,
+        6.0
+      ]
+    },
+    {
+      "step": 40,
+      "ball": 6,
+      "pos": [
+        -3.6452,
+        2.6,
+        0.05
+      ],
+      "vel": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "step": 50,
+      "ball": 7,
+      "pos": [
+        3.6452,
+        2.6,
+        -0.1
+      ],
+      "vel": [
+        0.3,
+        -1.0,
+        0.0
+      ],
+      "spin": [
+        0,
+        3,
+        0
+      ]
+    },
+    {
+      "step": 60,
+      "ball": 8,
+      "pos": [
+        -8.8,
+        0.3,
+        3.36
+      ],
+      "vel": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
   ]
 }

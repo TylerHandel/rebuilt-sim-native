@@ -39,6 +39,9 @@ pub struct Script {
     pub slots: Vec<Slot>,
     /// the match jumps straight to this phase ('auto' or 'teleop'), robots enabled
     pub phase: Option<String>,
+    /// false: the HUMAN PLAYERS don't throw at their HUBS
+    #[serde(rename = "humanPlayers")]
+    pub human_players: Option<bool>,
     pub steps: usize,
     #[serde(default)]
     pub commands: Vec<Command>,
@@ -91,4 +94,48 @@ pub fn first_mismatch(trace: &Trace, got: &[(usize, &str, String)]) -> Option<St
         if want != Some(d) { return Some(format!("{}: step {step}, after {part}: JS {}, here {d}", trace.script, want.map_or("(none)", |w| w))); }
     }
     None
+}
+
+fn body_bits(h: &mut Fnv, b: &rapier3d::prelude::RigidBody) {
+    let (t, q, v, w) = (b.translation(), *b.rotation(), b.linvel(), b.angvel());
+    for x in [t.x, t.y, t.z, q.x, q.y, q.z, q.w, v.x, v.y, v.z, w.x, w.y, w.z] { h.f32(x); }
+}
+
+/// The digest tools/native-trace.mjs takes (version 1): every FUEL (enabled, its body, its state's
+/// name), every robot's body, the random draws so far.
+pub fn world_digest(w: &crate::game::World) -> String {
+    let mut h = Fnv::default();
+    for b in &w.fuel.balls {
+        let body = &w.physics.bodies[b.body];
+        h.bytes(&[body.is_enabled() as u8]);
+        body_bits(&mut h, body);
+        h.bytes(b.state.name().as_bytes());
+        h.bytes(&[0]);
+    }
+    h.bytes(&w.rng.draws.to_le_bytes());
+    h.hex()
+}
+
+/// A script played here: the digest after each part of every step, as the trace has them.
+pub fn play(s: &Script) -> Vec<(usize, &'static str, String)> {
+    use crate::fuel::LaunchOpts;
+    use crate::game::{Settings, World};
+    use crate::game_match::{LaunchBy, LaunchInfo, Phase};
+    assert!(s.slots.is_empty(), "{}: robots aren't ported yet", s.name);
+    let mut w = World::new(crate::WorldData::bundled(), &Settings { seed: s.seed, human_players: s.human_players.unwrap_or(true), preload: 0 });
+    if let Some(p) = &s.phase { w.jump_to(Phase::parse(p)); }
+    let mut out = Vec::new();
+    for step in 0..s.steps {
+        for l in s.launches.iter().filter(|l| l.step == step) {
+            let info = LaunchInfo { by: LaunchBy::Test, alliance: None, legal: false, t: None };
+            w.fuel.launch(&mut w.physics, l.ball, l.pos, l.vel, LaunchOpts { info: Some(info), ..Default::default() });
+            if let Some(sp) = l.spin {
+                let b = w.fuel.balls[l.ball].body;
+                w.physics.bodies[b].set_angvel(crate::Vector::new(sp[0] as f32, sp[1] as f32, sp[2] as f32), true);
+            }
+        }
+        w.step(&mut |w, part| out.push((step, part, world_digest(w))));
+        if step % 2 == 1 { w.frame(2.0 * crate::constants::PHYSICS_DT); out.push((step, "frame", world_digest(&w))); }
+    }
+    out
 }

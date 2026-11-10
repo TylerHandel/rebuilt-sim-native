@@ -3,5 +3,6 @@
   "about": "The FUEL as a match starts them, through the pre-match and into AUTO with no robots: FUEL alone (M2b).",
   "seed": 1,
   "slots": [],
+  "humanPlayers": false,
   "steps": 480
 }
