@@ -4,6 +4,7 @@
 //   assets/parity/<script>.json  its traces of each parity/scripts/<script>.json (native-trace.mjs)
 //   assets/parity-engine.json  digests of that world stepped by its Rapier (tools/native-parity.mjs)
 //   assets/parity-mech.json    digests of its mechanisms stepping a scene on it (tools/native-mech.mjs)
+//   assets/mech/path<team>.json  each physical robot's ball path from its CAD (js/mech/path*.js)
 //   assets/cad/        its field's CAD model, made loadable here: Bevy doesn't read
 //                      KHR_mesh_quantization, so quantized meshes are written back as plain floats
 //   assets/models/     its robots as it draws them, and how their parts move (export-models.mjs)
@@ -13,6 +14,7 @@
 import { execFileSync } from 'node:child_process';
 import { cpSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { dequantize } from '@gltf-transform/functions';
@@ -25,6 +27,13 @@ const sha = execFileSync('git', ['-C', src, 'rev-parse', 'HEAD'], { encoding: 'u
 execFileSync('node', ['--import', './tools/node-env.mjs', 'tools/export-native.mjs', join(assets, 'world.json')], { cwd: src, stdio: 'inherit' });
 // (what its Rapier makes of that world, for the sim's parity test: PLAN.md)
 execFileSync('node', ['tools/native-parity.mjs', join(assets, 'world.json'), join(assets, 'parity-engine.json')], { cwd: src, stdio: 'inherit' });
+// (the physical robots' ball paths from their CAD, as meshes: js/mech/path*.js, data the
+// mechanisms are built from)
+mkdirSync(join(assets, 'mech'), { recursive: true });
+for (const f of readdirSync(join(src, 'js', 'mech')).filter((f) => /^path\d+\.js$/.test(f))) {
+  const mesh = (await import(pathToFileURL(join(src, 'js', 'mech', f)).href)).default;
+  writeFileSync(join(assets, 'mech', f.replace(/\.js$/, '.json')), JSON.stringify(mesh));
+}
 // (and what its mechanisms make of a scene of wheels, surfaces and FUEL: tools/native-mech.mjs)
 execFileSync('node', ['--import', './tools/node-env.mjs', 'tools/native-mech.mjs', join(assets, 'world.json'), join(assets, 'parity-mech.json')], { cwd: src, stdio: 'inherit' });
 // (and what the game does with each script in parity/scripts: its traces, which the sim's parity
