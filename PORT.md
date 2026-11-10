@@ -29,6 +29,7 @@ is ported and proven.
 | `js/mech/phys2910.js`, `r2910.js` (`profile`, the intake pivot: `preSteps`' arm, `postStep`'s goal) | `crates/sim/src/mech/r2910.rs` | cd3b5ff | ported | `drive-2910` |
 | `js/mech/phys8793.js`, `r8793.js` (the trains, conveyor, arm and its pivot loop, turret indexer, shooter, `trenchArm trenchPush`), `js/nav.js` (`TRENCH_ARMS underTrench`) | `crates/sim/src/mech/r8793.rs`, `phys8793.rs` | 0e2e9d1 | ported | `intake-8793`, `shoot-8793`, `trench-8793` |
 | `js/echain.js` (`chainLoad8793`, `TrackChain.insideLinks`; its geometry as data, `gen8793.json`), `js/mech/turretDrive.js` (`drive8793`) | `crates/sim/src/mech/turret_drive.rs` | 0e2e9d1 | ported | `shoot-8793` |
+| `js/mech/phys1678.js`, `r1678.js` (the trains, the arm's position loop, the extension on its pin and slot, the net, the lid on the climber, the tunnel's loop, prefill, the shot verifier, contractHopper, ferries, `watchFull`) | `crates/sim/src/mech/r1678.rs`, `phys1678.rs` | 0e2e9d1 | ported | `intake-1678`, `shoot-1678` |
 | `js/robot.js` (a folding arm's collider, `_intakePhys`, `_shooter`'s autoShuttle, the turret's travel center, a hood the robot sets) | `crates/sim/src/robot.rs` | 0e2e9d1 | ported | `intake-8793`, `trench-8793` |
 
 ## Scripts
@@ -41,3 +42,5 @@ is ported and proven.
 | `intake-8793` | M3c (8793) | yes, identical |
 | `shoot-8793` | M3c (8793) | yes, identical |
 | `trench-8793` | M3c (8793) | yes, identical |
+| `intake-1678` | M3c (1678) | yes, identical |
+| `shoot-1678` | M3c (1678) | yes, identical |

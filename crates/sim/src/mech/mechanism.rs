@@ -153,7 +153,33 @@ pub fn abutting(wheels: &mut [Wheel]) {
 pub enum Mount { Fixed, Pivot { shaft: usize, pivot: V3, axis: V3 }, Slide { shaft: usize, dir: V3, k: f64 } }
 
 #[derive(Clone, Debug)]
-enum Shape { Mesh, Block { c: V3, h: V3, r: f64 } }
+enum Shape { Mesh, Block { c: V3, h: V3, r: f64 }, Net(NetDome) }
+
+/// A stretched net tied between two edges, bulged by the load under it (js r1678.js Net1678): from
+/// the lid's front edge (x0, y0) to the extension's front (x1, y1), across +-hw, bulging up to
+/// `bulge` at its middle; folded away while ext < 0.05
+#[derive(Clone, Copy, Debug)]
+pub struct NetDome { pub ext: f64, pub x0: f64, pub x1: f64, pub y0: f64, pub y1: f64, pub hw: f64, pub bulge: f64 }
+impl NetDome {
+    /// js `at(x, z)`: its height, and its slope along x and z
+    fn at(&self, x: f64, z: f64) -> [f64; 3] {
+        let l = self.x1 - self.x0;
+        let (u, v, b) = ((x - self.x0) / l, (z + self.hw) / (2.0 * self.hw), self.bulge);
+        let (su, sv) = (m::sin(m::PI * u), m::sin(m::PI * v));
+        [self.y0 + (self.y1 - self.y0) * u + b * su * sv, (self.y1 - self.y0) / l + (b * m::PI * m::cos(m::PI * u) * sv) / l, (b * su * m::PI * m::cos(m::PI * v)) / (2.0 * self.hw)]
+    }
+    /// js `touches(p)`
+    fn touches(&self, p: V3) -> Vec<Hit> {
+        if self.ext < 0.05 { return Vec::new(); }
+        let [x, y, z] = p;
+        if x <= self.x0 || x >= self.x1 || m::abs(z) >= self.hw { return Vec::new(); }
+        let [h, hx, hz] = self.at(x, z);
+        let l = m::hypot3(hx, 1.0, hz);
+        let dist = (h - y) / l;
+        if dist >= R || dist < -0.03 { return Vec::new(); }
+        vec![Hit { depth: R - dist, n: [hx / l, -1.0 / l, hz / l] }]
+    }
+}
 
 #[derive(Clone, Debug, Default)]
 struct Near { x: f64, y: f64, z: f64, t: Vec<i32> }
@@ -261,6 +287,16 @@ impl Surface {
     }
 
     pub fn is_block(&self) -> bool { matches!(self.shape, Shape::Block { .. }) }
+    /// A net (js Net1678: a Surface built on one small triangle, its touches its own)
+    pub fn net(name: &str, mu: f64, tread: f64, dome: NetDome) -> Self {
+        let mut s = Surface::mesh(name, &[0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.01], &[0, 1, 2], mu, [0.0; 3], 0.0, 0.0, 0.08, tread);
+        s.shape = Shape::Net(dome);
+        s
+    }
+    /// a net's shape, to place it (js Net1678.place)
+    pub fn net_mut(&mut self) -> Option<&mut NetDome> { if let Shape::Net(d) = &mut self.shape { Some(d) } else { None } }
+    /// whether its own touches are a plain mesh's or a Block's (js surfaceBounds' plain)
+    fn plain(&self) -> bool { !matches!(self.shape, Shape::Net(_)) }
     /// a Block's bottom edge (its center's y less its half height and rounding)
     pub fn block_bottom(&self) -> Option<f64> { if let Shape::Block { c, h, r } = self.shape { Some(c[1] - h[1] - r) } else { None } }
 
@@ -347,6 +383,7 @@ impl Surface {
 
     /// js `touches(p, who)` (a Block's, or a mesh's)
     pub fn touches(&mut self, p: V3, who: RigidBodyHandle) -> Vec<Hit> {
+        if let Shape::Net(d) = &self.shape { return d.touches(p); }
         if let Shape::Block { c, h, r } = self.shape {
             let d = [p[0] - c[0], p[1] - c[1], p[2] - c[2]];
             let q = [m::abs(d[0]) - h[0], m::abs(d[1]) - h[1], m::abs(d[2]) - h[2]];
@@ -454,7 +491,7 @@ fn surface_bounds(surfaces: &[&Surface]) -> Vec<f64> {
     for (i, sf) in surfaces.iter().enumerate() {
         let o = i * 6;
         let (lo, hi) = (sf.lo, sf.hi);
-        if !(lo[0].is_finite() && hi[0].is_finite()) { sb[o] = 1.0; sb[o + 3] = -1.0; continue }
+        if !sf.plain() || !(lo[0].is_finite() && hi[0].is_finite()) { sb[o] = 1.0; sb[o + 3] = -1.0; continue }
         let (c0, c1, c2) = ((lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0, (lo[2] + hi[2]) / 2.0);
         let (h0, h1, h2) = ((hi[0] - lo[0]) / 2.0, (hi[1] - lo[1]) / 2.0, (hi[2] - lo[2]) / 2.0);
         let [ex, ey, ez] = sf.axes;

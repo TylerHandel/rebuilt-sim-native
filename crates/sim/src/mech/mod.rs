@@ -1,10 +1,12 @@
 //! js/mech: the physical robots' mechanisms.
 pub mod drives;
 pub mod mechanism;
+pub mod phys1678;
 pub mod phys2910;
 pub mod phys4414;
 pub mod phys8793;
 pub mod physical;
+pub mod r1678;
 pub mod r2910;
 pub mod r4414;
 pub mod r8793;

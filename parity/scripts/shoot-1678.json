@@ -1,0 +1,57 @@
+{
+  "name": "shoot-1678",
+  "about": "1678 preloaded with 8 in its ALLIANCE ZONE in TELEOP: the chassis turns its back to the HUB, the drum's velocity loop spins to their regression's RPM, the hood swings, the shot verifier fires (floor, feeder and tunnel) and the FUEL go over the drum into the HUB; let go, the drum idles at 2100 RPM and the feeder runs back; then it drives out past the zone line, intakes, and ferries back (M3c).",
+  "seed": 9,
+  "slots": [
+    {
+      "robot": "1678",
+      "alliance": "blue",
+      "pose": [
+        -6.0,
+        1.5,
+        0.4
+      ]
+    }
+  ],
+  "humanPlayers": false,
+  "preload": 8,
+  "phase": "teleop",
+  "steps": 1800,
+  "commands": [
+    {
+      "from": 0,
+      "robot": 0,
+      "cmd": {}
+    },
+    {
+      "from": 60,
+      "robot": 0,
+      "cmd": {
+        "shoot": true
+      }
+    },
+    {
+      "from": 600,
+      "robot": 0,
+      "cmd": {
+        "vx": 2.0,
+        "vz": -0.3
+      }
+    },
+    {
+      "from": 840,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.8,
+        "intake": true
+      }
+    },
+    {
+      "from": 1320,
+      "robot": 0,
+      "cmd": {
+        "pass": true
+      }
+    }
+  ]
+}

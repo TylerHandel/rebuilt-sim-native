@@ -19,7 +19,7 @@ fn every_script_has_its_trace() {
 
 /// The scripts whose modules are ported (PORT.md), played here and matched against the JS game's
 /// traces, step by step, part by part.
-const PORTED: [&str; 11] = ["fuel-start", "fuel-launch", "drive-2910", "intake-2910", "shoot-2910", "hp-throws", "intake-4414", "shoot-4414", "intake-8793", "shoot-8793", "trench-8793"];
+const PORTED: [&str; 13] = ["fuel-start", "fuel-launch", "drive-2910", "intake-2910", "shoot-2910", "hp-throws", "intake-4414", "shoot-4414", "intake-8793", "shoot-8793", "trench-8793", "intake-1678", "shoot-1678"];
 
 #[test]
 fn ported_scripts_play_as_in_the_js_game() {

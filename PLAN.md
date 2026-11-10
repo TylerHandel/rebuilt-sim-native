@@ -340,6 +340,10 @@ with it stowed the robot is stopped). Its arm is its mechanisms' (the pivot's po
 lifting it, a TRENCH arm pushing it); out of its zone it shuttles on its own (autoShuttle). A
 collider rotation set through rapier.js goes through its scaled axis (normalized first): the arm's
 collider is set the same way, or its first contact differs.
+*1678 done (Nov 10):* identical at every step (intake-1678: 60 in, the lid up on the climber at
+40; shoot-1678: preload into the HUB, then intake and ferries back). Its net is the one surface
+whose touches are its own (a stretched dome, mechanism.rs NetDome), outside the bounds test as in
+the JS.
 
 **M3d. Mechanisms in parallel, and the speed check.** `preStepRobots`'s phases under `rayon` (D8),
 gated by the same scripts (same bits as serial). A native `perf3v3` (as `tools/perf3v3.mjs`): six
