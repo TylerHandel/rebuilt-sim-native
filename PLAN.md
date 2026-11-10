@@ -280,6 +280,10 @@ colliders; `physics.rs` `passesUnder`. For now a robot has no mechanisms and hol
 Chase and driver-station cameras. Graphics presets for slow machines (render scale, shadows off,
 no MSAA), in a settings menu.
 **Release: pick one of the 13 robots and drive it around the field, pushing FUEL.**
+*Started:* the app runs the ported game (sim::game::World) with 2910 in TELEOP, drawn as its
+colliders, driven by keyboard or controller (input.js and driverCommand: field-relative from the
+camera), the camera following it; Backspace or View starts a new match. HUMAN PLAYERS are off until
+their throws are ported (M3). Still to do: the CAD models (D9), the sim thread, the cameras, presets.
 
 ### M3: mechanisms
 

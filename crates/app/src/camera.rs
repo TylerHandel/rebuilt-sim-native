@@ -1,14 +1,16 @@
-//! A camera that orbits a point on the field: right or middle drag turns it, the wheel zooms,
-//! WASD / arrows move the point it looks at.
+//! A camera that follows your robot from behind and above: right or middle drag turns it around the
+//! robot, the wheel zooms. It starts behind the robot, looking downfield from the driver station.
 
 use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 use bevy::prelude::*;
+
+use crate::game::Game;
 
 pub struct OrbitCameraPlugin;
 
 impl Plugin for OrbitCameraPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn).add_systems(Update, orbit);
+        app.add_systems(Startup, spawn).add_systems(PostUpdate, orbit.before(TransformSystems::Propagate));
     }
 }
 
@@ -20,10 +22,16 @@ pub struct Orbit {
     pub dist: f32,
 }
 
-fn spawn(mut commands: Commands) {
-    let o = Orbit { focus: Vec3::ZERO, yaw: 0.0, pitch: 0.75, dist: 16.0 };
+fn spawn(mut commands: Commands, game: Res<Game>) {
+    let focus = game.0.robots.first().map(|r| robot_at(&game, r.body)).unwrap_or(Vec3::ZERO);
+    // (yaw -90 degrees: behind a robot facing +x, which is downfield for blue)
+    let o = Orbit { focus, yaw: -std::f32::consts::FRAC_PI_2, pitch: 0.85, dist: 4.5 };
     let t = place(&o);
     commands.spawn((Camera3d::default(), t, o));
+}
+
+fn robot_at(game: &Game, body: rapier3d::prelude::RigidBodyHandle) -> Vec3 {
+    game.0.physics.bodies.get(body).map(|b| b.translation() + Vec3::Y * 0.3).unwrap_or(Vec3::ZERO)
 }
 
 fn place(o: &Orbit) -> Transform {
@@ -35,9 +43,9 @@ fn place(o: &Orbit) -> Transform {
 fn orbit(
     mut q: Query<(&mut Orbit, &mut Transform)>,
     buttons: Res<ButtonInput<MouseButton>>,
-    keys: Res<ButtonInput<KeyCode>>,
     motion: Res<AccumulatedMouseMotion>,
     scroll: Res<AccumulatedMouseScroll>,
+    game: Res<Game>,
     time: Res<Time>,
 ) {
     let Ok((mut o, mut t)) = q.single_mut() else { return };
@@ -45,15 +53,12 @@ fn orbit(
         o.yaw -= motion.delta.x * 0.005;
         o.pitch = (o.pitch + motion.delta.y * 0.005).clamp(0.05, 1.5);
     }
-    o.dist = (o.dist * (1.0 - scroll.delta.y * 0.1)).clamp(1.0, 40.0);
-    let mut mv = Vec2::ZERO;
-    if keys.any_pressed([KeyCode::KeyW, KeyCode::ArrowUp]) { mv.y -= 1.0; }
-    if keys.any_pressed([KeyCode::KeyS, KeyCode::ArrowDown]) { mv.y += 1.0; }
-    if keys.any_pressed([KeyCode::KeyA, KeyCode::ArrowLeft]) { mv.x -= 1.0; }
-    if keys.any_pressed([KeyCode::KeyD, KeyCode::ArrowRight]) { mv.x += 1.0; }
-    if mv != Vec2::ZERO {
-        let step = Quat::from_rotation_y(o.yaw) * Vec3::new(mv.x, 0.0, mv.y) * o.dist * 0.6 * time.delta_secs();
-        o.focus += step;
+    o.dist = (o.dist * (1.0 - scroll.delta.y * 0.1)).clamp(1.5, 30.0);
+    if let Some(r) = game.0.robots.first() {
+        let target = robot_at(&game, r.body);
+        // (a little lag, so the view doesn't shake with every bump)
+        let k = 1.0 - (-12.0 * time.delta_secs()).exp();
+        o.focus = o.focus.lerp(target, k);
     }
     *t = place(&o);
 }

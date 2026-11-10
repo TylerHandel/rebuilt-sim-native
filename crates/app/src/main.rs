@@ -4,7 +4,8 @@
 
 mod camera;
 mod field;
-mod fuel;
+mod draw;
+mod game;
 mod hud;
 mod shot;
 mod update;
@@ -18,9 +19,6 @@ fn main() {
 
     // Assets sit next to the executable when installed; in a `cargo run` they're the workspace's.
     let assets = if std::env::var_os("CARGO_MANIFEST_DIR").is_some() { "../../assets" } else { "assets" };
-    let sim = sim::Sim::new(sim::WorldData::bundled());
-    let dt = sim.dt() as f64;
-
     App::new()
         .add_plugins(
             DefaultPlugins
@@ -34,9 +32,7 @@ fn main() {
                 })
                 .set(AssetPlugin { file_path: assets.into(), ..default() }),
         )
-        .insert_resource(Time::<Fixed>::from_seconds(dt))
         .insert_resource(ClearColor(Color::srgb(0.05, 0.06, 0.08)))
-        .insert_resource(fuel::SimState(sim))
-        .add_plugins((camera::OrbitCameraPlugin, field::FieldPlugin, fuel::FuelPlugin, hud::HudPlugin, update::UpdatePlugin, shot::ShotPlugin))
+        .add_plugins((game::GamePlugin, camera::OrbitCameraPlugin, field::FieldPlugin, draw::DrawPlugin, hud::HudPlugin, update::UpdatePlugin, shot::ShotPlugin))
         .run();
 }

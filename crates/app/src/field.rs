@@ -6,7 +6,7 @@ use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::asset::RenderAssetUsages;
 use rapier3d::prelude::TypedShape;
 
-use crate::fuel::SimState;
+use crate::game::Game;
 
 pub struct FieldPlugin;
 
@@ -42,7 +42,7 @@ fn spawn_field(mut commands: Commands, assets: Res<AssetServer>) {
 pub struct ColliderView;
 
 /// A triangle mesh of one collider's shape, in its own frame.
-fn collider_mesh(shape: TypedShape) -> Option<Mesh> {
+pub fn collider_mesh(shape: TypedShape) -> Option<Mesh> {
     let (v, i) = match shape {
         TypedShape::Cuboid(s) => s.to_trimesh(),
         TypedShape::ConvexPolyhedron(s) => s.to_trimesh(),
@@ -60,7 +60,7 @@ fn collider_mesh(shape: TypedShape) -> Option<Mesh> {
     Some(m)
 }
 
-fn spawn_colliders(mut commands: Commands, sim: Res<SimState>, mut meshes: ResMut<Assets<Mesh>>, mut mats: ResMut<Assets<StandardMaterial>>) {
+fn spawn_colliders(mut commands: Commands, game: Res<Game>, mut meshes: ResMut<Assets<Mesh>>, mut mats: ResMut<Assets<StandardMaterial>>) {
     let mat = mats.add(StandardMaterial {
         base_color: Color::srgba(1.0, 0.1, 0.8, 0.45),
         depth_bias: 10.0,
@@ -69,9 +69,9 @@ fn spawn_colliders(mut commands: Commands, sim: Res<SimState>, mut meshes: ResMu
         cull_mode: None,
         ..default()
     });
-    let fixed = &sim.0.physics.bodies[sim.0.fixed];
+    let fixed = &game.0.physics.bodies[game.0.fixed];
     for h in fixed.colliders() {
-        let c = &sim.0.physics.colliders[*h];
+        let c = &game.0.physics.colliders[*h];
         let Some(mesh) = collider_mesh(c.shape().as_typed_shape()) else { continue };
         let (t, r) = (c.translation(), c.rotation());
         commands.spawn((
