@@ -15,9 +15,9 @@ use serde_json::Value;
 const WHEEL_R: f64 = 0.05;
 const TIP_RATE: f64 = 2.5;
 const TIP_DAMP: f64 = 4.0;
+const DEG: f64 = m::PI / 180.0;
 /// js AIM_VEL_TAU, AIM_GAIN
 const AIM_VEL_TAU: f64 = 0.05;
-#[allow(dead_code)]
 const AIM_GAIN: f64 = 14.0;
 
 fn num(v: &Value, k: &str) -> f64 { v[k].as_f64().unwrap_or_else(|| panic!("config: no number {k}")) }
@@ -161,11 +161,59 @@ pub struct Robot {
     pub pass_clear: Option<bool>,
     /// what its mechanisms say (js hoodDeg, flywheel, ready, feeding, intakeSpeed)
     pub out: PostOut,
+    /// js hoodDeg (the shot's elevation, deg), flywheel (exit speed, m/s), ready, status
+    pub hood_deg: f64,
+    pub flywheel: f64,
+    pub ready: bool,
+    pub status: String,
+    /// js aimOffset: a fixed shooter facing back shoots along the heading turned around
+    pub aim_offset: f64,
+    /// js hubTable, passTable
+    pub tables: std::sync::Arc<Tables>,
+}
+
+/// js robot.hubTable and passTable: its shot tables (built once per robot)
+pub struct Tables { pub hub: crate::ballistics::ShotTable, pub pass: crate::ballistics::ShotTable }
+
+/// js util `wrapAngle(a)`
+pub fn wrap_angle(mut a: f64) -> f64 {
+    while a > m::PI { a -= 2.0 * m::PI; }
+    while a < -m::PI { a += 2.0 * m::PI; }
+    a
+}
+
+/// The robot's shot tables (js Robot's constructor): built from the drag model, once per robot
+fn tables_for(key: &str, cfg: &Value) -> std::sync::Arc<Tables> {
+    use crate::ballistics::{ShotTable, TableOpts, H0};
+    static CACHE: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, std::sync::Arc<Tables>>>> = std::sync::OnceLock::new();
+    let cache = CACHE.get_or_init(Default::default);
+    if let Some(t) = cache.lock().unwrap().get(key) { return t.clone(); }
+    let sh = &cfg["shooter"];
+    let fixed = sh["type"].as_str() == Some("fixed");
+    let hood = &sh["hood"];
+    let exit_y = |deg: f64| {
+        let th = (deg * m::PI) / 180.0;
+        num(hood, "y") + num(hood, "r") * m::cos(th)
+    };
+    fn h0<'a>(fixed: bool, sh: &Value, o: &'a dyn Fn(f64) -> f64) -> H0<'a> {
+        if fixed && !sh["hood"].is_null() { H0::Of(o) } else if fixed { H0::At(num(&sh["exit"], "y")) } else { H0::At(num(sh, "exitY")) }
+    }
+    let spin = opt(sh, "spin").unwrap_or(0.0);
+    let (hmin, hmax, smax) = (num(sh, "hoodMin"), num(sh, "hoodMax"), num(sh, "speedMax"));
+    let mut ho = TableOpts::new(h0(fixed, sh, &exit_y), HUB::targetHeight, hmin, hmax, smax);
+    ho.clear_dist = HUB::size / 2.0 + FUEL::radius + 0.02;
+    ho.clear_height = HUB::rimFront + FUEL::radius + 0.04;
+    ho.spin = spin;
+    let mut po = TableOpts::new(h0(fixed, sh, &exit_y), FUEL::radius + 0.02, hmin, hmax, smax);
+    po.pass = true; po.pass_theta = 55.0; po.d_max = 22.0; po.spin = spin;
+    let t = std::sync::Arc::new(Tables { hub: ShotTable::new(&ho), pass: ShotTable::new(&po) });
+    cache.lock().unwrap().insert(key.to_string(), t.clone());
+    t
 }
 
 /// js robot.shot: the shot it's lined up (what its physical robot reads of it)
 #[derive(Debug, Clone, Copy)]
-pub struct Shot { pub pass: bool, pub target: [f64; 2] }
+pub struct Shot { pub pass: bool, pub target: [f64; 2], pub reach: bool }
 
 impl Robot {
     /// js `new Robot(...)`: its body made in the world now (after the FUEL and any robot before it);
@@ -180,6 +228,7 @@ impl Robot {
         let dcfg: DriveCfg = serde_json::from_value(cfg["drive"].clone()).unwrap();
         let drivetrain = Drivetrain::new(&dcfg, mass, m::hypot2(pts[0][0], pts[0][1]));
         let swerve = SwerveDrive::new(drivetrain, pts.clone());
+        let tables = tables_for(key, &cfg);
         let mut r = Robot {
             key: key.into(), cfg, alliance, body: RigidBodyHandle::invalid(), bumper: ColliderHandle::invalid(), frame: ColliderHandle::invalid(),
             hopper: None, hopper_y: 0.0, arm_collider: ColliderHandle::invalid(), arm_wall: None, intake_block: None, lid: None,
@@ -188,7 +237,10 @@ impl Robot {
             last_t: 0.0, pos: [0.0; 3], quat: [0.0, 0.0, 0.0, 1.0], yaw: 0.0, vel: [0.0; 3], omega: 0.0, traction: 0.0,
             aim_vel: [0.0; 2], stored: Vec::new(), stats: Stats::default(), full: false, last_in_zone: false, want_shoot: false, shot_setpoint: 0.0,
             shot: None, last_pass: false, aim_override: None, aim_err: None, pass_clear: None, out: PostOut::default(),
+            hood_deg: 0.0, flywheel: 0.0, ready: false, status: String::new(), aim_offset: 0.0, tables,
         };
+        let sh = &r.cfg["shooter"];
+        r.aim_offset = if sh["type"].as_str() == Some("fixed") && sh["facing"].as_str() == Some("back") { m::PI } else { 0.0 };
         r.max_speed = num(&r.cfg["drive"], "maxSpeed");
         r.max_omega = num(&r.cfg["drive"], "maxOmega");
         r.create_body(phys, under);
@@ -315,6 +367,11 @@ impl Robot {
         self.stats = Stats::default();
         self.last_in_zone = false;
         self.out = PostOut::default();
+        let sh = &self.cfg["shooter"];
+        self.hood_deg = if sh["hood"].is_null() { num(sh, "hoodMin") } else { num(&sh["hood"], "stowDeg") };
+        self.flywheel = 0.0;
+        self.ready = false;
+        self.status = "Idle".into();
     }
 
     /// js `spawn(x, z, yaw)`
@@ -369,13 +426,127 @@ impl Robot {
         })
     }
 
-    /// js `_shooter(dt, t, on)` (so far: what a robot not shooting does)
+    /// js `_target()`: the HUB when legal (in its own ALLIANCE ZONE), otherwise a pass: (pass, x, z, inZone)
+    fn target(&self) -> (bool, [f64; 2], bool) {
+        let in_zone = self.in_alliance_zone(self.alliance);
+        let pass = self.cmd.pass || !in_zone;
+        if !pass { let c = crate::field::hub_center(self.alliance); return (false, [c.0, c.1], in_zone); }
+        // (a physical robot passes where its code does: 2910's FieldConstants' points)
+        match &self.phys {
+            Some(Phys::R2910(_)) => (true, Phys2910::pass_target(self.alliance, [self.pos[0], self.pos[2]]), in_zone),
+            None => {
+                let s = if self.alliance == Alliance::Blue { 1.0 } else { -1.0 };
+                let x = s * (-HALF_L + 1.7);
+                let zc = [HALF_W - 1.8, -HALF_W + 1.8];
+                let z = if m::abs(self.pos[2] - zc[0]) < m::abs(self.pos[2] - zc[1]) { zc[0] } else { zc[1] };
+                (true, [x, z], in_zone)
+            }
+        }
+    }
+
+    /// js `velocityAt(p)`
+    pub fn velocity_at(&self, p: [f64; 3]) -> [f64; 2] {
+        [self.vel[0] + self.omega * (p[2] - self.pos[2]), self.vel[2] - self.omega * (p[0] - self.pos[0])]
+    }
+    /// js `fixedExit(sh, deg)` (robot frame: x, y)
+    fn fixed_exit(&self, deg: f64) -> [f64; 2] {
+        let sh = &self.cfg["shooter"];
+        let h = &sh["hood"];
+        if h.is_null() { return [num(&sh["exit"], "x"), num(&sh["exit"], "y")]; }
+        let th = (deg * m::PI) / 180.0;
+        let s = if sh["facing"].as_str() == Some("back") { 1.0 } else { -1.0 };
+        [num(h, "x") + s * num(h, "r") * m::sin(th), num(h, "y") + num(h, "r") * m::cos(th)]
+    }
+
+    /// js `_passLands(0, anywhere)` (a fixed shooter's): where a FUEL launched now comes down is on
+    /// its own half, clear of the walls (anywhere: only that it misses both HUBS)
+    fn pass_lands(&self, short: bool, anywhere: bool) -> bool {
+        let sh = &self.cfg["shooter"];
+        let psi = self.yaw + self.aim_offset;
+        let lanes = sh["lanes"].as_array().expect("lanes");
+        let lane_z = lanes[0].as_f64().unwrap();
+        let e = self.fixed_exit(self.hood_deg);
+        let exit = self.local_to_world(e[0], e[1], lane_z);
+        let lv = self.velocity_at(exit);
+        let (th, v) = (self.hood_deg * DEG, self.flywheel);
+        let sv = [m::cos(psi) * m::cos(th) * v, -m::sin(psi) * m::cos(th) * v];
+        let spin = opt(sh, "spin").unwrap_or(0.0);
+        let w = crate::ballistics::spin_for(sv, (spin * v) / FUEL::radius);
+        let pts = crate::ballistics::trajectory_points(exit, [sv[0] + lv[0], m::sin(th) * v, sv[1] + lv[1]], 3.0, 0.05, Some(w));
+        let (x, z) = (pts[pts.len() - 3], pts[pts.len() - 1]);
+        let s = if self.alliance == Alliance::Blue { 1.0 } else { -1.0 };
+        if !anywhere && !(m::abs(x) < HALF_L - 1.2 && m::abs(z) < HALF_W - 1.2 && (short || s * x < -0.5)) { return false; }
+        for a in [Alliance::Blue, Alliance::Red] {
+            let c = crate::field::hub_center(a);
+            for i in (0..pts.len()).step_by(3) {
+                if pts[i + 1] < HUB::rimFront + 0.6 && m::hypot2(pts[i] - c.0, pts[i + 2] - c.1) < HUB::size / 2.0 + 0.3 { return false; }
+            }
+        }
+        true
+    }
+
+    /// js `_shooter(dt, t, on)` for a fixed shooter whose physical robot feeds itself (2910's): the
+    /// target, the moving shot's solution, the chassis' heading loop, ready or not
     fn shooter_step(&mut self, on: bool) {
-        self.want_shoot = on && (self.cmd.shoot || self.cmd.pass);
+        let want_shoot = on && (self.cmd.shoot || self.cmd.pass);
+        self.want_shoot = want_shoot;
+        let has = !self.stored.is_empty();
         self.aim_override = None;
         self.shot = None;
-        self.last_in_zone = self.in_alliance_zone(self.alliance);
-        self.shot_setpoint = 0.0;
+        let mut setpoint = 0.0;
+        let mut ready = false;
+        let mut status: &str = if has { "Holding FUEL" } else { "Empty" };
+        let (pass, tgt, in_zone) = self.target();
+        self.last_in_zone = in_zone;
+        let prespin = on && has && in_zone;
+        let mut out_of_range = false;
+        if (want_shoot || prespin) && has {
+            let (dx, dz) = (tgt[0] - self.pos[0], tgt[1] - self.pos[2]);
+            let dd = { let h = m::hypot2(dx, dz); if h == 0.0 { 1.0 } else { h } };
+            let exit_at = |deg: f64| {
+                let e = self.fixed_exit(deg);
+                let along = if self.aim_offset != 0.0 { -e[0] } else { e[0] };
+                [self.pos[0] + (dx / dd) * along, self.pos[1] + e[1], self.pos[2] + (dz / dd) * along]
+            };
+            let lv = self.aim_vel;
+            let table = if pass { &self.tables.pass } else { &self.tables.hub };
+            let mut sol = crate::ballistics::solve_moving_shot(table, exit_at(self.hood_deg), lv, tgt);
+            if let Some(s1) = sol {
+                if !self.cfg["shooter"]["hood"].is_null() {
+                    if let Some(s2) = crate::ballistics::solve_moving_shot(table, exit_at(s1.theta / DEG), lv, tgt) { sol = Some(s2); }
+                }
+            }
+            if let Some(sol) = sol {
+                self.shot = Some(Shot { pass, target: tgt, reach: sol.reach });
+                setpoint = sol.v;
+                let aim_err = wrap_angle(sol.psi - self.yaw - self.aim_offset);
+                if want_shoot {
+                    let (max_omega, max_alpha) = (num(&self.cfg["drive"], "maxOmega"), num(&self.cfg["drive"], "maxAlpha"));
+                    let (rx, rz) = (tgt[0] - self.pos[0], tgt[1] - self.pos[2]);
+                    let r2 = m::max(0.25, rx * rx + rz * rz);
+                    let ff = crate::fuel::clamp((rx * lv[1] - rz * lv[0]) / r2, -3.0, 3.0);
+                    let a = m::abs(aim_err);
+                    let w = m::min(m::min(max_omega, m::sqrt(2.0 * 0.7 * max_alpha * a)), AIM_GAIN * a);
+                    self.aim_override = Some(crate::fuel::clamp(m::sign(aim_err) * w + ff, -max_omega, max_omega));
+                }
+                self.aim_err = Some(aim_err);
+                let tol = if pass { 4.0 * DEG } else { m::max(0.6 * DEG, m::atan2(0.14, sol.dist)) };
+                let spin_ok = if pass { self.flywheel > 0.75 * sol.v } else { m::abs(self.flywheel - sol.v) / sol.v < 0.025 };
+                let hood_ok = m::abs(self.hood_deg - sol.theta / DEG) < 1.5;
+                let aim_ok = m::abs(aim_err) < tol;
+                ready = if pass { spin_ok && self.pass_lands(!sol.reach, false) } else { spin_ok && hood_ok && aim_ok };
+                self.pass_clear = Some(!pass || self.pass_lands(!sol.reach, true));
+                status = if !spin_ok { "Spinning up" } else if !aim_ok { "Aiming" } else if !hood_ok { "Hood" } else { "READY" };
+            } else { out_of_range = true; }
+        } else if !in_zone && has { status = "Outside ALLIANCE ZONE"; }
+        let mut st = if out_of_range { if pass { "Pass out of range".to_string() } else { "Out of range".to_string() } }
+            else if self.shot.is_some_and(|s| s.pass) { if ready { "PASS READY".to_string() } else { format!("Pass: {}", status.to_lowercase()) } }
+            else { status.to_string() };
+        if !on && !self.enabled { st = "Disabled".into(); }
+        self.status = st;
+        self.shot_setpoint = setpoint;
+        if let Some(s) = self.shot { self.last_pass = s.pass; }
+        self.ready = ready;
     }
 
     fn pre_step_drive(&mut self, phys: &mut PhysicsWorld, dt: f64, teleop: bool) {
@@ -502,6 +673,9 @@ impl Robot {
         match &mut self.phys {
             Some(Phys::R2910(p)) => {
                 self.stored = p.post_step(&mut c, dt, t, &pin, &mut self.stats, &mut self.out);
+                self.hood_deg = self.out.hood_deg;
+                self.flywheel = self.out.flywheel;
+                self.ready = self.out.ready;
                 self.full = p.p.watch_full(c.phys, c.fuel, self.body, dt, on && self.cmd.intake);
             }
             None => {}

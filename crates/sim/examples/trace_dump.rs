@@ -10,7 +10,7 @@ fn main() {
     let mut slots: Vec<_> = s.slots.iter().filter(|x| x.alliance == "blue").collect();
     slots.extend(s.slots.iter().filter(|x| x.alliance == "red"));
     let robots = slots.iter().map(|x| (x.robot.clone(), if x.alliance == "blue" { sim::constants::Alliance::Blue } else { sim::constants::Alliance::Red }, x.pose)).collect();
-    let mut w = World::new(sim::WorldData::bundled(), &Settings { seed: s.seed, human_players: s.human_players.unwrap_or(true), preload: 0, robots });
+    let mut w = World::new(sim::WorldData::bundled(), &Settings { seed: s.seed, human_players: s.human_players.unwrap_or(true), preload: s.preload, robots });
     if let Some(p) = &s.phase { w.jump_to(Phase::parse(p)); }
     let mut cmds: Vec<_> = s.commands.iter().collect();
     cmds.sort_by_key(|c| c.from);

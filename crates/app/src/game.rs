@@ -2,9 +2,10 @@
 //! being played, and driven by the keyboard or a controller the way the browser game drives it
 //! (js/main.js driverCommand, js/input.js). Behind the menus it's the field with its FUEL.
 //!
-//! Keyboard: WASD drive, Q/E (or the arrows, or J/L) turn, Shift intake, X slow, Esc pause,
-//! Backspace restart. Controller: left stick drive, right stick turn, left trigger intake, left
-//! stick click slow, Menu pause, View restart. Stick up drives away from the camera (from the
+//! Keyboard: WASD drive, Q/E (or the arrows, or J/L) turn, Shift intake, Space shoot, R pass, F
+//! eject, X slow, Esc pause, Backspace restart. Controller: left stick drive, right stick turn, left
+//! trigger intake, right trigger shoot, right bumper pass, left bumper eject, left stick click slow,
+//! Menu pause, View restart. Stick up drives away from the camera (from the
 //! driver station, downfield); [ ] or the D-pad change the camera (camera.rs).
 
 use bevy::prelude::*;
@@ -111,6 +112,9 @@ fn drive(
     mut driver: ResMut<Driver>,
 ) {
     let (mut lx, mut ly, mut rx, mut lt, mut slow) = (0.0f32, 0.0f32, 0.0f32, 0.0f32, false);
+    // (js input.js: the right trigger or Space shoots, the right bumper or R passes, the left
+    // bumper or F ejects)
+    let (mut rt, mut rb, mut lb) = (0.0f32, false, false);
     for pad in &pads {
         let (x, y) = (deadband(pad.get(GamepadAxis::LeftStickX).unwrap_or(0.0), 0.1), deadband(pad.get(GamepadAxis::LeftStickY).unwrap_or(0.0), 0.1));
         let r = deadband(pad.get(GamepadAxis::RightStickX).unwrap_or(0.0), 0.1);
@@ -120,6 +124,9 @@ fn drive(
             (lx, ly, rx, lt) = (x, -y, r, t);
         }
         slow |= pad.pressed(GamepadButton::LeftThumb);
+        rt = rt.max(pad.get(GamepadButton::RightTrigger2).unwrap_or(0.0));
+        rb |= pad.pressed(GamepadButton::RightTrigger);
+        lb |= pad.pressed(GamepadButton::LeftTrigger);
     }
     let k = |c: &[KeyCode]| keys.any_pressed(c.iter().copied());
     let kx = k(&[KeyCode::KeyD]) as i32 - k(&[KeyCode::KeyA]) as i32;
@@ -132,6 +139,9 @@ fn drive(
     if kr != 0 { rx = kr as f32; }
     if k(&[KeyCode::ShiftLeft, KeyCode::ShiftRight]) { lt = 1.0; }
     slow |= k(&[KeyCode::KeyX]);
+    if k(&[KeyCode::Space]) { rt = 1.0; }
+    rb |= k(&[KeyCode::KeyR]);
+    lb |= k(&[KeyCode::KeyF]);
 
     let Some(r) = game.0.robots.first() else { return };
     let (max_speed, max_omega) = (r.max_speed, r.max_omega);
@@ -149,7 +159,9 @@ fn drive(
         vz: (fz * up + fx * right) * max_speed * scale,
         omega: -rx.signum() * rx * rx * max_omega * if slow { 0.5 } else { 1.0 },
         intake: lt > 0.3,
-        ..default()
+        shoot: rt > 0.3,
+        pass: rb,
+        outtake: lb,
     }, slow);
 }
 

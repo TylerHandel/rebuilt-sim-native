@@ -1,7 +1,8 @@
 //! For checking a build without a person at it: with REBUILT_SHOT=<file.png> set, the game waits for
 //! the field to load and the FUEL to settle, saves a screenshot there, and exits.
 //! REBUILT_SHOT_COLLIDERS=1 shows the colliders in it (F1). REBUILT_SHOT_KEYS=KeyW,KeyE holds those
-//! keys down the whole time (Bevy's KeyCode names), to see the robot driven. REBUILT_SHOT_FLOW
+//! keys down the whole time (Bevy's KeyCode names), to see the robot driven.
+//! REBUILT_SHOT_WAIT=<frames> waits that long after them (90 if unset). REBUILT_SHOT_FLOW
 //! walks the screens first, in order: "practice" (open the Practice page), "settings", "start" (start
 //! a match), "pause", "controls", "results" (end the match).
 
@@ -65,7 +66,8 @@ fn shoot(
             }
         }
     }
-    if shot.frames < 90 + 15 * flow.len() as u32 {
+    let wait = std::env::var("REBUILT_SHOT_WAIT").ok().and_then(|v| v.parse().ok()).unwrap_or(90u32);
+    if shot.frames < wait + 15 * flow.len() as u32 {
         return;
     }
     shot.taken = true;
@@ -83,6 +85,7 @@ fn hold_keys(mut keys: ResMut<ButtonInput<KeyCode>>) {
         let k = match name.trim() {
             "KeyW" => KeyCode::KeyW, "KeyA" => KeyCode::KeyA, "KeyS" => KeyCode::KeyS, "KeyD" => KeyCode::KeyD,
             "KeyQ" => KeyCode::KeyQ, "KeyE" => KeyCode::KeyE, "ShiftLeft" => KeyCode::ShiftLeft, "KeyX" => KeyCode::KeyX,
+            "Space" => KeyCode::Space, "KeyR" => KeyCode::KeyR, "KeyF" => KeyCode::KeyF,
             _ => continue,
         };
         keys.press(k);

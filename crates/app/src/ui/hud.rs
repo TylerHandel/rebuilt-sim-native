@@ -221,7 +221,11 @@ fn refresh(
             T::RpTeam => (info.team.to_string(), None),
             T::RpName => (if info.robot_name.is_empty() || info.robot_name == info.archetype { format!("{} · {}", info.team_name, info.archetype) } else { format!("{} · {}", info.robot_name, info.archetype) }, None),
             T::FuelText => (if r.full { format!("{} FUEL · FULL", r.stored.len()) } else { format!("{} / ~{} FUEL", r.stored.len(), info.capacity) }, None),
-            T::Shooter => ("Not in this version yet".into(), Some(color::MUTED)),
+            T::Shooter => {
+                let st = &r.status;
+                let c = if r.ready { color::OK } else if st.contains("range") || st.contains("Outside") || st.contains("Disabled") { color::BAD } else if st == "Empty" { color::TEXT } else { color::WARN };
+                (st.clone(), Some(c))
+            }
             T::Zone => (if in_zone { "ALLIANCE ZONE (can score)" } else { "Outside — pass only" }.into(), Some(if in_zone { color::OK } else { color::WARN })),
             T::Intake => (if r.out.intake_speed > 0.0 { if r.full { "Intaking (full)" } else { "Intaking" } } else if r.out.intake_speed < 0.0 { "Ejecting" } else if r.intake_deploy > 0.5 { "Deployed" } else { "Stowed" }.into(), None),
             T::Drive => (format!("Field-relative{}{}", if driver.1 { " · SLOW" } else { "" }, if m.is_auto() { " · AUTO" } else { "" }), None),

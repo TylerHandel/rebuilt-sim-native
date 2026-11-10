@@ -43,6 +43,9 @@ pub struct Script {
     #[serde(rename = "humanPlayers")]
     pub human_players: Option<bool>,
     pub steps: usize,
+    /// FUEL preloaded in each robot
+    #[serde(default)]
+    pub preload: usize,
     #[serde(default)]
     pub commands: Vec<Command>,
     #[serde(default)]
@@ -126,7 +129,7 @@ pub fn play(s: &Script) -> Vec<(usize, &'static str, String)> {
     let mut slots: Vec<&Slot> = s.slots.iter().filter(|x| x.alliance == "blue").collect();
     slots.extend(s.slots.iter().filter(|x| x.alliance == "red"));
     let robots = slots.iter().map(|x| (x.robot.clone(), if x.alliance == "blue" { crate::constants::Alliance::Blue } else { crate::constants::Alliance::Red }, x.pose)).collect();
-    let mut w = World::new(crate::WorldData::bundled(), &Settings { seed: s.seed, human_players: s.human_players.unwrap_or(true), preload: 0, robots });
+    let mut w = World::new(crate::WorldData::bundled(), &Settings { seed: s.seed, human_players: s.human_players.unwrap_or(true), preload: s.preload, robots });
     let cmds: Vec<&Command> = { let mut c: Vec<&Command> = s.commands.iter().collect(); c.sort_by_key(|c| c.from); c };
     if let Some(p) = &s.phase { w.jump_to(Phase::parse(p)); }
     let mut out = Vec::new();
