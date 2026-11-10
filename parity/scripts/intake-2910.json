@@ -1,17 +1,57 @@
 {
   "name": "intake-2910",
-  "about": "2910 alone in TELEOP drives into the NEUTRAL ZONE's FUEL with its intake running: the arm deploys, its rollers pull FUEL over the bumper into the hopper, the floor holds them, the robot turns with its load (M3a: the mechanisms in play). Aimed from its true pose (aimTruth) until js/localize.js is ported: the drum idles at a speed set from it.",
+  "about": "2910 alone in TELEOP drives into the NEUTRAL ZONE's FUEL with its intake running: the arm deploys, its rollers pull FUEL over the bumper into the hopper, the floor holds them, the robot turns with its load (M3a: the mechanisms in play).",
   "seed": 5,
-  "slots": [{ "robot": "2910", "alliance": "blue", "pose": [-1.75, 1.0, 0.0] }],
+  "slots": [
+    {
+      "robot": "2910",
+      "alliance": "blue",
+      "pose": [
+        -1.75,
+        1.0,
+        0.0
+      ]
+    }
+  ],
   "humanPlayers": false,
-  "aimTruth": true,
   "phase": "teleop",
   "steps": 960,
   "commands": [
-    { "from": 0, "robot": 0, "cmd": { "intake": true } },
-    { "from": 72, "robot": 0, "cmd": { "vx": 0.8, "intake": true } },
-    { "from": 480, "robot": 0, "cmd": { "vx": 0.5, "omega": 1.2, "intake": true } },
-    { "from": 720, "robot": 0, "cmd": { "intake": true } },
-    { "from": 840, "robot": 0, "cmd": {} }
+    {
+      "from": 0,
+      "robot": 0,
+      "cmd": {
+        "intake": true
+      }
+    },
+    {
+      "from": 72,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.8,
+        "intake": true
+      }
+    },
+    {
+      "from": 480,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.5,
+        "omega": 1.2,
+        "intake": true
+      }
+    },
+    {
+      "from": 720,
+      "robot": 0,
+      "cmd": {
+        "intake": true
+      }
+    },
+    {
+      "from": 840,
+      "robot": 0,
+      "cmd": {}
+    }
   ]
 }

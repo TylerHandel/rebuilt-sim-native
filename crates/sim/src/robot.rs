@@ -170,10 +170,19 @@ pub struct Robot {
     pub aim_offset: f64,
     /// js hubTable, passTable
     pub tables: std::sync::Arc<Tables>,
+    /// js loc: what its code knows of its pose, which its aims work from (localize.rs)
+    pub loc: crate::localize::Localizer,
 }
 
 /// js robot.hubTable and passTable: its shot tables (built once per robot)
 pub struct Tables { pub hub: crate::ballistics::ShotTable, pub pass: crate::ballistics::ShotTable }
+
+/// What the localizer reads of a robot (js its this.r)
+macro_rules! loc_view {
+    ($r:expr, $others:expr) => {
+        crate::localize::RobotView { pos: $r.pos, quat: $r.quat, yaw: $r.yaw, vel: $r.vel, omega: $r.omega, swerve: &$r.swerve, ready_shoot: $r.ready && $r.want_shoot, others: $others }
+    };
+}
 
 /// js util `wrapAngle(a)`
 pub fn wrap_angle(mut a: f64) -> f64 {
@@ -229,6 +238,7 @@ impl Robot {
         let drivetrain = Drivetrain::new(&dcfg, mass, m::hypot2(pts[0][0], pts[0][1]));
         let swerve = SwerveDrive::new(drivetrain, pts.clone());
         let tables = tables_for(key, &cfg);
+        let cfg_loc = cfg.clone();
         let mut r = Robot {
             key: key.into(), cfg, alliance, body: RigidBodyHandle::invalid(), bumper: ColliderHandle::invalid(), frame: ColliderHandle::invalid(),
             hopper: None, hopper_y: 0.0, arm_collider: ColliderHandle::invalid(), arm_wall: None, intake_block: None, lid: None,
@@ -237,7 +247,7 @@ impl Robot {
             last_t: 0.0, pos: [0.0; 3], quat: [0.0, 0.0, 0.0, 1.0], yaw: 0.0, vel: [0.0; 3], omega: 0.0, traction: 0.0,
             aim_vel: [0.0; 2], stored: Vec::new(), stats: Stats::default(), full: false, last_in_zone: false, want_shoot: false, shot_setpoint: 0.0,
             shot: None, last_pass: false, aim_override: None, aim_err: None, pass_clear: None, out: PostOut::default(),
-            hood_deg: 0.0, flywheel: 0.0, ready: false, status: String::new(), aim_offset: 0.0, tables,
+            hood_deg: 0.0, flywheel: 0.0, ready: false, status: String::new(), aim_offset: 0.0, tables, loc: crate::localize::Localizer::new(&cfg_loc, false),
         };
         let sh = &r.cfg["shooter"];
         r.aim_offset = if sh["type"].as_str() == Some("fixed") && sh["facing"].as_str() == Some("back") { m::PI } else { 0.0 };
@@ -391,6 +401,8 @@ impl Robot {
         self.omega = 0.0;
         self.aim_vel = [0.0; 2];
         self.swerve.reset();
+        let view = loc_view!(self, &[]);
+        self.loc.reset(&view);
     }
 
     /// js `loadFuel(balls)`: its preload
@@ -430,19 +442,24 @@ impl Robot {
     fn target(&self) -> (bool, [f64; 2], bool) {
         let in_zone = self.in_alliance_zone(self.alliance);
         let pass = self.cmd.pass || !in_zone;
-        if !pass { let c = crate::field::hub_center(self.alliance); return (false, [c.0, c.1], in_zone); }
+        if !pass { return (false, self.aim_hub(), in_zone); }
         // (a physical robot passes where its code does: 2910's FieldConstants' points)
         match &self.phys {
-            Some(Phys::R2910(_)) => (true, Phys2910::pass_target(self.alliance, [self.pos[0], self.pos[2]]), in_zone),
+            Some(Phys::R2910(_)) => (true, self.aim_pt(Phys2910::pass_target(self.alliance, [self.pos[0], self.pos[2]])), in_zone),
             None => {
                 let s = if self.alliance == Alliance::Blue { 1.0 } else { -1.0 };
                 let x = s * (-HALF_L + 1.7);
                 let zc = [HALF_W - 1.8, -HALF_W + 1.8];
                 let z = if m::abs(self.pos[2] - zc[0]) < m::abs(self.pos[2] - zc[1]) { zc[0] } else { zc[1] };
-                (true, [x, z], in_zone)
+                (true, self.aim_pt([x, z]), in_zone)
             }
         }
     }
+
+    /// js `aimPt(p)`: where its pose estimate puts world point p, seen from its true pose
+    pub fn aim_pt(&self, p: [f64; 2]) -> [f64; 2] { self.loc.aim_pt(p, self.pos, self.yaw) }
+    /// js `aimHub()`
+    pub fn aim_hub(&self) -> [f64; 2] { let c = crate::field::hub_center(self.alliance); self.aim_pt([c.0, c.1]) }
 
     /// js `velocityAt(p)`
     pub fn velocity_at(&self, p: [f64; 3]) -> [f64; 2] {
@@ -637,7 +654,8 @@ impl Robot {
     }
 
     /// js `postStep(dt, t)` (what moves the robot: its pose read back, the hopper, the intake's collider)
-    pub fn post_step(&mut self, phys: &mut PhysicsWorld, fuel: &mut Fuel, dt: f64, t: f64) {
+    /// others: the other robots as they are now (x, z, halfL, halfW), for the cameras' view
+    pub fn post_step(&mut self, phys: &mut PhysicsWorld, fuel: &mut Fuel, dt: f64, t: f64, others: &[[f64; 4]]) {
         let b = &phys.bodies[self.body];
         let (tr, q) = (b.translation(), *b.rotation());
         self.pos = [tr.x as f64, tr.y as f64, tr.z as f64];
@@ -649,10 +667,12 @@ impl Robot {
         let lv = b.linvel();
         self.vel = [lv.x as f64, 0.0, lv.z as f64];
         self.omega = b.angvel().y as f64;
-        // (what a moving shot is aimed with: AIM_VEL_TAU; the velocity its wheels measure. The pose
-        // estimate, js/localize.js, isn't ported yet: its truth)
+        // (its pose estimate: odometry, gyro, vision)
+        let view = loc_view!(self, others);
+        self.loc.step(dt, t, &view);
+        // (what a moving shot is aimed with: AIM_VEL_TAU; the velocity its wheels measure)
         let ka = 1.0 - m::exp(-dt / AIM_VEL_TAU);
-        let mv = [lv.x as f64, lv.z as f64];
+        let mv = self.loc.vel(self.yaw).unwrap_or([lv.x as f64, lv.z as f64]);
         self.aim_vel[0] += ka * (mv[0] - self.aim_vel[0]);
         self.aim_vel[1] += ka * (mv[1] - self.aim_vel[1]);
         let on = self.enabled;
@@ -662,12 +682,13 @@ impl Robot {
         self.shooter_step(on);
         self.step_top_colliders(phys);
         let lv = phys.bodies[self.body].linvel();
-        let aim_hub = crate::field::hub_center(self.alliance);
+        let est_vel = self.loc.vel(self.yaw).unwrap_or([lv.x as f64, lv.z as f64]);
+        let aim_hub = self.aim_hub();
         let pin = PostIn {
             on, feeding: self.want_shoot, outtake: on && self.cmd.outtake, setpoint: self.shot_setpoint,
             pass: match self.shot { Some(s) => s.pass, None => self.last_pass }, intake: self.cmd.intake,
-            target: self.shot.map(|s| s.target), pos: [self.pos[0], self.pos[2]], est_vel: [lv.x as f64, lv.z as f64],
-            aim_hub: [aim_hub.0, aim_hub.1], aim_err: self.aim_err, pass_clear: self.pass_clear, legal: self.last_in_zone,
+            target: self.shot.map(|s| s.target), pos: [self.pos[0], self.pos[2]], est_vel,
+            aim_hub, aim_err: self.aim_err, pass_clear: self.pass_clear, legal: self.last_in_zone,
         };
         let mut c = Ctx { body: self.body, alliance: self.alliance, frame: self.frame_lw(), fuel, phys };
         match &mut self.phys {

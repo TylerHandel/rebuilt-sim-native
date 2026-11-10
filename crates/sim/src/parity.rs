@@ -46,6 +46,9 @@ pub struct Script {
     /// FUEL preloaded in each robot
     #[serde(default)]
     pub preload: usize,
+    /// the robots aim from their true poses (js AIMTRUTH=1), not their pose estimates
+    #[serde(default, rename = "aimTruth")]
+    pub aim_truth: bool,
     #[serde(default)]
     pub commands: Vec<Command>,
     #[serde(default)]
@@ -129,7 +132,9 @@ pub fn play(s: &Script) -> Vec<(usize, &'static str, String)> {
     let mut slots: Vec<&Slot> = s.slots.iter().filter(|x| x.alliance == "blue").collect();
     slots.extend(s.slots.iter().filter(|x| x.alliance == "red"));
     let robots = slots.iter().map(|x| (x.robot.clone(), if x.alliance == "blue" { crate::constants::Alliance::Blue } else { crate::constants::Alliance::Red }, x.pose)).collect();
-    let mut w = World::new(crate::WorldData::bundled(), &Settings { seed: s.seed, human_players: s.human_players.unwrap_or(true), preload: s.preload, robots });
+    let mut w = World::new(crate::WorldData::bundled(), &Settings { seed: s.seed, human_players: s.human_players.unwrap_or(true), preload: s.preload, robots, aim_truth: s.aim_truth });
+    // (native-trace places them after createGame, which resets their pose estimates there)
+    for (i, x) in slots.iter().enumerate() { w.robots[i].spawn(&mut w.physics, x.pose[0], x.pose[1], x.pose[2]); }
     let cmds: Vec<&Command> = { let mut c: Vec<&Command> = s.commands.iter().collect(); c.sort_by_key(|c| c.from); c };
     if let Some(p) = &s.phase { w.jump_to(Phase::parse(p)); }
     let mut out = Vec::new();

@@ -59,6 +59,7 @@ pub fn new_world(setup: Option<&MatchSetup>) -> World {
         human_players: setup.is_some(),
         preload: if setup.is_some() { 8 } else { 0 },
         robots,
+        aim_truth: false,
     };
     let mut w = World::new(sim::WorldData::bundled(), &settings);
     if let Some(m) = setup {

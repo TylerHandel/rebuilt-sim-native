@@ -20,6 +20,8 @@ pub struct Settings {
     /// the robots, made in this order (blue's first, as createGame makes them): robots.json key,
     /// alliance, and where each starts (x, z, yaw)
     pub robots: Vec<(String, Alliance, [f64; 3])>,
+    /// the robots aim from their true poses, not their pose estimates (js AIMTRUTH=1)
+    pub aim_truth: bool,
 }
 
 pub struct World {
@@ -60,7 +62,15 @@ impl World {
             let mut r = Robot::new(key, cfg, *alliance, &mut w.physics, &mut w.under);
             r.spawn(&mut w.physics, *x, *z, *yaw);
             r.load_fuel(&mut w.physics, &mut w.fuel, &pre[k * s.preload..(k + 1) * s.preload]);
+            r.loc.truth = s.aim_truth;
             w.robots.push(r);
+        }
+        // (js createGame: each robot's pose estimate, its own seeded draws, by its slot)
+        let seed = s.seed.to_string();
+        for (i, r) in w.robots.iter_mut().enumerate() {
+            let view = crate::localize::RobotView { pos: r.pos, quat: r.quat, yaw: r.yaw, vel: r.vel, omega: r.omega, swerve: &r.swerve, ready_shoot: r.ready && r.want_shoot, others: &[] };
+            let (key, a) = (r.key.clone(), r.alliance);
+            r.loc.init(&seed, i, &key, a, &view);
         }
         for hp in &mut w.hps { hp.auto = s.human_players; }
         w
@@ -95,7 +105,11 @@ impl World {
         let t = self.match_.t;
         self.fuel.post_step(&mut self.physics, dt, t);
         probe(self, "fuelPost");
-        for r in &mut self.robots { r.post_step(&mut self.physics, &mut self.fuel, dt, t); }
+        for i in 0..self.robots.len() {
+            // (the others as they are: those before it already moved on to this step's poses)
+            let others: Vec<[f64; 4]> = self.robots.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, o)| [o.pos[0], o.pos[2], o.half_l, o.half_w]).collect();
+            self.robots[i].post_step(&mut self.physics, &mut self.fuel, dt, t, &others);
+        }
         probe(self, "robotsPost");
         assert!(self.robots.len() < 2, "the rules between robots arrive with M4");
         probe(self, "rules");

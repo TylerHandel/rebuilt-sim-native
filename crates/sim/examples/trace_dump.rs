@@ -1,5 +1,6 @@
 //! A parity script's state at one step, after each part of it, as tools/native-trace.mjs --dump prints it:
 //!   cargo run --release -p sim --example trace_dump -- parity/scripts/<script>.json <step>
+//! LOC=1: each step's pose estimate too, as native-trace --loc prints it
 use sim::game::{Settings, World};
 use sim::game_match::Phase;
 
@@ -10,7 +11,8 @@ fn main() {
     let mut slots: Vec<_> = s.slots.iter().filter(|x| x.alliance == "blue").collect();
     slots.extend(s.slots.iter().filter(|x| x.alliance == "red"));
     let robots = slots.iter().map(|x| (x.robot.clone(), if x.alliance == "blue" { sim::constants::Alliance::Blue } else { sim::constants::Alliance::Red }, x.pose)).collect();
-    let mut w = World::new(sim::WorldData::bundled(), &Settings { seed: s.seed, human_players: s.human_players.unwrap_or(true), preload: s.preload, robots });
+    let mut w = World::new(sim::WorldData::bundled(), &Settings { seed: s.seed, human_players: s.human_players.unwrap_or(true), preload: s.preload, robots, aim_truth: s.aim_truth });
+    for (i, x) in slots.iter().enumerate() { w.robots[i].spawn(&mut w.physics, x.pose[0], x.pose[1], x.pose[2]); }
     if let Some(p) = &s.phase { w.jump_to(Phase::parse(p)); }
     let mut cmds: Vec<_> = s.commands.iter().collect();
     cmds.sort_by_key(|c| c.from);
@@ -24,5 +26,6 @@ fn main() {
             for (i, r) in w.robots.iter().enumerate() { eprintln!("robot {i}  {}", p(&w.physics.bodies[r.body])); }
         });
         if step % 2 == 1 { w.frame(2.0 * sim::constants::PHYSICS_DT); }
+        if std::env::var("LOC").is_ok() { for r in &w.robots { eprintln!("{step} {}", r.loc.log_line()); } }
     }
 }

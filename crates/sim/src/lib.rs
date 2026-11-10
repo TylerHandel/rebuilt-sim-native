@@ -10,6 +10,7 @@ pub mod game;
 pub mod game_match;
 pub mod human_player;
 pub mod libm_f32;
+pub mod localize;
 pub mod mech;
 pub mod parity;
 pub mod rng;

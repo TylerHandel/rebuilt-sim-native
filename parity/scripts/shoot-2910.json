@@ -14,7 +14,6 @@
     }
   ],
   "humanPlayers": false,
-  "aimTruth": true,
   "preload": 8,
   "phase": "teleop",
   "steps": 1800,

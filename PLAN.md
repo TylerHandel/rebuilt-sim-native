@@ -315,15 +315,14 @@ This is the hardest single port. Expect most of the time to go to `_contacts`, `
 NEUTRAL ZONE line, as `tools/intake-test.mjs`), fill to full, and a dump at the HUB from three
 distances. Add 2910's `anim`.
 **Release: 2910 intakes, fills and shoots.** Scoring isn't counted yet.
-*Done (Nov 10) but for localize.rs:* the core (tests/mech.rs, 240 steps of the browser game's own
-scene), r2910.rs, physical.rs, phys2910.rs, the robot's `_shooter`/`_target`/`_passLands` for a
-fixed shooter, ballistics.rs whole, and the HUMAN PLAYERS' throws. Scripts, all identical at every
-step: intake-2910 (59 in), shoot-2910 (preload 8 into the HUB, 55 intaked and passed back),
-hp-throws (240 random draws). HUB scoring counts (it was already ported with the match). The two
-robot scripts aim from the true pose (`aimTruth`) until js/localize.js (the pose estimate: its own
-seeded draws, odometry, gyro, AprilTag vision, latency) is ported: with it, the drum's idle speed
-and every aim differ slightly. In the app: Space / RT shoot, R / RB pass, F / LB eject; HUMAN
-PLAYER auto by default, manual G / H. Next: localize.rs, then M3c.
+*Done (Nov 10):* the core (tests/mech.rs, 240 steps of the browser game's own scene), r2910.rs,
+physical.rs, phys2910.rs, the robot's `_shooter`/`_target`/`_passLands` for a fixed shooter,
+ballistics.rs whole, localize.rs (the pose estimate: each team's cameras and pipeline, gyro,
+odometry, the filter; cameras on turrets come with the turret robots), and the HUMAN PLAYERS'
+throws. Scripts, all identical at every step with the pose estimate on: intake-2910 (59 in),
+shoot-2910 (preload 8 into the HUB, then 58 intaked and passed back), hp-throws (240 random draws).
+HUB scoring counts (it was already ported with the match). In the app: Space / RT shoot, R / RB
+pass, F / LB eject; HUMAN PLAYER auto by default, manual G / H. Next: M3c.
 
 **M3c. The other twelve, one per step, each with the same three scripts and a release.**
 Order: 4414, 8793 (with 2910, the default blue alliance), 1678, 1690, then 7769, 341, 1114, 1706,
