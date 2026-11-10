@@ -1,6 +1,8 @@
 //! Updates: a background thread asks GitHub Releases for a newer version when the game starts and
-//! every 10 minutes after, and downloads it. Once one is downloaded, a button offers to restart
-//! into it now; otherwise Velopack applies it the next time the game starts.
+//! every minute after, and downloads it. Once one is downloaded the game restarts into it by itself
+//! as soon as no match is being played (after a few seconds' notice, which a click skips); during a
+//! match a button offers to restart now. Closing the game also installs it (Velopack applies a
+//! downloaded update at the next start).
 
 use bevy::prelude::*;
 use bevy::ui_widgets::{Activate, Button};
@@ -8,7 +10,13 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 const REPO: &str = "https://github.com/TylerHandel/rebuilt-sim-native";
-const RECHECK: Duration = Duration::from_secs(10 * 60);
+const RECHECK: Duration = Duration::from_secs(60);
+/// The notice before restarting by itself, s.
+const NOTICE: f32 = 5.0;
+
+/// Whether a match is being played (the game sets it; an update waits for the match to end).
+#[derive(Resource, Default)]
+pub struct InMatch(pub bool);
 
 #[derive(Default)]
 struct State { text: String, ready: Option<velopack::UpdateInfo> }
@@ -30,13 +38,19 @@ impl Plugin for UpdatePlugin {
         let s = status.clone();
         std::thread::spawn(move || watch(&s));
         app.insert_resource(status)
+            .init_resource::<InMatch>()
             .add_systems(Startup, spawn_button)
             .add_systems(Update, show_button);
     }
 }
 
+/// The latest release's files, straight from its download links: no GitHub API calls, so checking
+/// every minute stays clear of the API's hourly limit (60 per address, shared by every PC on a
+/// network). Its feed lists the latest version only; more than one version behind, the delta
+/// doesn't apply and Velopack downloads the full package.
 fn manager() -> Option<velopack::UpdateManager> {
-    velopack::UpdateManager::new(velopack::sources::GithubSource::new(REPO, None, false), None, None).ok()
+    let source = velopack::sources::HttpSource::new(format!("{REPO}/releases/latest/download"));
+    velopack::UpdateManager::new(source, None, None).ok()
 }
 
 /// checks now and every RECHECK, until one is downloaded
@@ -61,7 +75,7 @@ fn watch(status: &UpdateStatus) {
                 status.set(format!("v{v} | downloading v{to}..."));
                 match um.download_updates(&info, None) {
                     Ok(()) => {
-                        status.set(format!("v{v} | v{to} is ready: restart to play it (or it installs the next time you start the game)"));
+                        status.set(format!("v{v} | v{to} is ready: it installs when no match is on"));
                         if let Ok(mut g) = status.0.lock() { g.ready = Some(*info); }
                         return;
                     }
@@ -95,14 +109,42 @@ fn spawn_button(mut commands: Commands) {
     });
 }
 
-fn show_button(status: Res<UpdateStatus>, mut node: Query<&mut Node, With<RestartButton>>, mut label: Query<&mut Text, With<RestartLabel>>) {
+/// Shows the button once an update is ready: during a match, an offer to restart now; otherwise a
+/// countdown, then the restart.
+fn show_button(
+    status: Res<UpdateStatus>,
+    in_match: Res<InMatch>,
+    time: Res<Time>,
+    mut left: Local<Option<f32>>,
+    mut node: Query<&mut Node, With<RestartButton>>,
+    mut label: Query<&mut Text, With<RestartLabel>>,
+) {
     let Some(v) = status.ready_version() else { return };
     if let Ok(mut n) = node.single_mut() { if n.display == Display::None { n.display = Display::Flex; } }
-    if let Ok(mut t) = label.single_mut() { let want = format!("Restart to update to v{v}"); if t.0 != want { t.0 = want; } }
+    let want = if in_match.0 {
+        *left = None;
+        format!("Restart to update to v{v}")
+    } else {
+        let t = left.get_or_insert(NOTICE);
+        if *t <= 0.0 { return }
+        *t -= time.delta_secs();
+        if *t <= 0.0 {
+            apply(&status);
+            format!("Updating to v{v}...")
+        } else {
+            format!("Updating to v{v} in {}... (click to restart now)", t.ceil() as i32)
+        }
+    };
+    if let Ok(mut t) = label.single_mut() { if t.0 != want { t.0 = want; } }
 }
 
-/// the button's click: exit the game, apply the update, start the new version
+/// the button's click: restart now
 fn restart(_: On<Activate>, status: Res<UpdateStatus>) {
+    apply(&status);
+}
+
+/// exits the game, applies the update and starts the new version (returns only if that fails)
+fn apply(status: &UpdateStatus) {
     let info = status.0.lock().ok().and_then(|g| g.ready.clone());
     if let (Some(info), Some(um)) = (info, manager()) {
         status.set("restarting into the update...");
