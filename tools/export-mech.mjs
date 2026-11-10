@@ -55,3 +55,20 @@ const surface = (s) => ({
   writeFileSync(join(out, 'gen8793.json'), JSON.stringify(data));
   console.log(`8793: chain of ${c.n} links -> ${join(out, 'gen8793.json')}`);
 }
+
+// ---- 1690
+{
+  const r = await load('js/mech/r1690.js'), ec = await load('js/echain.js');
+  const t = r.build1690(), s = r.pathSurfaces1690(t);
+  // (its turret's swivel chain, as chainLoad1690 reads it: its arm table, once a degree, and the rest)
+  const DEG = Math.PI / 180, o = ec.SWIVEL1690, c = new ec.SwivelChain(o, ec.LINK), [y0, y1] = o.yaw, n = Math.round((y1 - y0) / DEG);
+  const arm = Array.from({ length: n + 1 }, (_, i) => { c.solve(y0 + i * DEG); return c.arm; });
+  const data = {
+    source: 'rebuilt-sim-2026 js/mech/r1690.js, echain.js (tools/export-mech.mjs)',
+    // (the surfaces its code builds, not its CAD's: the belts' runs, the kicker bar's tube, the funnel's lid)
+    surfaces: ['bottom', 'top', 'kickTube', 'funnelLid'].map((k) => ({ key: k, ...surface(s[k]) })),
+    chain: { y0, n, arm, pitch: c.link.pitch, rho: c.rho, hub: o.hub, spring: o.spring, guideA1: o.guide.a1, guideR: o.guide.r, a0: new ec.SwivelChain(o, ec.LINK).a0 },
+  };
+  writeFileSync(join(out, 'gen1690.json'), JSON.stringify(data));
+  console.log(`1690: ${data.surfaces.length} surfaces, chain ${n + 1} -> ${join(out, 'gen1690.json')}`);
+}

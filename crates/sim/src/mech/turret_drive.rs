@@ -84,9 +84,39 @@ pub fn chain_load8793(c: &TrackChain, psi: f64) -> Load {
     Load { torque: spring, friction: hyst + pin + slide_wall + slide_floor, viscous: 0.0 }
 }
 
+/// js `SwivelChain` (1690's), as its load reads it (assets/mech/gen1690.json: its arm table once a degree)
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SwivelChain { pub y0: f64, pub n: f64, pub arm: Vec<f64>, pub pitch: f64, pub rho: f64, pub hub: f64, pub spring: f64, pub guide_a1: f64, pub guide_r: f64, pub a0: f64 }
+/// js `chainLoad1690(chain, psi)` (EI 3e-3, slide 2 N, muGuide 0.15)
+pub fn chain_load1690(c: &SwivelChain, psi: f64) -> Load {
+    let (ei, slide, mu_guide) = (3e-3, 2.0, 0.15);
+    let p = c.pitch;
+    let f = m::min(c.n, m::max(0.0, (psi - c.y0) / DEG));
+    let i = m::min(c.n - 1.0, m::floor(f));
+    let iu = i as usize;
+    let arm = c.arm[iu] + (c.arm[iu + 1] - c.arm[iu]) * (f - i);
+    let t = c.spring / 2.0;
+    let jw = 2.0 * m::asin(p / (2.0 * c.rho));
+    let jh = 2.0 * m::asin(p / (2.0 * c.hub));
+    let guide_turn = c.guide_a1 - c.a0;
+    let hyst = ETA * ei * ((0.5 / p) * 2.0 * jw / c.rho + (1.0 / p) * jh / c.hub + guide_turn / (2.0 * m::PI) / c.guide_r);
+    let pin = MU_PIN * R_PIN * t * ((0.5 / p) * 2.0 * jw + (1.0 / p) * jh);
+    let capstan = t * (m::exp(mu_guide * guide_turn) - 1.0);
+    let a = m::abs(arm);
+    Load { torque: t * arm, friction: (hyst + pin + capstan + slide / 2.0) * a, viscous: 0.0 }
+}
+/// 1690's chain
+pub fn swivel1690() -> &'static SwivelChain {
+    #[derive(serde::Deserialize)]
+    struct G { chain: SwivelChain }
+    static C: std::sync::OnceLock<SwivelChain> = std::sync::OnceLock::new();
+    C.get_or_init(|| serde_json::from_str::<G>(include_str!("../../../../assets/mech/gen1690.json")).expect("gen1690.json").chain)
+}
+
 /// What a turret's chain is
 #[derive(Clone, Copy, Debug)]
-pub enum Chain { Spool4414, Track8793 }
+pub enum Chain { Spool4414, Track8793, Swivel1690 }
 
 /// js `TurretDrive`
 #[derive(Clone, Debug)]
@@ -112,7 +142,7 @@ pub struct TurretDrive {
 
 impl TurretDrive {
     fn chain_load(&self, yaw: f64) -> Option<Load> {
-        match self.chain { Some(Chain::Spool4414) => Some(chain_load4414(&crate::mech::r4414::gen4414().chain, yaw)), Some(Chain::Track8793) => Some(chain_load8793(&track8793(), yaw)), None => None }
+        match self.chain { Some(Chain::Spool4414) => Some(chain_load4414(&crate::mech::r4414::gen4414().chain, yaw)), Some(Chain::Track8793) => Some(chain_load8793(&track8793(), yaw)), Some(Chain::Swivel1690) => Some(chain_load1690(swivel1690(), yaw)), None => None }
     }
 
     /// js `step(cur, goal, dt, t)`: from cur toward goal; where the turret is after
@@ -176,6 +206,17 @@ pub fn drive8793() -> TurretDrive {
     TurretDrive {
         motor, j, friction: 4.0, viscous: 0.02, kp: 4.0, kd: 0.25, kv: 0.25, ks: 0.65, ff_v_per_nm: None,
         max_rate: 360.0 * DEG, limits: [-200.0 * DEG, 270.0 * DEG], chain: Some(Chain::Track8793), sub: 8,
+        yaw: None, omega: 0.0, goal: None, t: None, current: 0.0, load: 0.0,
+    }
+}
+
+/// js `drive1690()`: an X60 through 50:1, its loop (estimates), against the swivel chain
+pub fn drive1690() -> TurretDrive {
+    let motor = Motor::new("krakenX60", 1.0, 50.0, 0.9, 40.0, 30.0);
+    let j = 0.07 + motor.j;
+    TurretDrive {
+        motor, j, friction: 1.0, viscous: 0.02, kp: 3.0, kd: 0.1, kv: 0.124, ks: 0.15, ff_v_per_nm: None,
+        max_rate: 360.0 * DEG, limits: [-200.0 * DEG, 200.0 * DEG], chain: Some(Chain::Swivel1690), sub: 8,
         yaw: None, omega: 0.0, goal: None, t: None, current: 0.0, load: 0.0,
     }
 }

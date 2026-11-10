@@ -153,7 +153,77 @@ pub fn abutting(wheels: &mut [Wheel]) {
 pub enum Mount { Fixed, Pivot { shaft: usize, pivot: V3, axis: V3 }, Slide { shaft: usize, dir: V3, k: f64 } }
 
 #[derive(Clone, Debug)]
-enum Shape { Mesh, Block { c: V3, h: V3, r: f64 }, Net(NetDome) }
+enum Shape { Mesh, Block { c: V3, h: V3, r: f64 }, Net(NetDome), Plate(Box<Plate>) }
+
+/// A top plate the load bows up, and a net out past it (js r1690.js Net1690): x0, the back of the
+/// bow; x1, the net's front (the U-frame's, where the carriage has it); y, the plate's height; hw,
+/// half its span; the U-frame's top (frame_top) past half_l; open behind x0 only at the back left
+/// (x > back, z > open_z). bow: how far it's bowed at its front edge's middle (m), cap: as far as it
+/// may (a TRENCH arm over it); k, k3: its stiffness (N/m, N/m^3); tau: how fast it eases there
+#[derive(Clone, Debug)]
+pub struct Plate {
+    pub x0: f64, pub x1: f64, pub y: f64, pub hw: f64, pub bulge: f64, pub half_l: f64, pub frame_top: f64, pub back: f64, pub open_z: f64,
+    pub k: f64, pub k3: f64, pub tau: f64,
+    pub bow: f64, pub force: f64, pub cap: f64,
+    seen: HashMap<RigidBodyHandle, f64>,
+}
+impl Plate {
+    pub fn new(x0: f64, x1: f64, y: f64, hw: f64, bulge: f64, half_l: f64, frame_top: f64, back: f64, open_z: f64, k: f64, k3: f64, tau: f64, cap: f64) -> Self {
+        Plate { x0, x1, y, hw, bulge, half_l, frame_top, back, open_z, k, k3, tau, bow: 0.0, force: 0.0, cap, seen: HashMap::new() }
+    }
+    /// js `bowShape(x, z)`: 1 at the plate's front edge's middle, 0 at its supports
+    pub fn bow_shape(&self, x: f64, z: f64) -> f64 {
+        let v = m::min(1.0, m::max(0.0, (z + self.hw) / (2.0 * self.hw)));
+        let u = m::min(1.0, m::max(0.0, (x - self.x0) / (self.half_l - self.x0)));
+        m::sin(m::PI * v) * m::sin((m::PI / 2.0) * u)
+    }
+    /// js `topY(x, z, x1, bow)`
+    fn top_y(&self, x: f64, z: f64) -> f64 {
+        let (l, w, b) = (self.x1 - self.x0, 2.0 * self.hw, self.bulge);
+        let u = m::min(1.0, m::max(0.0, (x - self.x0) / l));
+        let v = m::min(1.0, m::max(0.0, (z + self.hw) / w));
+        let lift = b * m::sin(m::PI * u) * m::sin(m::PI * v);
+        if x <= self.half_l { return self.y + self.bow * self.bow_shape(x, z) + lift; }
+        let edge = self.y + self.bow * self.bow_shape(self.half_l, z);
+        edge - (edge - self.frame_top) * m::min(1.0, (x - self.half_l) / 0.06) + lift
+    }
+    /// js `netAt(x, z, x1, bow)`: its height, and its slopes along x and z
+    fn at(&self, x: f64, z: f64) -> [f64; 3] {
+        let e = 1e-3;
+        let y = self.top_y(x, z);
+        [y, (self.top_y(x + e, z) - y) / e, (self.top_y(x, z + e) - y) / e]
+    }
+    /// js `touches(p, b)`
+    fn touches(&mut self, p: V3, b: RigidBodyHandle) -> Vec<Hit> {
+        let [x, y, z] = p;
+        if x >= self.x1 || m::abs(z) >= self.hw || (x <= self.x0 && !(x > self.back && z > self.open_z)) { return Vec::new(); }
+        let [h, hx, hz] = self.at(x, z);
+        let l = m::hypot3(hx, 1.0, hz);
+        let dist = (h - y) / l;
+        if dist >= R || dist < -0.03 { return Vec::new(); }
+        let w = if x <= self.half_l { self.bow_shape(x, z) } else { self.bow_shape(self.half_l, z) * m::max(0.0, 1.0 - (x - self.half_l) / 0.06) };
+        self.seen.insert(b, w);
+        vec![Hit { depth: R - dist, n: [hx / l, -1.0 / l, hz / l] }]
+    }
+    /// js `plateForce(b)`, `plateK(b)`
+    pub fn plate_force(&self, b: f64) -> f64 { self.k * b + self.k3 * m::pow(b, 3.0) }
+    fn plate_k(&self, b: f64) -> f64 { self.k + 3.0 * self.k3 * b * b }
+    /// js `flex(dt, contacts)`: the plate bowed as far as the load pressing on it balances its
+    /// stiffness (me: its index among the robot's surfaces, as the contacts name it)
+    pub fn flex(&mut self, dt: f64, contacts: &[Touch], me: usize) {
+        let (mut f, mut kk) = (0.0, 0.0);
+        for c in contacts {
+            if c.wheel != Toucher::Surface(me) || !(c.force > 0.0) { continue; }
+            let w = self.seen.get(&c.ball).copied().unwrap_or(0.0) * m::abs(c.n[1]);
+            f += c.force * w;
+            kk += ((2.0 * c.force) / m::max(c.depth, 1e-4)) * w * w;
+        }
+        self.seen.clear();
+        self.force = f;
+        let step = (f - self.plate_force(self.bow)) / (kk + self.plate_k(self.bow));
+        self.bow = m::min(self.cap, m::max(0.0, self.bow + step * m::min(1.0, dt / self.tau)));
+    }
+}
 
 /// A stretched net tied between two edges, bulged by the load under it (js r1678.js Net1678): from
 /// the lid's front edge (x0, y0) to the extension's front (x1, y1), across +-hw, bulging up to
@@ -293,10 +363,18 @@ impl Surface {
         s.shape = Shape::Net(dome);
         s
     }
+    /// A top plate and net (js Net1690: a Surface built on one small triangle, its touches its own)
+    pub fn plate(name: &str, mu: f64, tread: f64, plate: Plate) -> Self {
+        let mut s = Surface::mesh(name, &[0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.01], &[0, 1, 2], mu, [0.0; 3], 0.0, 0.0, 0.08, tread);
+        s.shape = Shape::Plate(Box::new(plate));
+        s
+    }
+    pub fn plate_mut(&mut self) -> Option<&mut Plate> { if let Shape::Plate(p) = &mut self.shape { Some(p) } else { None } }
+    pub fn plate_ref(&self) -> Option<&Plate> { if let Shape::Plate(p) = &self.shape { Some(p) } else { None } }
     /// a net's shape, to place it (js Net1678.place)
     pub fn net_mut(&mut self) -> Option<&mut NetDome> { if let Shape::Net(d) = &mut self.shape { Some(d) } else { None } }
     /// whether its own touches are a plain mesh's or a Block's (js surfaceBounds' plain)
-    fn plain(&self) -> bool { !matches!(self.shape, Shape::Net(_)) }
+    fn plain(&self) -> bool { !matches!(self.shape, Shape::Net(_) | Shape::Plate(_)) }
     /// a Block's bottom edge (its center's y less its half height and rounding)
     pub fn block_bottom(&self) -> Option<f64> { if let Shape::Block { c, h, r } = self.shape { Some(c[1] - h[1] - r) } else { None } }
 
@@ -384,6 +462,7 @@ impl Surface {
     /// js `touches(p, who)` (a Block's, or a mesh's)
     pub fn touches(&mut self, p: V3, who: RigidBodyHandle) -> Vec<Hit> {
         if let Shape::Net(d) = &self.shape { return d.touches(p); }
+        if let Shape::Plate(pl) = &mut self.shape { return pl.touches(p, who); }
         if let Shape::Block { c, h, r } = self.shape {
             let d = [p[0] - c[0], p[1] - c[1], p[2] - c[2]];
             let q = [m::abs(d[0]) - h[0], m::abs(d[1]) - h[1], m::abs(d[2]) - h[2]];

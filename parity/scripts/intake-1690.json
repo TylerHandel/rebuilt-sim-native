@@ -1,0 +1,59 @@
+{
+  "name": "intake-1690",
+  "about": "1690 alone in TELEOP: its carriage slides out on its racks and the kicker bar falls on its pin; it drives into the NEUTRAL ZONE's FUEL with its rollers running, the floor carries them back under the top plate (which the load bows up); then it turns with its load and lets go (M3c).",
+  "seed": 5,
+  "slots": [
+    {
+      "robot": "1690",
+      "alliance": "blue",
+      "pose": [
+        -1.75,
+        1.0,
+        0.0
+      ]
+    }
+  ],
+  "humanPlayers": false,
+  "phase": "teleop",
+  "steps": 1200,
+  "commands": [
+    {
+      "from": 0,
+      "robot": 0,
+      "cmd": {
+        "intake": true
+      }
+    },
+    {
+      "from": 72,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.8,
+        "intake": true
+      }
+    },
+    {
+      "from": 480,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.5,
+        "omega": 1.2,
+        "intake": true
+      }
+    },
+    {
+      "from": 720,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.8,
+        "vz": 0.4,
+        "intake": true
+      }
+    },
+    {
+      "from": 1080,
+      "robot": 0,
+      "cmd": {}
+    }
+  ]
+}

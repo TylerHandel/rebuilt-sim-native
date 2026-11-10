@@ -344,6 +344,10 @@ collider is set the same way, or its first contact differs.
 40; shoot-1678: preload into the HUB, then intake and ferries back). Its net is the one surface
 whose touches are its own (a stretched dome, mechanism.rs NetDome), outside the bounds test as in
 the JS.
+*1690 done (Nov 10):* identical at every step (intake-1690: 52 in; shoot-1690: 8 of 8 preload in
+the HUB, then 52 intaked and 27 passed back). Its top plate is the second surface with its own
+touches (mechanism.rs Plate: it bows under the load, from the step's contacts); the surfaces its
+code builds come as data (gen1690.json, with the swivel chain's arm table). Next: 7769.
 
 **M3d. Mechanisms in parallel, and the speed check.** `preStepRobots`'s phases under `rayon` (D8),
 gated by the same scripts (same bits as serial). A native `perf3v3` (as `tools/perf3v3.mjs`): six
