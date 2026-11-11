@@ -65,7 +65,7 @@ fn truss_lights() -> Vec<(Vec3, Vec3)> {
 fn spawn_truss_lights(mut commands: Commands) {
     // (a light haze over the field and stands, up to the trusses and a little over)
     commands.spawn((
-        bevy::light::FogVolume { density_factor: 0.035, scattering: 0.5, absorption: 0.15, fog_color: Color::srgb(0.9, 0.9, 0.92), ..default() },
+        bevy::light::FogVolume { density_factor: 0.06, scattering: 0.6, absorption: 0.1, fog_color: Color::srgb(0.9, 0.9, 0.92), ..default() },
         Transform::from_xyz(0.0, 4.5, 0.0).with_scale(Vec3::new(36.0, 9.0, 24.0)),
         Visibility::Hidden,
         ArenaHaze,
