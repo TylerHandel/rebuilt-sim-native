@@ -9,6 +9,7 @@ use crate::mech::phys4414::Phys4414;
 use crate::mech::phys8793::Phys8793;
 use crate::mech::phys1678::Phys1678;
 use crate::mech::phys1690::Phys1690;
+use crate::mech::phys2056::Phys2056;
 use crate::mech::phys7769::Phys7769;
 use crate::mech::phys341::Phys341;
 use crate::mech::phys1114::Phys1114;
@@ -56,7 +57,7 @@ pub fn apply_quat(v: [f64; 3], q: [f64; 4]) -> [f64; 3] {
 
 /// The robots whose mechanisms are ported (a robot.json config's "physical"): the others' Robot::new
 /// panics until theirs are
-pub const PORTED: &[&str] = &["2910", "4414", "8793", "1678", "1690", "7769", "341", "1114", "6328", "604", "581"];
+pub const PORTED: &[&str] = &["2910", "4414", "8793", "1678", "1690", "7769", "341", "1114", "6328", "604", "581", "2056"];
 /// The ported robots whose intake folds (on a pivot their mechanisms turn)
 pub const FOLDS: &[&str] = &["8793"];
 
@@ -132,12 +133,12 @@ pub enum Top { Frame { body: RigidBodyHandle, pts: Vec<f64> }, Lid { body: Rigid
 #[derive(Debug, Clone)]
 pub struct UnderArm { pub collider: ColliderHandle, pub top: Top, pub under: bool }
 
-pub enum Phys { R2910(Box<Phys2910>), R4414(Box<Phys4414>), R8793(Box<Phys8793>), R1678(Box<Phys1678>), R1690(Box<Phys1690>), R7769(Box<Phys7769>), R341(Box<Phys341>), R1114(Box<Phys1114>), R6328(Box<Phys6328>), R604(Box<Phys604>), R581(Box<Phys581>) }
+pub enum Phys { R2910(Box<Phys2910>), R4414(Box<Phys4414>), R8793(Box<Phys8793>), R1678(Box<Phys1678>), R1690(Box<Phys1690>), R7769(Box<Phys7769>), R341(Box<Phys341>), R1114(Box<Phys1114>), R6328(Box<Phys6328>), R604(Box<Phys604>), R581(Box<Phys581>), R2056(Box<Phys2056>) }
 
 impl Phys {
     /// the shared part (js PhysicalRobot)
-    pub fn physical(&self) -> &crate::mech::physical::Physical { match self { Phys::R2910(p) => &p.p, Phys::R4414(p) => &p.p, Phys::R8793(p) => &p.p, Phys::R1678(p) => &p.p, Phys::R1690(p) => &p.p, Phys::R7769(p) => &p.p, Phys::R341(p) => &p.p, Phys::R1114(p) => &p.p, Phys::R6328(p) => &p.p, Phys::R604(p) => &p.p, Phys::R581(p) => &p.p } }
-    pub fn physical_mut(&mut self) -> &mut crate::mech::physical::Physical { match self { Phys::R2910(p) => &mut p.p, Phys::R4414(p) => &mut p.p, Phys::R8793(p) => &mut p.p, Phys::R1678(p) => &mut p.p, Phys::R1690(p) => &mut p.p, Phys::R7769(p) => &mut p.p, Phys::R341(p) => &mut p.p, Phys::R1114(p) => &mut p.p, Phys::R6328(p) => &mut p.p, Phys::R604(p) => &mut p.p, Phys::R581(p) => &mut p.p } }
+    pub fn physical(&self) -> &crate::mech::physical::Physical { match self { Phys::R2910(p) => &p.p, Phys::R4414(p) => &p.p, Phys::R8793(p) => &p.p, Phys::R1678(p) => &p.p, Phys::R1690(p) => &p.p, Phys::R7769(p) => &p.p, Phys::R341(p) => &p.p, Phys::R1114(p) => &p.p, Phys::R6328(p) => &p.p, Phys::R604(p) => &p.p, Phys::R581(p) => &p.p, Phys::R2056(p) => &p.p } }
+    pub fn physical_mut(&mut self) -> &mut crate::mech::physical::Physical { match self { Phys::R2910(p) => &mut p.p, Phys::R4414(p) => &mut p.p, Phys::R8793(p) => &mut p.p, Phys::R1678(p) => &mut p.p, Phys::R1690(p) => &mut p.p, Phys::R7769(p) => &mut p.p, Phys::R341(p) => &mut p.p, Phys::R1114(p) => &mut p.p, Phys::R6328(p) => &mut p.p, Phys::R604(p) => &mut p.p, Phys::R581(p) => &mut p.p, Phys::R2056(p) => &mut p.p } }
 }
 
 pub struct Robot {
@@ -292,6 +293,14 @@ fn tables_for(key: &str, cfg: &Value) -> std::sync::Arc<Tables> {
     ho.spin = spin;
     let mut po = TableOpts::new(h0(fixed, sh, &exit_y), FUEL::radius + 0.02, hmin, hmax, smax);
     po.pass = true; po.pass_theta = 55.0; po.d_max = 22.0; po.spin = spin;
+    // (2056's passes go at the hood's lowest release angle, the wheel's speed varied: a pass table of
+    // that one angle, as fast as its PASS_MAP reaches: js Physical2056's constructor)
+    if cfg["physical"].as_str() == Some("2056") {
+        use crate::mech::phys2056::{pass_el, PASS_MAP};
+        let el = pass_el();
+        po = TableOpts::new(H0::At(num(sh, "exitY")), FUEL::radius + 0.02, el, el, PASS_MAP[PASS_MAP.len() - 1][0] - 0.03);
+        po.pass = true; po.pass_theta = el; po.d_max = 22.0; po.spin = spin;
+    }
     let t = std::sync::Arc::new(Tables { hub: ShotTable::new(&ho), pass: ShotTable::new(&po) });
     cache.lock().unwrap().insert(key.to_string(), t.clone());
     t
@@ -355,6 +364,7 @@ impl Robot {
             Some("6328") => Some(Phys::R6328(Box::new(Phys6328::new(r.body)))),
             Some("604") => Some(Phys::R604(Box::new(Phys604::new(r.body)))),
             Some("581") => Some(Phys::R581(Box::new(Phys581::new(r.body)))),
+            Some("2056") => Some(Phys::R2056(Box::new(Phys2056::new(r.body)))),
             Some("8793") => {
                 let f = &r.cfg["intake"]["fold"];
                 let hull: Vec<[f64; 2]> = f["hull"].as_array().unwrap().iter().map(|p| [p[0].as_f64().unwrap(), p[1].as_f64().unwrap()]).collect();
@@ -495,7 +505,7 @@ impl Robot {
 
     /// js `reset()` (what play reads so far)
     pub fn reset(&mut self) {
-        match &mut self.phys { Some(Phys::R2910(p)) => p.reset(), Some(Phys::R4414(p)) => p.reset(), Some(Phys::R8793(p)) => p.reset(), Some(Phys::R1678(p)) => p.reset(), Some(Phys::R1690(p)) => p.reset(), Some(Phys::R7769(p)) => p.reset(), Some(Phys::R341(p)) => p.reset(), Some(Phys::R1114(p)) => p.reset(), Some(Phys::R6328(p)) => p.reset(), Some(Phys::R604(p)) => p.reset(), Some(Phys::R581(p)) => p.reset(), None => {} }
+        match &mut self.phys { Some(Phys::R2910(p)) => p.reset(), Some(Phys::R4414(p)) => p.reset(), Some(Phys::R8793(p)) => p.reset(), Some(Phys::R1678(p)) => p.reset(), Some(Phys::R1690(p)) => p.reset(), Some(Phys::R7769(p)) => p.reset(), Some(Phys::R341(p)) => p.reset(), Some(Phys::R1114(p)) => p.reset(), Some(Phys::R6328(p)) => p.reset(), Some(Phys::R604(p)) => p.reset(), Some(Phys::R581(p)) => p.reset(), Some(Phys::R2056(p)) => p.reset(), None => {} }
         // (each turret starts at the middle of its travel)
         let sh = &self.cfg["shooter"];
         let list = if sh["turrets"].is_array() { sh["turrets"].as_array().unwrap().clone() } else if sh["turretPos"].is_object() { vec![sh["turretPos"].clone()] } else { vec![] };
@@ -575,6 +585,11 @@ impl Robot {
             }
             Some(Phys::R1690(p)) => {
                 p.pre_mech(dt, &crate::mech::phys1690::PreIn { enabled: on, intake_deploy: self.intake_deploy, turret_yaw: self.turret_yaw });
+                p.mechanisms(&mut c, dt, t);
+                self.intake_deploy = p.post_mech(&mut c.phys.bodies, dt);
+            }
+            Some(Phys::R2056(p)) => {
+                p.pre_mech(dt, &crate::mech::phys2056::PreIn { enabled: on, intake_deploy: self.intake_deploy, turret_yaw: self.turret_yaw });
                 p.mechanisms(&mut c, dt, t);
                 self.intake_deploy = p.post_mech(&mut c.phys.bodies, dt);
             }
@@ -663,7 +678,7 @@ impl Robot {
 
     /// js `capacity()`: how many it holds, about (a physical robot's own rating)
     pub fn capacity(&self) -> usize {
-        match &self.phys { Some(Phys::R2910(p)) => p.capacity(), Some(Phys::R4414(p)) => p.capacity(), Some(Phys::R8793(p)) => p.capacity(), Some(Phys::R1678(p)) => p.capacity(), Some(Phys::R1690(p)) => p.capacity(), Some(Phys::R7769(p)) => p.capacity(), Some(Phys::R341(p)) => p.capacity(), Some(Phys::R1114(p)) => p.capacity(), Some(Phys::R6328(p)) => p.capacity(), Some(Phys::R604(p)) => p.capacity(), Some(Phys::R581(p)) => p.capacity(), None => 0 }
+        match &self.phys { Some(Phys::R2910(p)) => p.capacity(), Some(Phys::R4414(p)) => p.capacity(), Some(Phys::R8793(p)) => p.capacity(), Some(Phys::R1678(p)) => p.capacity(), Some(Phys::R1690(p)) => p.capacity(), Some(Phys::R7769(p)) => p.capacity(), Some(Phys::R341(p)) => p.capacity(), Some(Phys::R1114(p)) => p.capacity(), Some(Phys::R6328(p)) => p.capacity(), Some(Phys::R604(p)) => p.capacity(), Some(Phys::R581(p)) => p.capacity(), Some(Phys::R2056(p)) => p.capacity(), None => 0 }
     }
 
     /// js `aimPt(p)`: where its pose estimate puts world point p, seen from its true pose
@@ -806,7 +821,7 @@ impl Robot {
                     let lim = num(sh, "turretRange") * DEG;
                     let mid = opt(&sh["turretPos"], "center").unwrap_or(0.0) * DEG;
                     // (a physical robot that aims its own way says where: phys.aimPsi)
-                    let psi = match &self.phys { Some(Phys::R4414(p)) => p.aim_psi.unwrap_or(sol.psi), Some(Phys::R1690(p)) => p.aim_psi.unwrap_or(sol.psi), Some(Phys::R341(p)) => p.aim_psi.unwrap_or(sol.psi), Some(Phys::R604(p)) => p.aim_psi.unwrap_or(sol.psi), _ => sol.psi };
+                    let psi = match &self.phys { Some(Phys::R4414(p)) => p.aim_psi.unwrap_or(sol.psi), Some(Phys::R1690(p)) => p.aim_psi.unwrap_or(sol.psi), Some(Phys::R341(p)) => p.aim_psi.unwrap_or(sol.psi), Some(Phys::R604(p)) => p.aim_psi.unwrap_or(sol.psi), Some(Phys::R2056(p)) => p.aim_psi.unwrap_or(sol.psi), _ => sol.psi };
                     let rel = wrap_angle(psi - self.yaw - mid);
                     let cur = self.turret_yaw - mid;
                     let (goal, over) = turret_goal(rel, cur, lim, want_shoot);
@@ -819,6 +834,7 @@ impl Robot {
                         Some(Phys::R4414(p)) => p.turret_step(mid + cur, mid + goal, self.step_dt, self.last_t),
                         Some(Phys::R8793(p)) => p.turret_step(mid + cur, mid + goal, self.step_dt, self.last_t),
                         Some(Phys::R1690(p)) => p.turret_step(mid + cur, mid + goal, self.step_dt, self.last_t),
+                        Some(Phys::R2056(p)) => p.turret_step(mid + cur, mid + goal, self.step_dt, self.last_t),
                         _ => mid + approach(cur, goal, num(sh, "turretRate") * DEG * self.step_dt),
                     };
                     self.turret_yaw = ty;
@@ -1074,6 +1090,19 @@ impl Robot {
                 self.ready = self.out.ready;
                 self.full = self.stored.len() >= p.capacity();
             }
+            Some(Phys::R2056(p)) => {
+                let est_omega = self.loc.omega().unwrap_or(c.phys.bodies[self.body].angvel().y as f64);
+                let pin0 = crate::mech::phys2056::PostIn {
+                    on, feeding: self.want_shoot, outtake: on && self.cmd.outtake, pass: pin.pass, legal: self.last_in_zone, intake: self.cmd.intake,
+                    target: pin.target, aim_hub: pin.aim_hub, table: if self.shot.is_some_and(|s| s.pass) { &self.tables.pass } else { &self.tables.hub },
+                    est_vel: pin.est_vel, est_omega, yaw: self.yaw, pos: self.pos, aim_err: self.aim_err,
+                };
+                self.stored = p.post_step(&mut c, dt, t, &pin0, &mut self.stats, &mut self.out);
+                self.hood_deg = self.out.hood_deg;
+                self.flywheel = self.out.flywheel;
+                self.ready = self.out.ready;
+                self.full = self.stored.len() >= p.capacity();
+            }
             Some(Phys::R581(p)) => {
                 let pin1 = crate::mech::phys581::PostIn {
                     on, feeding: self.want_shoot, outtake: on && self.cmd.outtake, setpoint: self.shot_setpoint, pass: pin.pass, legal: self.last_in_zone, intake: self.cmd.intake,
@@ -1212,7 +1241,7 @@ impl Robot {
         let ext = opt(st, "extLen").unwrap_or(0.0);
         if ext == 0.0 { return; }
         // (a physical robot's extension goes where its mechanism puts it: 4414's box on its racks)
-        let ext_now = match &self.phys { Some(Phys::R4414(p)) => Some(p.ext_now()), Some(Phys::R1678(p)) => Some(p.ext_now()), Some(Phys::R1690(p)) => Some(p.ext_now()), Some(Phys::R7769(p)) => Some(p.ext_now()), Some(Phys::R1114(p)) => Some(p.ext_now()), Some(Phys::R6328(p)) => Some(p.ext_now()), Some(Phys::R604(p)) => Some(p.ext_now()), Some(Phys::R581(p)) => Some(p.ext_now()), _ => None };
+        let ext_now = match &self.phys { Some(Phys::R4414(p)) => Some(p.ext_now()), Some(Phys::R1678(p)) => Some(p.ext_now()), Some(Phys::R1690(p)) => Some(p.ext_now()), Some(Phys::R7769(p)) => Some(p.ext_now()), Some(Phys::R1114(p)) => Some(p.ext_now()), Some(Phys::R6328(p)) => Some(p.ext_now()), Some(Phys::R604(p)) => Some(p.ext_now()), Some(Phys::R581(p)) => Some(p.ext_now()), Some(Phys::R2056(p)) => Some(p.ext_now()), _ => None };
         if let Some(e) = ext_now { self.hopper_deploy = crate::fuel::clamp(e / ext, 0.0, 1.0); }
         else {
             let latched = st["extend"].as_str() == Some("latched");

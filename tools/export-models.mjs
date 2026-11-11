@@ -102,6 +102,8 @@ window.exportRobot = async (key) => {
     '1690': () => ({ ext: st0.intakeDeploy, kick: 0, hood: ((st0.hoodDeg + 90) * Math.PI) / 180, wheel: 0, feeder: 0, floor: 0, top: 0, belts: [0, 0], vkick: 0, feed: 0, intakeRollers: 0, bow: 0 }),
     // (js/mech/phys7769.js mechPose, at rest: the intake in, the kick bar hanging, the hood down)
     '7769': () => ({ ext: 0, kick: 0, hood: 0, roller: 0, belts: 0, feed: 0, wheels: 0 }),
+    // (js/mech/phys2056.js mechPose, at rest: the intake in, its kicker bar folded, the hood stowed)
+    '2056': () => ({ ext: st0.intakeDeploy, kick: 0, hood: ((st0.hoodDeg + 90) * Math.PI) / 180, wheel: 0, kicker: 0, floor: 0, belts: [0, 0], vkick: 0, feed: 0, intakeRollers: 0, bow: 0 }),
   };
   const withInput = (name, v) => {
     const st = { ...st0 };
@@ -163,7 +165,7 @@ window.exportRobot = async (key) => {
   }
   // inputs anim turns parts by: their Euler rates at 1 (one second's turn)
   const rateOut = {};
-  for (const name of ['intakeSpeed', 'flywheel', 'feeding', 'floorSpin', 'mech.intakeRollers', 'mech.floor', 'mech.belts.0', 'mech.belts.1', 'mech.vkick', 'mech.feed', 'mech.wheel', 'mech.feeder', 'mech.roller', 'mech.belts', 'mech.wheels']) {
+  for (const name of ['intakeSpeed', 'flywheel', 'feeding', 'floorSpin', 'mech.intakeRollers', 'mech.floor', 'mech.belts.0', 'mech.belts.1', 'mech.vkick', 'mech.feed', 'mech.wheel', 'mech.feeder', 'mech.kicker', 'mech.roller', 'mech.belts', 'mech.wheels']) {
     const st1 = withInput(name, 1);
     if (!st1) continue;
     // (at rest first: a mech input's rest is with mech there, at its rest)

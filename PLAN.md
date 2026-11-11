@@ -369,8 +369,11 @@ intaking and feeding to their feed point). Its hopper box slides on a cam geared
 (drives.rs `cam`).
 *581 done (Nov 11):* identical at every step (intake-581; shoot-581). Its floor tilts on a cam off
 the deploy pinions; its intake on racks has the robot's sliding-intake colliders (ic.slide). The
-robots now read the match's AUTO flag and phase time as the JS's do. Next: 2056, then 1706 (twin
-turrets).
+robots now read the match's AUTO flag and phase time as the JS's do.
+*2056 done (Nov 11):* identical at every step (intake-2056; shoot-2056: 8 of 8 into the HUB, then
+intaking and passing at the hood's lowest angle). Its surfaces are all built in code (gen2056.json);
+its net is 1690's plate generalized (Plate::new2056), its kicker bar's pin rides the intake
+(Surface::set_pivot), its pass table one angle (tables_for). Next: 1706 (twin turrets).
 
 **M3d. Mechanisms in parallel, and the speed check.** `preStepRobots`'s phases under `rayon` (D8),
 gated by the same scripts (same bits as serial). A native `perf3v3` (as `tools/perf3v3.mjs`): six

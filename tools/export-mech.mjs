@@ -72,3 +72,16 @@ const surface = (s) => ({
   writeFileSync(join(out, 'gen1690.json'), JSON.stringify(data));
   console.log(`1690: ${data.surfaces.length} surfaces, chain ${n + 1} -> ${join(out, 'gen1690.json')}`);
 }
+
+// ---- 2056
+{
+  const r = await load('js/mech/r2056.js');
+  const t = r.build2056(), s = r.pathSurfaces2056(t);
+  const data = {
+    source: 'rebuilt-sim-2026 js/mech/r2056.js (tools/export-mech.mjs)',
+    // (every surface its code builds but the bumper, a Block, and the net: no CAD)
+    surfaces: ['body', 'bore', 'bottom', 'top', 'carriage', 'kickTube', 'turret', 'hood'].map((k) => ({ key: k, ...surface(s[k]) })),
+  };
+  writeFileSync(join(out, 'gen2056.json'), JSON.stringify(data));
+  console.log(`2056: ${data.surfaces.length} surfaces -> ${join(out, 'gen2056.json')}`);
+}

@@ -38,6 +38,7 @@ is ported and proven.
 | `js/mech/phys6328.js`, `r6328.js` (the slam on its position loop and slews, the hopper's front on its pin and slot, the Superdexer floor, the kickers' velocity loops, Flywheel.runVelocity's profiled setpoint and bang-bang, LaunchCalculator's maps, the compaction; its bungee net, a surface with its own touches that flexes from the load's push) | `crates/sim/src/mech/r6328.rs`, `phys6328.rs` | 90983b3 | ported | `intake-6328`, `shoot-6328` |
 | `js/mech/phys604.js`, `r604.js` (the arm on Motion Magic, the hopper box on its cam off the arm (drives.rs `cam`), the DPC rotor and its infeed and up-feed, the turret's main and hood rollers, TrackAndLaunch's LaunchCalculator, their tolerances and zones, the serializer's loops and jam detection, the drive's supply limit while launching) | `crates/sim/src/mech/r604.rs`, `phys604.rs` | 90983b3 | ported | `intake-604`, `shoot-604` |
 | `js/mech/phys581.js`, `r581.js` (the deploy's homing and position loop, the floor tilting on a cam off the deploy pinions, the tower and the drum, their robot, hopper and shooter state machines, power budgets, torque-current shooter loop with the feeder's feedforward, the hopper and tower range sensors; its leaning net (NetLean)); `js/robot.js` the sliding intake's colliders (ic.slide) | `crates/sim/src/mech/r581.rs`, `phys581.rs`, `robot.rs` | 90983b3 | ported | `intake-581`, `shoot-581` |
+| `js/mech/phys2056.js`, `r2056.js` (every ball-path surface built in code: tools/export-mech.mjs gen2056.json; the intake on racks with retract-to-empty, the kicker bar on a pin riding the intake, the net (Net2056), the moving shot from the exit point with a hold, the backspin kicker's loop, the one-angle pass table, accumulating); `turretDrive.js` drive2056 | `crates/sim/src/mech/r2056.rs`, `phys2056.rs`, `mechanism.rs` (Plate::new2056, set_pivot), `turret_drive.rs`, `robot.rs` | 90983b3 | ported | `intake-2056`, `shoot-2056` |
 | `js/robot.js` (the climber worked by hand: `driverClimb toggleClimber _manualClimb climbPose climbLevelFromLift`; the automatic climb, `requestClimb _alignCommand _climbStep`, comes with the AIs) | `crates/sim/src/robot.rs` | f325b3c | ported | `tests/climb.rs` |
 | `js/robot.js` (a folding arm's collider, `_intakePhys`, `_shooter`'s autoShuttle, the turret's travel center, a hood the robot sets) | `crates/sim/src/robot.rs` | 0e2e9d1 | ported | `intake-8793`, `trench-8793` |
 
@@ -67,3 +68,5 @@ is ported and proven.
 | `shoot-604` | M3c (604) | yes, identical |
 | `intake-581` | M3c (581) | yes, identical |
 | `shoot-581` | M3c (581) | yes, identical |
+| `intake-2056` | M3c (2056) | yes, identical |
+| `shoot-2056` | M3c (2056) | yes, identical |

@@ -165,16 +165,25 @@ pub struct Plate {
     pub x0: f64, pub x1: f64, pub y: f64, pub hw: f64, pub bulge: f64, pub half_l: f64, pub frame_top: f64, pub back: f64, pub open_z: f64,
     pub k: f64, pub k3: f64, pub tau: f64,
     pub bow: f64, pub force: f64, pub cap: f64,
+    /// 2056's net (js r2056.js Net2056): its bow eased in toward the back (sin of pi times a
+    /// quadratic), its slope out over the intake to wherever the intake's front is, and closed
+    /// off over the turret's corner (back: the channel's front wall, open_z: the guide's end)
+    pub v2056: bool,
     seen: HashMap<RigidBodyHandle, f64>,
 }
 impl Plate {
     pub fn new(x0: f64, x1: f64, y: f64, hw: f64, bulge: f64, half_l: f64, frame_top: f64, back: f64, open_z: f64, k: f64, k3: f64, tau: f64, cap: f64) -> Self {
-        Plate { x0, x1, y, hw, bulge, half_l, frame_top, back, open_z, k, k3, tau, bow: 0.0, force: 0.0, cap, seen: HashMap::new() }
+        Plate { x0, x1, y, hw, bulge, half_l, frame_top, back, open_z, k, k3, tau, bow: 0.0, force: 0.0, cap, v2056: false, seen: HashMap::new() }
+    }
+    /// js r2056.js `new Net2056()` (back: BACK.front, open_z: GUIDE.to's z)
+    pub fn new2056(x0: f64, x1: f64, y: f64, hw: f64, bulge: f64, half_l: f64, frame_top: f64, back: f64, open_z: f64, k: f64, k3: f64, tau: f64, cap: f64) -> Self {
+        Plate { v2056: true, ..Self::new(x0, x1, y, hw, bulge, half_l, frame_top, back, open_z, k, k3, tau, cap) }
     }
     /// js `bowShape(x, z)`: 1 at the plate's front edge's middle, 0 at its supports
     pub fn bow_shape(&self, x: f64, z: f64) -> f64 {
         let v = m::min(1.0, m::max(0.0, (z + self.hw) / (2.0 * self.hw)));
         let u = m::min(1.0, m::max(0.0, (x - self.x0) / (self.half_l - self.x0)));
+        if self.v2056 { return m::sin(m::PI * v) * m::sin(m::PI * m::min(1.0, u * 0.85 + 0.15 * u * u)); }
         m::sin(m::PI * v) * m::sin((m::PI / 2.0) * u)
     }
     /// js `topY(x, z, x1, bow)`
@@ -185,7 +194,8 @@ impl Plate {
         let lift = b * m::sin(m::PI * u) * m::sin(m::PI * v);
         if x <= self.half_l { return self.y + self.bow * self.bow_shape(x, z) + lift; }
         let edge = self.y + self.bow * self.bow_shape(self.half_l, z);
-        edge - (edge - self.frame_top) * m::min(1.0, (x - self.half_l) / 0.06) + lift
+        let run = if self.v2056 { m::max(0.06, self.x1 - self.half_l) } else { 0.06 };
+        edge - (edge - self.frame_top) * m::min(1.0, (x - self.half_l) / run) + lift
     }
     /// js `netAt(x, z, x1, bow)`: its height, and its slopes along x and z
     fn at(&self, x: f64, z: f64) -> [f64; 3] {
@@ -196,7 +206,9 @@ impl Plate {
     /// js `touches(p, b)`
     fn touches(&mut self, p: V3, b: RigidBodyHandle) -> Vec<Hit> {
         let [x, y, z] = p;
-        if x >= self.x1 || m::abs(z) >= self.hw || (x <= self.x0 && !(x > self.back && z > self.open_z)) { return Vec::new(); }
+        if self.v2056 {
+            if x >= self.x1 || x <= self.x0 || m::abs(z) >= self.hw || (x < self.back && z > self.open_z) { return Vec::new(); }
+        } else if x >= self.x1 || m::abs(z) >= self.hw || (x <= self.x0 && !(x > self.back && z > self.open_z)) { return Vec::new(); }
         let [h, hx, hz] = self.at(x, z);
         let l = m::hypot3(hx, 1.0, hz);
         let dist = (h - y) / l;
@@ -550,6 +562,8 @@ impl Surface {
 
     /// js `onShaft(shaft, pivot, axis)`
     pub fn on_shaft(mut self, shaft: usize, pivot: V3, axis: V3) -> Self { self.mount = Mount::Pivot { shaft, pivot, axis }; self }
+    /// js `sf.pivot = p`: its pin moved (riding on what slides)
+    pub fn set_pivot(&mut self, p: V3) { if let Mount::Pivot { pivot, .. } = &mut self.mount { *pivot = p; } }
     /// js `sf.slideK = k`: m it slides per radian of its shaft
     pub fn set_slide_k(&mut self, k: f64) { if let Mount::Slide { k: kk, .. } = &mut self.mount { *kk = k; } }
     /// js `onSlide(shaft, dir)` (slideK set later)

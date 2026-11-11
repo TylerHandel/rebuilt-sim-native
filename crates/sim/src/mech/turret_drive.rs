@@ -220,3 +220,14 @@ pub fn drive1690() -> TurretDrive {
         yaw: None, omega: 0.0, goal: None, t: None, current: 0.0, load: 0.0,
     }
 }
+
+/// js turretDrive.js `drive2056()`: 2056's turret on an X44 through 50:1 (no chain modeled)
+pub fn drive2056() -> TurretDrive {
+    let motor = Motor::new("krakenX44", 1.0, 50.0, 0.9, 40.0, 30.0);
+    let j = 0.07 + motor.j;
+    TurretDrive {
+        motor, j, friction: 1.0, viscous: 0.02, kp: 3.0, kd: 0.1, kv: 0.096, ks: 0.15, ff_v_per_nm: None,
+        max_rate: 360.0 * DEG, limits: [-185.0 * DEG, 185.0 * DEG], chain: None, sub: 8,
+        yaw: None, omega: 0.0, goal: None, t: None, current: 0.0, load: 0.0,
+    }
+}
