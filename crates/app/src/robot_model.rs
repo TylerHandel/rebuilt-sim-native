@@ -184,7 +184,7 @@ fn animate(game: Res<Game>, time: Res<Time>, mut models: Query<(&mut RobotModel,
         // (the hopper floor's rollers as fast as they turn, 2910's; the rest at the rates the robot's
         // drawing spins them: the intake's rollers, the flywheel, the feed when it's feeding, its
         // floor's when that's not simulated)
-        let floor = match &r.phys { Some(Phys::R2910(p)) => p.floor_spin() as f32, _ => 0.0 };
+        let floor = match &r.phys { Some(Phys::R2910(p)) => p.floor_spin() as f32, Some(Phys::R1114(p)) => p.floor_spin() as f32, _ => 0.0 };
         let feeding = if m.rig.rate.contains_key("floorSpin") { 0.0 } else { r.out.feeding as f32 };
         let mut rates: Vec<(&str, f32)> = vec![("floorSpin", floor), ("feeding", feeding), ("intakeSpeed", r.out.intake_speed as f32), ("flywheel", r.flywheel as f32)];
         // (what a physical robot says of its parts itself: an arm's turn, where its mechanisms have it

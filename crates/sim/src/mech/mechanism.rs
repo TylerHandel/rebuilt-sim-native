@@ -153,7 +153,7 @@ pub fn abutting(wheels: &mut [Wheel]) {
 pub enum Mount { Fixed, Pivot { shaft: usize, pivot: V3, axis: V3 }, Slide { shaft: usize, dir: V3, k: f64 } }
 
 #[derive(Clone, Debug)]
-enum Shape { Mesh, Block { c: V3, h: V3, r: f64 }, Net(NetDome), Sheet(NetSheet), Plate(Box<Plate>) }
+enum Shape { Mesh, Block { c: V3, h: V3, r: f64 }, Net(NetDome), Sheet(NetSheet), Panel(Box<Panel>), Plate(Box<Plate>) }
 
 /// A top plate the load bows up, and a net out past it (js r1690.js Net1690): x0, the back of the
 /// bow; x1, the net's front (the U-frame's, where the carriage has it); y, the plate's height; hw,
@@ -278,6 +278,34 @@ impl NetSheet {
     }
 }
 
+/// A solid sheet a FUEL can't pass through (js r1114.js FrontPanel: the box's front panel): against
+/// its face a FUEL is pushed back to the side it came from, its side remembered from step to step,
+/// however far the load has pressed it in; past its edges, a rounded edge
+#[derive(Clone, Debug)]
+pub struct Panel { pub x0: f64, pub x1: f64, pub y0: f64, pub y1: f64, pub hw: f64, side: HashMap<RigidBodyHandle, (f64, V3)> }
+impl Panel {
+    pub fn new(x0: f64, x1: f64, y0: f64, y1: f64, hw: f64) -> Self { Panel { x0, x1, y0, y1, hw, side: HashMap::new() } }
+    /// js FrontPanel `touches(p, who)`
+    fn touches(&mut self, p: V3, who: RigidBodyHandle) -> Vec<Hit> {
+        let [x, y, z] = p;
+        let (x0, x1, y0, y1, hw) = (self.x0, self.x1, self.y0, self.y1, self.hw);
+        let span = y >= y0 && y <= y1 && m::abs(z) <= hw;
+        let mut s = if x < (x0 + x1) / 2.0 { -1.0 } else { 1.0 };
+        let mm = self.side.get(&who).copied();
+        if let Some((ms, mp)) = mm { if span && m::abs(x - mp[0]) + m::abs(y - mp[1]) + m::abs(z - mp[2]) < 0.2 { s = ms; } }
+        self.side.insert(who, (s, [x, y, z]));
+        let (dist, n);
+        if span { dist = if s < 0.0 { x0 - x } else { x - x1 }; n = [s, 0.0, 0.0]; }
+        else {
+            let (cx, cy, cz) = (m::min(x1, m::max(x0, x)), m::min(y1, m::max(y0, y)), m::min(hw, m::max(-hw, z)));
+            let (dx, dy, dz) = (x - cx, y - cy, z - cz);
+            dist = m::hypot3(dx, dy, dz);
+            n = if dist > 0.0 { [dx / dist, dy / dist, dz / dist] } else { [s, 0.0, 0.0] };
+        }
+        if dist < R { vec![Hit { depth: R - dist, n }] } else { Vec::new() }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 struct Near { x: f64, y: f64, z: f64, t: Vec<i32> }
 
@@ -397,6 +425,17 @@ impl Surface {
         s
     }
     pub fn sheet_mut(&mut self) -> Option<&mut NetSheet> { if let Shape::Sheet(d) = &mut self.shape { Some(d) } else { None } }
+    /// A box's front panel (js r1114.js FrontPanel: a Surface built as a box, its touches its own)
+    pub fn panel(name: &str, mu: f64, panel: Panel) -> Self {
+        let (x0, x1, y0, y1, hw) = (panel.x0, panel.x1, panel.y0, panel.y1, panel.hw);
+        let mut v = Vec::new();
+        for z in [-hw, hw] { for (x, y) in [(x0, y0), (x1, y0), (x1, y1), (x0, y1)] { v.extend_from_slice(&[x, y, z]); } }
+        let mut ix = Vec::new();
+        for [a, b, c, d] in [[1u32, 2, 6, 5], [2, 3, 7, 6], [0, 1, 5, 4], [0, 4, 7, 3], [0, 3, 2, 1], [4, 5, 6, 7]] { ix.extend_from_slice(&[a, b, c, a, c, d]); }
+        let mut s = Surface::mesh(name, &v, &ix, mu, [0.0; 3], 0.0, 0.0, 0.08, f64::INFINITY);
+        s.shape = Shape::Panel(Box::new(panel));
+        s
+    }
     /// A top plate and net (js Net1690: a Surface built on one small triangle, its touches its own)
     pub fn plate(name: &str, mu: f64, tread: f64, plate: Plate) -> Self {
         let mut s = Surface::mesh(name, &[0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.01], &[0, 1, 2], mu, [0.0; 3], 0.0, 0.0, 0.08, tread);
@@ -408,7 +447,7 @@ impl Surface {
     /// a net's shape, to place it (js Net1678.place)
     pub fn net_mut(&mut self) -> Option<&mut NetDome> { if let Shape::Net(d) = &mut self.shape { Some(d) } else { None } }
     /// whether its own touches are a plain mesh's or a Block's (js surfaceBounds' plain)
-    fn plain(&self) -> bool { !matches!(self.shape, Shape::Net(_) | Shape::Sheet(_) | Shape::Plate(_)) }
+    fn plain(&self) -> bool { !matches!(self.shape, Shape::Net(_) | Shape::Sheet(_) | Shape::Panel(_) | Shape::Plate(_)) }
     /// a Block's bottom edge (its center's y less its half height and rounding)
     pub fn block_bottom(&self) -> Option<f64> { if let Shape::Block { c, h, r } = self.shape { Some(c[1] - h[1] - r) } else { None } }
 
@@ -497,6 +536,7 @@ impl Surface {
     pub fn touches(&mut self, p: V3, who: RigidBodyHandle) -> Vec<Hit> {
         if let Shape::Net(d) = &self.shape { return d.touches(p); }
         if let Shape::Sheet(d) = &self.shape { return d.touches(p); }
+        if let Shape::Panel(d) = &mut self.shape { return d.touches(p, who); }
         if let Shape::Plate(pl) = &mut self.shape { return pl.touches(p, who); }
         if let Shape::Block { c, h, r } = self.shape {
             let d = [p[0] - c[0], p[1] - c[1], p[2] - c[2]];
