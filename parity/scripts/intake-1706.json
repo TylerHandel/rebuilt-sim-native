@@ -1,0 +1,59 @@
+{
+  "name": "intake-1706",
+  "about": "1706 alone in TELEOP: its arm swings out over the bumper on its Motion Magic, pushing the hopper box out; it drives into the NEUTRAL ZONE's FUEL with its rollers running, up the sloped plate into the hopper under its slack net, the spindexers' bowls; then it turns with its load and lets go, the arm folding back in and the box with it (M3c).",
+  "seed": 5,
+  "slots": [
+    {
+      "robot": "1706",
+      "alliance": "blue",
+      "pose": [
+        -1.75,
+        1.0,
+        0.0
+      ]
+    }
+  ],
+  "humanPlayers": false,
+  "phase": "teleop",
+  "steps": 1200,
+  "commands": [
+    {
+      "from": 0,
+      "robot": 0,
+      "cmd": {
+        "intake": true
+      }
+    },
+    {
+      "from": 72,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.8,
+        "intake": true
+      }
+    },
+    {
+      "from": 480,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.5,
+        "omega": 1.2,
+        "intake": true
+      }
+    },
+    {
+      "from": 720,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.8,
+        "vz": 0.4,
+        "intake": true
+      }
+    },
+    {
+      "from": 1080,
+      "robot": 0,
+      "cmd": {}
+    }
+  ]
+}

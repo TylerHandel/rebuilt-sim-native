@@ -10,6 +10,7 @@ use crate::mech::phys8793::Phys8793;
 use crate::mech::phys1678::Phys1678;
 use crate::mech::phys1690::Phys1690;
 use crate::mech::phys2056::Phys2056;
+use crate::mech::phys1706::Phys1706;
 use crate::mech::phys7769::Phys7769;
 use crate::mech::phys341::Phys341;
 use crate::mech::phys1114::Phys1114;
@@ -57,7 +58,7 @@ pub fn apply_quat(v: [f64; 3], q: [f64; 4]) -> [f64; 3] {
 
 /// The robots whose mechanisms are ported (a robot.json config's "physical"): the others' Robot::new
 /// panics until theirs are
-pub const PORTED: &[&str] = &["2910", "4414", "8793", "1678", "1690", "7769", "341", "1114", "6328", "604", "581", "2056"];
+pub const PORTED: &[&str] = &["2910", "4414", "8793", "1678", "1690", "7769", "341", "1114", "6328", "604", "581", "2056", "1706"];
 /// The ported robots whose intake folds (on a pivot their mechanisms turn)
 pub const FOLDS: &[&str] = &["8793"];
 
@@ -133,12 +134,12 @@ pub enum Top { Frame { body: RigidBodyHandle, pts: Vec<f64> }, Lid { body: Rigid
 #[derive(Debug, Clone)]
 pub struct UnderArm { pub collider: ColliderHandle, pub top: Top, pub under: bool }
 
-pub enum Phys { R2910(Box<Phys2910>), R4414(Box<Phys4414>), R8793(Box<Phys8793>), R1678(Box<Phys1678>), R1690(Box<Phys1690>), R7769(Box<Phys7769>), R341(Box<Phys341>), R1114(Box<Phys1114>), R6328(Box<Phys6328>), R604(Box<Phys604>), R581(Box<Phys581>), R2056(Box<Phys2056>) }
+pub enum Phys { R2910(Box<Phys2910>), R4414(Box<Phys4414>), R8793(Box<Phys8793>), R1678(Box<Phys1678>), R1690(Box<Phys1690>), R7769(Box<Phys7769>), R341(Box<Phys341>), R1114(Box<Phys1114>), R6328(Box<Phys6328>), R604(Box<Phys604>), R581(Box<Phys581>), R2056(Box<Phys2056>), R1706(Box<Phys1706>) }
 
 impl Phys {
     /// the shared part (js PhysicalRobot)
-    pub fn physical(&self) -> &crate::mech::physical::Physical { match self { Phys::R2910(p) => &p.p, Phys::R4414(p) => &p.p, Phys::R8793(p) => &p.p, Phys::R1678(p) => &p.p, Phys::R1690(p) => &p.p, Phys::R7769(p) => &p.p, Phys::R341(p) => &p.p, Phys::R1114(p) => &p.p, Phys::R6328(p) => &p.p, Phys::R604(p) => &p.p, Phys::R581(p) => &p.p, Phys::R2056(p) => &p.p } }
-    pub fn physical_mut(&mut self) -> &mut crate::mech::physical::Physical { match self { Phys::R2910(p) => &mut p.p, Phys::R4414(p) => &mut p.p, Phys::R8793(p) => &mut p.p, Phys::R1678(p) => &mut p.p, Phys::R1690(p) => &mut p.p, Phys::R7769(p) => &mut p.p, Phys::R341(p) => &mut p.p, Phys::R1114(p) => &mut p.p, Phys::R6328(p) => &mut p.p, Phys::R604(p) => &mut p.p, Phys::R581(p) => &mut p.p, Phys::R2056(p) => &mut p.p } }
+    pub fn physical(&self) -> &crate::mech::physical::Physical { match self { Phys::R2910(p) => &p.p, Phys::R4414(p) => &p.p, Phys::R8793(p) => &p.p, Phys::R1678(p) => &p.p, Phys::R1690(p) => &p.p, Phys::R7769(p) => &p.p, Phys::R341(p) => &p.p, Phys::R1114(p) => &p.p, Phys::R6328(p) => &p.p, Phys::R604(p) => &p.p, Phys::R581(p) => &p.p, Phys::R2056(p) => &p.p, Phys::R1706(p) => &p.p } }
+    pub fn physical_mut(&mut self) -> &mut crate::mech::physical::Physical { match self { Phys::R2910(p) => &mut p.p, Phys::R4414(p) => &mut p.p, Phys::R8793(p) => &mut p.p, Phys::R1678(p) => &mut p.p, Phys::R1690(p) => &mut p.p, Phys::R7769(p) => &mut p.p, Phys::R341(p) => &mut p.p, Phys::R1114(p) => &mut p.p, Phys::R6328(p) => &mut p.p, Phys::R604(p) => &mut p.p, Phys::R581(p) => &mut p.p, Phys::R2056(p) => &mut p.p, Phys::R1706(p) => &mut p.p } }
 }
 
 pub struct Robot {
@@ -231,9 +232,19 @@ pub struct Robot {
     pub turrets: Vec<[f64; 2]>,
     pub turret_yaws: Vec<f64>,
     pub turret_yaw: f64,
+    /// js turrets' centers (rad: the middle of each one's travel), and with more than one turret,
+    /// each one's own shooter (js tws)
+    pub turret_mids: Vec<f64>,
+    pub tws: Vec<Tw>,
     /// this step's dt (js _shooter's), for the turret
     step_dt: f64,
 }
+
+/// js tws[i]: one of twin turrets' own shooter: its flywheel's exit speed and hood (deg), the
+/// flywheel's hold (holdV, holdT), whether it's on target, and the shot it's solved (with where
+/// its FUEL leaves and that point's velocity)
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Tw { pub fly: f64, pub hood: f64, pub hold_v: f64, pub hold_t: f64, pub ok: bool, pub sol: Option<crate::ballistics::Moving> }
 
 /// js robot.hubTable and passTable: its shot tables (built once per robot)
 pub struct Tables { pub hub: crate::ballistics::ShotTable, pub pass: crate::ballistics::ShotTable }
@@ -247,19 +258,21 @@ macro_rules! loc_view {
 
 /// js `turretGoal(rel, cur, lim, shooting)`: where the turret goes for a target rel (rad from the
 /// middle of its travel), from cur, within +-lim: (goal, over: how far past a stop it's held)
-pub fn turret_goal(rel: f64, cur: f64, lim: f64, shooting: bool) -> (f64, f64) {
+pub fn turret_goal(rel: f64, cur: f64, lim: f64, shooting: bool) -> (f64, f64) { let (g, o, _) = turret_goal_reach(rel, cur, lim, shooting); (g, o) }
+/// js `turretGoal`, and its reach: whether the goal is on the target
+pub fn turret_goal_reach(rel: f64, cur: f64, lim: f64, shooting: bool) -> (f64, f64, bool) {
     let (unwind, hold) = (-1.0 * DEG, 0.0 * DEG);
     let b = cur + wrap_angle(rel - cur);
     let cands: Vec<f64> = [rel, rel + 2.0 * m::PI, rel - 2.0 * m::PI].into_iter().filter(|a| m::abs(*a) <= lim).collect();
     if shooting {
-        if m::abs(b) <= lim { return (b, 0.0); }
+        if m::abs(b) <= lim { return (b, 0.0, true); }
         let g = crate::fuel::clamp(b, -lim, lim);
-        if m::abs(b - g) < hold || cands.is_empty() { return (g, b - g); }
-        return (cands.iter().copied().reduce(|a, c| if m::abs(c - cur) < m::abs(a - cur) { c } else { a }).unwrap(), 0.0);
+        if m::abs(b - g) < hold || cands.is_empty() { return (g, b - g, false); }
+        return (cands.iter().copied().reduce(|a, c| if m::abs(c - cur) < m::abs(a - cur) { c } else { a }).unwrap(), 0.0, true);
     }
-    if cands.is_empty() { return (crate::fuel::clamp(rel, -lim, lim), 0.0); }
+    if cands.is_empty() { return (crate::fuel::clamp(rel, -lim, lim), 0.0, false); }
     let mid = cands.iter().copied().reduce(|a, c| if m::abs(c) < m::abs(a) { c } else { a }).unwrap();
-    (if m::abs(b) <= lim && m::abs(b) < lim - unwind { b } else { mid }, 0.0)
+    (if m::abs(b) <= lim && m::abs(b) < lim - unwind { b } else { mid }, 0.0, true)
 }
 
 /// js util `wrapAngle(a)`
@@ -336,15 +349,15 @@ impl Robot {
             aim_vel: [0.0; 2], stored: Vec::new(), stats: Stats::default(), full: false, last_in_zone: false, want_shoot: false, shot_setpoint: 0.0,
             shot: None, last_pass: false, aim_override: None, aim_err: None, pass_clear: None, out: PostOut::default(),
             hood_deg: 0.0, flywheel: 0.0, ready: false, status: String::new(), aim_offset: 0.0, tables, loc: crate::localize::Localizer::new(&cfg_loc, false),
-            turrets: Vec::new(), turret_yaws: Vec::new(), turret_yaw: 0.0, step_dt: 0.0,
+            turrets: Vec::new(), turret_yaws: Vec::new(), turret_yaw: 0.0, turret_mids: Vec::new(), tws: Vec::new(), step_dt: 0.0,
         };
         let sh = &r.cfg["shooter"];
         r.aim_offset = if sh["type"].as_str() == Some("fixed") && sh["facing"].as_str() == Some("back") { m::PI } else { 0.0 };
         // (turret shooters: one or more turrets, each aiming itself)
         if sh["type"].as_str() == Some("turret") {
             let list = if sh["turrets"].is_array() { sh["turrets"].as_array().unwrap().clone() } else { vec![sh["turretPos"].clone()] };
-            assert!(list.len() == 1, "twin turrets arrive with 1706 (M3c)");
             r.turrets = list.iter().map(|t| [num(t, "x"), num(t, "z")]).collect();
+            r.turret_mids = list.iter().map(|t| opt(t, "center").unwrap_or(0.0) * DEG).collect();
         }
         r.climber = r.cfg.get("climber").filter(|c| c.is_object()).map(|c| ClimberCfg {
             max_level: c["maxLevel"].as_u64().unwrap() as usize,
@@ -365,6 +378,7 @@ impl Robot {
             Some("604") => Some(Phys::R604(Box::new(Phys604::new(r.body)))),
             Some("581") => Some(Phys::R581(Box::new(Phys581::new(r.body)))),
             Some("2056") => Some(Phys::R2056(Box::new(Phys2056::new(r.body)))),
+            Some("1706") => Some(Phys::R1706(Box::new(Phys1706::new(r.body)))),
             Some("8793") => {
                 let f = &r.cfg["intake"]["fold"];
                 let hull: Vec<[f64; 2]> = f["hull"].as_array().unwrap().iter().map(|p| [p[0].as_f64().unwrap(), p[1].as_f64().unwrap()]).collect();
@@ -505,12 +519,14 @@ impl Robot {
 
     /// js `reset()` (what play reads so far)
     pub fn reset(&mut self) {
-        match &mut self.phys { Some(Phys::R2910(p)) => p.reset(), Some(Phys::R4414(p)) => p.reset(), Some(Phys::R8793(p)) => p.reset(), Some(Phys::R1678(p)) => p.reset(), Some(Phys::R1690(p)) => p.reset(), Some(Phys::R7769(p)) => p.reset(), Some(Phys::R341(p)) => p.reset(), Some(Phys::R1114(p)) => p.reset(), Some(Phys::R6328(p)) => p.reset(), Some(Phys::R604(p)) => p.reset(), Some(Phys::R581(p)) => p.reset(), Some(Phys::R2056(p)) => p.reset(), None => {} }
+        match &mut self.phys { Some(Phys::R2910(p)) => p.reset(), Some(Phys::R4414(p)) => p.reset(), Some(Phys::R8793(p)) => p.reset(), Some(Phys::R1678(p)) => p.reset(), Some(Phys::R1690(p)) => p.reset(), Some(Phys::R7769(p)) => p.reset(), Some(Phys::R341(p)) => p.reset(), Some(Phys::R1114(p)) => p.reset(), Some(Phys::R6328(p)) => p.reset(), Some(Phys::R604(p)) => p.reset(), Some(Phys::R581(p)) => p.reset(), Some(Phys::R2056(p)) => p.reset(), Some(Phys::R1706(p)) => p.reset(), None => {} }
         // (each turret starts at the middle of its travel)
         let sh = &self.cfg["shooter"];
         let list = if sh["turrets"].is_array() { sh["turrets"].as_array().unwrap().clone() } else if sh["turretPos"].is_object() { vec![sh["turretPos"].clone()] } else { vec![] };
         self.turret_yaws = list.iter().map(|t| opt(t, "start").or(opt(t, "center")).unwrap_or(0.0) * DEG).collect();
         self.turret_yaw = self.turret_yaws.first().copied().unwrap_or(0.0);
+        // (more than one turret: each has its own flywheel and hood)
+        self.tws = if list.len() > 1 { vec![Tw { hood: num(sh, "hoodMin"), ..Tw::default() }; list.len()] } else { Vec::new() };
         self.last_t = 0.0;
         self.intake_deploy = 0.0;
         self.hopper_deploy = 0.0;
@@ -587,6 +603,11 @@ impl Robot {
                 p.pre_mech(dt, &crate::mech::phys1690::PreIn { enabled: on, intake_deploy: self.intake_deploy, turret_yaw: self.turret_yaw });
                 p.mechanisms(&mut c, dt, t);
                 self.intake_deploy = p.post_mech(&mut c.phys.bodies, dt);
+            }
+            Some(Phys::R1706(p)) => {
+                p.pre_mech(dt, &crate::mech::phys1706::PreIn { enabled: on, intake_deploy: self.intake_deploy, turret_yaws: [self.turret_yaws[0], self.turret_yaws[1]] });
+                p.mechanisms(&mut c, dt, t);
+                self.intake_deploy = p.post_mech(dt);
             }
             Some(Phys::R2056(p)) => {
                 p.pre_mech(dt, &crate::mech::phys2056::PreIn { enabled: on, intake_deploy: self.intake_deploy, turret_yaw: self.turret_yaw });
@@ -678,7 +699,7 @@ impl Robot {
 
     /// js `capacity()`: how many it holds, about (a physical robot's own rating)
     pub fn capacity(&self) -> usize {
-        match &self.phys { Some(Phys::R2910(p)) => p.capacity(), Some(Phys::R4414(p)) => p.capacity(), Some(Phys::R8793(p)) => p.capacity(), Some(Phys::R1678(p)) => p.capacity(), Some(Phys::R1690(p)) => p.capacity(), Some(Phys::R7769(p)) => p.capacity(), Some(Phys::R341(p)) => p.capacity(), Some(Phys::R1114(p)) => p.capacity(), Some(Phys::R6328(p)) => p.capacity(), Some(Phys::R604(p)) => p.capacity(), Some(Phys::R581(p)) => p.capacity(), Some(Phys::R2056(p)) => p.capacity(), None => 0 }
+        match &self.phys { Some(Phys::R2910(p)) => p.capacity(), Some(Phys::R4414(p)) => p.capacity(), Some(Phys::R8793(p)) => p.capacity(), Some(Phys::R1678(p)) => p.capacity(), Some(Phys::R1690(p)) => p.capacity(), Some(Phys::R7769(p)) => p.capacity(), Some(Phys::R341(p)) => p.capacity(), Some(Phys::R1114(p)) => p.capacity(), Some(Phys::R6328(p)) => p.capacity(), Some(Phys::R604(p)) => p.capacity(), Some(Phys::R581(p)) => p.capacity(), Some(Phys::R2056(p)) => p.capacity(), Some(Phys::R1706(p)) => p.capacity(), None => 0 }
     }
 
     /// js `aimPt(p)`: where its pose estimate puts world point p, seen from its true pose
@@ -726,8 +747,21 @@ impl Robot {
             let e = self.turret_exit(0);
             (self.yaw + self.turret_yaws[0], self.local_to_world(e[0], e[1], e[2]))
         };
+        self.lands(psi, exit, self.hood_deg, self.flywheel, short, anywhere)
+    }
+    /// js `_passLands(ti, anywhere)` for one of twin turrets: its own hood and flywheel, short when
+    /// its own shot's out of reach
+    fn pass_lands_twin(&self, ti: usize, anywhere: bool) -> bool {
+        let e = self.turret_exit(ti);
+        let w = self.tws[ti];
+        let short = w.sol.is_some_and(|s| !s.reach);
+        self.lands(self.yaw + self.turret_yaws[ti], self.local_to_world(e[0], e[1], e[2]), w.hood, w.fly, short, anywhere)
+    }
+    /// where a FUEL launched from exit at psi, the hood at hood (deg), at v comes down (_passLands' rest)
+    fn lands(&self, psi: f64, exit: [f64; 3], hood: f64, v: f64, short: bool, anywhere: bool) -> bool {
+        let sh = &self.cfg["shooter"];
         let lv = self.velocity_at(exit);
-        let (th, v) = (self.hood_deg * DEG, self.flywheel);
+        let th = hood * DEG;
         let sv = [m::cos(psi) * m::cos(th) * v, -m::sin(psi) * m::cos(th) * v];
         let spin = opt(sh, "spin").unwrap_or(0.0);
         let w = crate::ballistics::spin_for(sv, (spin * v) / FUEL::radius);
@@ -763,7 +797,12 @@ impl Robot {
         let prespin = on && has && in_zone;
         let mut out_of_range = false;
         let fixed = self.cfg["shooter"]["type"].as_str() == Some("fixed");
-        if (want_shoot || prespin) && has {
+        let mut twin_status: Option<String> = None;
+        if self.turrets.len() > 1 {
+            let (r, st) = self.twin_turrets(pass, tgt, in_zone, (want_shoot || prespin) && has, want_shoot, status);
+            ready = r;
+            twin_status = Some(st);
+        } else if (want_shoot || prespin) && has {
             let (exit, lv);
             let mut sol;
             let table = if pass { &self.tables.pass } else { &self.tables.hub };
@@ -851,7 +890,7 @@ impl Robot {
                 status = if !spin_ok { "Spinning up" } else if !aim_ok { "Aiming" } else if !hood_ok { "Hood" } else { "READY" };
             } else { out_of_range = true; }
         } else if !in_zone && has { status = "Outside ALLIANCE ZONE"; }
-        let mut st = if out_of_range { if pass { "Pass out of range".to_string() } else { "Out of range".to_string() } }
+        let mut st = if let Some(ts) = twin_status { ts } else if out_of_range { if pass { "Pass out of range".to_string() } else { "Out of range".to_string() } }
             else if self.shot.is_some_and(|s| s.pass) { if ready { "PASS READY".to_string() } else { format!("Pass: {}", status.to_lowercase()) } }
             else { status.to_string() };
         if !on && !self.enabled { st = "Disabled".into(); }
@@ -859,6 +898,81 @@ impl Robot {
         self.shot_setpoint = setpoint;
         if let Some(s) = self.shot { self.last_pass = s.pass; }
         self.ready = ready;
+    }
+
+    /// js `_twinTurrets(dt, t, tgt, active, wantShoot, status)`: more than one turret, each its own
+    /// shooter, solving its own shot from where it sits and turning within its own travel; any
+    /// that's on target can fire. If none can reach the target, the chassis turns to bring the
+    /// nearest into range. (A physical robot's flywheels and hoods are its own: 1706's; a
+    /// non-physical one's spin isn't ported.) Returns ready, and the status
+    fn twin_turrets(&mut self, pass: bool, tgt: [f64; 2], in_zone: bool, active: bool, want_shoot: bool, status: &str) -> (bool, String) {
+        let sh = &self.cfg["shooter"];
+        let (lim, margin) = (num(sh, "turretRange") * DEG, 8.0 * DEG);
+        let (er, ey, rate) = (num(sh, "exitRadius"), num(sh, "exitY"), num(sh, "turretRate"));
+        let dt = self.step_dt;
+        let mut need = f64::INFINITY;
+        let mut show: Option<usize> = None;
+        let (mut any_reach, mut any_sol, mut spun, mut aimed) = (false, false, false, false);
+        for i in 0..self.turrets.len() {
+            self.tws[i].ok = false;
+            self.tws[i].sol = None;
+            if !active { continue; }
+            // (FUEL leaves the hood exitRadius out from the turret axis, along the shot line)
+            let c = self.local_to_world(self.turrets[i][0], ey, self.turrets[i][1]);
+            let (dx, dz) = (tgt[0] - c[0], tgt[1] - c[2]);
+            let dd = { let h = m::hypot2(dx, dz); if h == 0.0 { 1.0 } else { h } };
+            let exit = [c[0] + (dx / dd) * er, c[1], c[2] + (dz / dd) * er];
+            let lv = self.est_vel_at(exit);
+            let table = if pass { &self.tables.pass } else { &self.tables.hub };
+            let Some(sol) = crate::ballistics::solve_moving_shot(table, exit, lv, tgt) else { continue };
+            any_sol = true;
+            // (measured from the middle of this turret's travel; a physical robot that aims each
+            // turret its own way says where: phys.aimPsis)
+            let mid = self.turret_mids[i];
+            let psi = match &self.phys { Some(Phys::R1706(p)) => p.aim_psis[i].unwrap_or(sol.psi), _ => sol.psi };
+            let rel = wrap_angle(psi - self.yaw - mid);
+            let cur = self.turret_yaws[i] - mid;
+            let (goal, over, reach) = turret_goal_reach(rel, cur, lim, want_shoot);
+            self.turret_yaws[i] = mid + approach(cur, goal, rate * DEG * dt);
+            let o = if over != 0.0 { over } else { rel - crate::fuel::clamp(rel, margin - lim, lim - margin) };
+            if m::abs(o) < m::abs(need) { need = o; }
+            if !reach { continue; }
+            any_reach = true;
+            if self.phys.is_none() { self.tws[i].hood = approach(self.tws[i].hood, sol.theta / DEG, 260.0 * dt); }
+            self.tws[i].sol = Some(sol);
+            let err = m::abs(wrap_angle(psi - (self.yaw + self.turret_yaws[i])));
+            let tol = if pass { 4.0 * DEG } else { m::max(0.6 * DEG, m::atan2(0.14, sol.dist)) };
+            // (out of reach: flat out, at the longest throw's hood, as a single shooter)
+            let flat = pass && !sol.reach && self.phys.is_none();
+            let w = self.tws[i];
+            let spin_ok = if pass { w.fly > (if flat { 0.97 } else { 0.75 }) * sol.v } else { m::abs(w.fly - sol.v) / sol.v < 0.025 };
+            let hood_ok = m::abs(w.hood - sol.theta / DEG) < 1.5;
+            spun = spun || spin_ok;
+            aimed = aimed || err < tol;
+            self.tws[i].ok = spin_ok && err < tol && ((pass && !flat) || hood_ok);
+            if show.is_none_or(|k| self.tws[i].ok && !self.tws[k].ok) { show = Some(i); }
+        }
+        if active && want_shoot && !any_reach && need.is_finite() && need != 0.0 {
+            let (max_omega, max_alpha) = (num(&self.cfg["drive"], "maxOmega"), num(&self.cfg["drive"], "maxAlpha"));
+            let a = m::abs(need);
+            self.aim_override = Some(m::sign(need) * m::min(m::min(max_omega, m::sqrt(2.0 * 0.7 * max_alpha * a)), AIM_GAIN * a));
+        }
+        // (what the HUD, the preview and the drawing show: the turret that's firing, or about to)
+        let k = show.unwrap_or(0);
+        let w = self.tws[k];
+        self.turret_yaw = self.turret_yaws[k];
+        self.flywheel = w.fly;
+        self.hood_deg = w.hood;
+        if pass { for i in 0..self.tws.len() { if self.tws[i].ok && !self.pass_lands_twin(i, false) { self.tws[i].ok = false; } } }
+        let ready = self.tws.iter().any(|x| x.ok);
+        let st = if let Some(sol) = w.sol {
+            self.shot = Some(Shot { pass, target: tgt, reach: sol.reach, aim: sol.aim });
+            let s = if ready { "READY" } else if !spun { "Spinning up" } else if !aimed { "Aiming" } else { "Hood" };
+            if pass { if ready { "PASS READY".to_string() } else { format!("Pass: {}", s.to_lowercase()) } } else { s.to_string() }
+        } else if active { (if any_sol { "Turning to aim" } else if !pass { "Out of range" } else { "Pass out of range" }).to_string() }
+        else if !in_zone && !self.stored.is_empty() { "Outside ALLIANCE ZONE".to_string() }
+        else { status.to_string() };
+        (ready, st)
     }
 
     fn pre_step_drive(&mut self, phys: &mut PhysicsWorld, dt: f64, teleop: bool) {
@@ -1090,6 +1204,21 @@ impl Robot {
                 self.ready = self.out.ready;
                 self.full = self.stored.len() >= p.capacity();
             }
+            Some(Phys::R1706(p)) => {
+                let est_omega = self.loc.omega().unwrap_or(c.phys.bodies[self.body].angvel().y as f64);
+                let pin7 = crate::mech::phys1706::PostIn {
+                    on, feeding: self.want_shoot, outtake: on && self.cmd.outtake, pass: pin.pass, legal: self.last_in_zone, intake: self.cmd.intake,
+                    target: pin.target, aim_hub: pin.aim_hub, table: if self.shot.is_some_and(|s| s.pass) { &self.tables.pass } else { &self.tables.hub },
+                    est_vel: pin.est_vel, est_omega, yaw: self.yaw, turret_yaws: [self.turret_yaws[0], self.turret_yaws[1]],
+                };
+                let (stored, tws) = p.post_step(&mut c, t, &pin7, &mut self.stats, &mut self.out);
+                self.stored = stored;
+                for (w, (fly, hood, ok)) in self.tws.iter_mut().zip(tws) { w.fly = fly; w.hood = hood; w.ok = ok; }
+                self.hood_deg = self.out.hood_deg;
+                self.flywheel = self.out.flywheel;
+                self.ready = self.out.ready;
+                self.full = p.p.watch_full(c.phys, c.fuel, self.body, dt, on && self.cmd.intake);
+            }
             Some(Phys::R2056(p)) => {
                 let est_omega = self.loc.omega().unwrap_or(c.phys.bodies[self.body].angvel().y as f64);
                 let pin0 = crate::mech::phys2056::PostIn {
@@ -1241,7 +1370,7 @@ impl Robot {
         let ext = opt(st, "extLen").unwrap_or(0.0);
         if ext == 0.0 { return; }
         // (a physical robot's extension goes where its mechanism puts it: 4414's box on its racks)
-        let ext_now = match &self.phys { Some(Phys::R4414(p)) => Some(p.ext_now()), Some(Phys::R1678(p)) => Some(p.ext_now()), Some(Phys::R1690(p)) => Some(p.ext_now()), Some(Phys::R7769(p)) => Some(p.ext_now()), Some(Phys::R1114(p)) => Some(p.ext_now()), Some(Phys::R6328(p)) => Some(p.ext_now()), Some(Phys::R604(p)) => Some(p.ext_now()), Some(Phys::R581(p)) => Some(p.ext_now()), Some(Phys::R2056(p)) => Some(p.ext_now()), _ => None };
+        let ext_now = match &self.phys { Some(Phys::R4414(p)) => Some(p.ext_now()), Some(Phys::R1678(p)) => Some(p.ext_now()), Some(Phys::R1690(p)) => Some(p.ext_now()), Some(Phys::R7769(p)) => Some(p.ext_now()), Some(Phys::R1114(p)) => Some(p.ext_now()), Some(Phys::R6328(p)) => Some(p.ext_now()), Some(Phys::R604(p)) => Some(p.ext_now()), Some(Phys::R581(p)) => Some(p.ext_now()), Some(Phys::R2056(p)) => Some(p.ext_now()), Some(Phys::R1706(p)) => Some(p.ext_now()), _ => None };
         if let Some(e) = ext_now { self.hopper_deploy = crate::fuel::clamp(e / ext, 0.0, 1.0); }
         else {
             let latched = st["extend"].as_str() == Some("latched");

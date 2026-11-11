@@ -373,7 +373,12 @@ robots now read the match's AUTO flag and phase time as the JS's do.
 *2056 done (Nov 11):* identical at every step (intake-2056; shoot-2056: 8 of 8 into the HUB, then
 intaking and passing at the hood's lowest angle). Its surfaces are all built in code (gen2056.json);
 its net is 1690's plate generalized (Plate::new2056), its kicker bar's pin rides the intake
-(Surface::set_pivot), its pass table one angle (tables_for). Next: 1706 (twin turrets).
+(Surface::set_pivot), its pass table one angle (tables_for).
+*1706 done (Nov 11):* identical at every step (intake-1706; shoot-1706: 8 of 8 into the HUB from its
+two turrets, then intaking and passing). The robot's twin-turret model is ported (robot.rs
+`twin_turrets`: each turret its own shot, travel, flywheel and hood, the chassis turned when none can
+reach; `pass_lands_twin`), its hopper box rides the arm on a cam (as 604's), its net is slack cord
+(mechanism.rs NetSlack). Every robot the browser game models physically is now ported.
 
 **M3d. Mechanisms in parallel, and the speed check.** `preStepRobots`'s phases under `rayon` (D8),
 gated by the same scripts (same bits as serial). A native `perf3v3` (as `tools/perf3v3.mjs`): six

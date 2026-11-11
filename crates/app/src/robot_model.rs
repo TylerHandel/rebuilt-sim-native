@@ -181,6 +181,8 @@ fn animate(game: Res<Game>, time: Res<Time>, mut models: Query<(&mut RobotModel,
         // (a lid on a climber, 1678's: up as far as its climber has it, 0-1)
         let lift = match &r.phys { Some(Phys::R1678(p)) => p.lift_now(r.cfg["bay"]["lift"]["h"].as_f64().unwrap_or(0.0)), _ => 0.0 };
         let mut inputs: Vec<(&str, f32)> = vec![("lift", lift as f32), ("intakeDeploy", r.intake_deploy as f32), ("hopperDeploy", r.hopper_deploy as f32), ("hoodDeg", r.hood_deg as f32), ("turretYaw", r.turret_yaw as f32)];
+        // (twin turrets: each its own yaw)
+        if r.turret_yaws.len() > 1 { inputs.push(("turretYaws.0", r.turret_yaws[0] as f32)); inputs.push(("turretYaws.1", r.turret_yaws[1] as f32)); }
         // (the hopper floor's rollers as fast as they turn, 2910's; the rest at the rates the robot's
         // drawing spins them: the intake's rollers, the flywheel, the feed when it's feeding, its
         // floor's when that's not simulated)
@@ -200,6 +202,11 @@ fn animate(game: Res<Game>, time: Res<Time>, mut models: Query<(&mut RobotModel,
             Some(Phys::R4414(p)) => { inputs.push(("hoodTurn", p.hood_turn() as f32)); inputs.push(("rotorTurn", p.rotor_turn().rem_euclid(std::f64::consts::TAU) as f32)); }
             Some(Phys::R1690(p)) => for (k, v) in p.mech_pose() { if m.rig.rate.contains_key(k) { rates.push((k, v as f32)); } else { inputs.push((k, v as f32)); } },
             Some(Phys::R7769(p)) => for (k, v) in p.mech_pose() { if m.rig.rate.contains_key(k) { rates.push((k, v as f32)); } else { inputs.push((k, v as f32)); } },
+            Some(Phys::R1706(p)) => {
+                inputs.push(("armTurn", p.arm_turn() as f32));
+                // (the spindexers' turns, 0-2pi as the rig samples them)
+                for (k, v) in p.mech_pose() { if k.starts_with("mech.spin") { inputs.push((k, v.rem_euclid(std::f64::consts::TAU) as f32)); } }
+            }
             Some(Phys::R2056(p)) => for (k, v) in p.mech_pose() { if m.rig.rate.contains_key(k) { rates.push((k, v as f32)); } else { inputs.push((k, v as f32)); } },
             _ => {}
         }
@@ -329,6 +336,7 @@ fn overrides(a: &str, b: &str) -> bool {
         "armTurn" => b == "intakeDeploy",
         "hoodTurn" => b == "hoodDeg",
         "rotorTurn" => b == "rotorAngle",
+        "turretYaws.0" | "turretYaws.1" => b == "turretYaw",
         _ if a.starts_with("mech.") => matches!(b, "intakeDeploy" | "hopperDeploy" | "hoodDeg" | "intakeSpeed" | "flywheel" | "feeding" | "floorSpin"),
         _ => false,
     }

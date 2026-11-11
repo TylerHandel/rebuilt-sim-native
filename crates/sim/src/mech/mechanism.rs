@@ -153,7 +153,7 @@ pub fn abutting(wheels: &mut [Wheel]) {
 pub enum Mount { Fixed, Pivot { shaft: usize, pivot: V3, axis: V3 }, Slide { shaft: usize, dir: V3, k: f64 } }
 
 #[derive(Clone, Debug)]
-enum Shape { Mesh, Block { c: V3, h: V3, r: f64 }, Net(NetDome), Sheet(NetSheet), Panel(Box<Panel>), Bungee(Box<Bungee>), Lean(NetLean), Plate(Box<Plate>) }
+enum Shape { Mesh, Block { c: V3, h: V3, r: f64 }, Net(NetDome), Sheet(NetSheet), Panel(Box<Panel>), Bungee(Box<Bungee>), Lean(NetLean), Plate(Box<Plate>), Slack(NetSlack) }
 
 /// A top plate the load bows up, and a net out past it (js r1690.js Net1690): x0, the back of the
 /// bow; x1, the net's front (the U-frame's, where the carriage has it); y, the plate's height; hw,
@@ -234,6 +234,32 @@ impl Plate {
         self.force = f;
         let step = (f - self.plate_force(self.bow)) / (kk + self.plate_k(self.bow));
         self.bow = m::min(self.cap, m::max(0.0, self.bow + step * m::min(1.0, dt / self.tau)));
+    }
+}
+
+/// A slack cord net over a hopper, its slack taken up (js r1706.js Net1706): tied at x0 and at its
+/// front (x1, out with the box ext m), across +-hw, y high at its ties and `bulge` over them at its
+/// middle
+#[derive(Clone, Copy, Debug)]
+pub struct NetSlack { pub x0: f64, pub x1: f64, pub y: f64, pub hw: f64, pub bulge: f64, pub ext: f64 }
+impl NetSlack {
+    /// js `netAt(x, z, ext)`: its height, and its slope along x and z
+    fn at(&self, x: f64, z: f64) -> [f64; 3] {
+        let (l, w, b) = (self.x1 + self.ext - self.x0, 2.0 * self.hw, self.bulge);
+        let u = m::min(1.0, m::max(0.0, (x - self.x0) / l));
+        let v = m::min(1.0, m::max(0.0, (z + self.hw) / w));
+        let (su, sv) = (m::sin(m::PI * u), m::sin(m::PI * v));
+        [self.y + b * su * sv, (b * m::PI * m::cos(m::PI * u) * sv) / l, (b * su * m::PI * m::cos(m::PI * v)) / w]
+    }
+    /// js `touches(p)`
+    fn touches(&self, p: V3) -> Vec<Hit> {
+        let [x, y, z] = p;
+        if x <= self.x0 || x >= self.x1 + self.ext || m::abs(z) >= self.hw { return Vec::new(); }
+        let [h, hx, hz] = self.at(x, z);
+        let l = m::hypot3(hx, 1.0, hz);
+        let dist = (h - y) / l;
+        if dist >= R || dist < -0.03 { return Vec::new(); }
+        vec![Hit { depth: R - dist, n: [hx / l, -1.0 / l, hz / l] }]
     }
 }
 
@@ -545,6 +571,13 @@ impl Surface {
         s
     }
     pub fn lean_mut(&mut self) -> Option<&mut NetLean> { if let Shape::Lean(d) = &mut self.shape { Some(d) } else { None } }
+    /// js r1706.js `new Net1706()`
+    pub fn slack(name: &str, mu: f64, tread: f64, net: NetSlack) -> Self {
+        let mut s = Surface::mesh(name, &[0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.01], &[0, 1, 2], mu, [0.0; 3], 0.0, 0.0, 0.08, tread);
+        s.shape = Shape::Slack(net);
+        s
+    }
+    pub fn slack_mut(&mut self) -> Option<&mut NetSlack> { if let Shape::Slack(d) = &mut self.shape { Some(d) } else { None } }
     /// A top plate and net (js Net1690: a Surface built on one small triangle, its touches its own)
     pub fn plate(name: &str, mu: f64, tread: f64, plate: Plate) -> Self {
         let mut s = Surface::mesh(name, &[0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.01], &[0, 1, 2], mu, [0.0; 3], 0.0, 0.0, 0.08, tread);
@@ -556,7 +589,7 @@ impl Surface {
     /// a net's shape, to place it (js Net1678.place)
     pub fn net_mut(&mut self) -> Option<&mut NetDome> { if let Shape::Net(d) = &mut self.shape { Some(d) } else { None } }
     /// whether its own touches are a plain mesh's or a Block's (js surfaceBounds' plain)
-    fn plain(&self) -> bool { !matches!(self.shape, Shape::Net(_) | Shape::Sheet(_) | Shape::Panel(_) | Shape::Bungee(_) | Shape::Lean(_) | Shape::Plate(_)) }
+    fn plain(&self) -> bool { !matches!(self.shape, Shape::Net(_) | Shape::Sheet(_) | Shape::Panel(_) | Shape::Bungee(_) | Shape::Lean(_) | Shape::Plate(_) | Shape::Slack(_)) }
     /// a Block's bottom edge (its center's y less its half height and rounding)
     pub fn block_bottom(&self) -> Option<f64> { if let Shape::Block { c, h, r } = self.shape { Some(c[1] - h[1] - r) } else { None } }
 
@@ -650,6 +683,7 @@ impl Surface {
         if let Shape::Panel(d) = &mut self.shape { return d.touches(p, who); }
         if let Shape::Bungee(d) = &mut self.shape { return d.touches(p, who); }
         if let Shape::Lean(d) = &self.shape { return d.touches(p); }
+        if let Shape::Slack(d) = &self.shape { return d.touches(p); }
         if let Shape::Plate(pl) = &mut self.shape { return pl.touches(p, who); }
         if let Shape::Block { c, h, r } = self.shape {
             let d = [p[0] - c[0], p[1] - c[1], p[2] - c[2]];

@@ -102,6 +102,8 @@ window.exportRobot = async (key) => {
     '1690': () => ({ ext: st0.intakeDeploy, kick: 0, hood: ((st0.hoodDeg + 90) * Math.PI) / 180, wheel: 0, feeder: 0, floor: 0, top: 0, belts: [0, 0], vkick: 0, feed: 0, intakeRollers: 0, bow: 0 }),
     // (js/mech/phys7769.js mechPose, at rest: the intake in, the kick bar hanging, the hood down)
     '7769': () => ({ ext: 0, kick: 0, hood: 0, roller: 0, belts: 0, feed: 0, wheels: 0 }),
+    // (js/mech/phys1706.js mechPose, at rest: the spindexers unturned, the hoods steep, the wheels still)
+    '1706': () => ({ spin: [0, 0], hood: [0, 0], accel: [0, 0] }),
     // (js/mech/phys2056.js mechPose, at rest: the intake in, its kicker bar folded, the hood stowed)
     '2056': () => ({ ext: st0.intakeDeploy, kick: 0, hood: ((st0.hoodDeg + 90) * Math.PI) / 180, wheel: 0, kicker: 0, floor: 0, belts: [0, 0], vkick: 0, feed: 0, intakeRollers: 0, bow: 0 }),
   };
@@ -135,7 +137,7 @@ window.exportRobot = async (key) => {
   const POSE = [['intakeDeploy', 0, 1], ['hopperDeploy', 0, 1], ['hoodDeg', hoodLo, hoodHi], ['turretYaw', -PI, PI], ['lift', 0, 1],
     ['armTurn', -PI, PI], ['hoodTurn', -PI, PI], ['rotorTurn', 0, 2 * PI], ['floorTurn', -PI, PI], ['rotorAngle', 0, 2 * PI],
     ['turretYaws.0', -PI, PI], ['turretYaws.1', -PI, PI],
-    ['mech.ext', 0, 1], ['mech.kick', -PI, PI / 2], ['mech.hood', PI / 2, PI], ['mech.bow', 0, 0.1]];
+    ['mech.ext', 0, 1], ['mech.spin.0', 0, 2 * PI], ['mech.spin.1', 0, 2 * PI], ['mech.kick', -PI, PI / 2], ['mech.hood', PI / 2, PI], ['mech.bow', 0, 0.1]];
   const N = 16;
   const poseOut = {}, moving = new Set();
   for (const [name, lo, hi] of POSE) {
