@@ -1,0 +1,57 @@
+{
+  "name": "shoot-604",
+  "about": "604 preloaded with 8 in its ALLIANCE ZONE in TELEOP: TrackAndLaunch aims the turret ahead by their latency, the main roller's loop and the hood come to their table's, the serializer runs once it's ready (the rotor following the rollers), the intake stows; then it drives out past the zone line, intakes, and feeds back to their feed point (M3c).",
+  "seed": 9,
+  "slots": [
+    {
+      "robot": "604",
+      "alliance": "blue",
+      "pose": [
+        -6.0,
+        1.5,
+        0.4
+      ]
+    }
+  ],
+  "humanPlayers": false,
+  "preload": 8,
+  "phase": "teleop",
+  "steps": 1800,
+  "commands": [
+    {
+      "from": 0,
+      "robot": 0,
+      "cmd": {}
+    },
+    {
+      "from": 60,
+      "robot": 0,
+      "cmd": {
+        "shoot": true
+      }
+    },
+    {
+      "from": 600,
+      "robot": 0,
+      "cmd": {
+        "vx": 2.0,
+        "vz": -0.3
+      }
+    },
+    {
+      "from": 840,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.8,
+        "intake": true
+      }
+    },
+    {
+      "from": 1320,
+      "robot": 0,
+      "cmd": {
+        "pass": true
+      }
+    }
+  ]
+}

@@ -363,7 +363,10 @@ intaking and passing to their pass point). Its box's front panel is a fourth sur
 touches (mechanism.rs Panel: it remembers which side each FUEL was on).
 *6328 done (Nov 11):* identical at every step (intake-6328; shoot-6328: its preload launched and
 compacted, then intaking and passing to their pass point). Its bungee net is a fifth surface with
-its own touches (mechanism.rs Bungee). Next: 604, 581, 2056, then 1706 (twin turrets).
+its own touches (mechanism.rs Bungee).
+*604 done (Nov 11):* identical at every step (intake-604; shoot-604: its preload launched, then
+intaking and feeding to their feed point). Its hopper box slides on a cam geared off the arm
+(drives.rs `cam`). Next: 581, 2056, then 1706 (twin turrets).
 
 **M3d. Mechanisms in parallel, and the speed check.** `preStepRobots`'s phases under `rayon` (D8),
 gated by the same scripts (same bits as serial). A native `perf3v3` (as `tools/perf3v3.mjs`): six

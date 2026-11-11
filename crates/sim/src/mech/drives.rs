@@ -64,13 +64,16 @@ pub struct Shaft {
     /// js r7769.js Racks (and 1114's): its racks' friction holds it still against small pushes,
     /// its stops (lo, hi) as well: integrated and pushed as if free, then held to them
     pub racks: bool,
+    /// js r604.js's cam: not a shaft of its own but one geared off `cam.0` by `cam.1` (its speed that
+    /// one's times k; immovable to what pushes on it, its impulses passed on times k)
+    pub cam: Option<(usize, f64)>,
 }
 
 impl Shaft {
     /// js `new Shaft({ name, motor, inertia = 5e-5, drag = 2e-4, friction = 0 })`
     pub fn new(name: &str, motor: Option<Motor>, inertia: f64, drag: f64, friction: f64) -> Self {
         Shaft { name: name.into(), motor, inertia, drag, friction, p0: 0.0, acc: 0.0, b: 0.0, omega_: 0.0, cmd: Some(0.0), train: None, k: 1.0,
-            lo: f64::NEG_INFINITY, hi: f64::INFINITY, free: 0.0, load: 0.0, vel: None, racks: false }
+            lo: f64::NEG_INFINITY, hi: f64::INFINITY, free: 0.0, load: 0.0, vel: None, racks: false, cam: None }
     }
 }
 
@@ -110,6 +113,7 @@ impl Drives {
     /// js `shaft.omega`
     pub fn omega(&self, s: usize) -> f64 {
         let sh = &self.shafts[s];
+        if let Some((o, k)) = sh.cam { return self.omega(o) * k; }
         match sh.train { Some(t) => self.trains[t].omega * sh.k, None => sh.omega_ }
     }
     /// js `shaft.omega = v`
@@ -130,6 +134,7 @@ impl Drives {
     /// js `shaft.J`
     pub fn j(&self, s: usize) -> f64 {
         let sh = &self.shafts[s];
+        if sh.cam.is_some() { return f64::INFINITY; }
         match sh.train { Some(t) => self.train_j(t) / (sh.k * sh.k), None => sh.inertia + sh.motor.as_ref().map_or(0.0, |mo| mo.j) }
     }
     /// js `shaft.stop(lo, hi)`
@@ -140,6 +145,7 @@ impl Drives {
     }
     /// js `shaft.impulse(L)`
     pub fn impulse(&mut self, s: usize, l: f64) {
+        if let Some((o, k)) = self.shafts[s].cam { return self.impulse(o, l * k); }
         if self.shafts[s].racks && self.shafts[s].train.is_none() {
             let (lo, hi) = (self.shafts[s].lo, self.shafts[s].hi);
             self.shafts[s].lo = f64::NEG_INFINITY; self.shafts[s].hi = f64::INFINITY;
