@@ -1,0 +1,57 @@
+{
+  "name": "shoot-6328",
+  "about": "6328 preloaded with 8 in its ALLIANCE ZONE in TELEOP: the flywheel's setpoint profiled up within its supply budget and the hood to LaunchCalculator's, it launches once in tolerance (the floor and kickers' loops), compacting 0.35 s in; then it drives out past the zone line, intakes, and passes back to their pass point (M3c).",
+  "seed": 9,
+  "slots": [
+    {
+      "robot": "6328",
+      "alliance": "blue",
+      "pose": [
+        -6.0,
+        1.5,
+        0.4
+      ]
+    }
+  ],
+  "humanPlayers": false,
+  "preload": 8,
+  "phase": "teleop",
+  "steps": 1800,
+  "commands": [
+    {
+      "from": 0,
+      "robot": 0,
+      "cmd": {}
+    },
+    {
+      "from": 60,
+      "robot": 0,
+      "cmd": {
+        "shoot": true
+      }
+    },
+    {
+      "from": 600,
+      "robot": 0,
+      "cmd": {
+        "vx": 2.0,
+        "vz": -0.3
+      }
+    },
+    {
+      "from": 840,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.8,
+        "intake": true
+      }
+    },
+    {
+      "from": 1320,
+      "robot": 0,
+      "cmd": {
+        "pass": true
+      }
+    }
+  ]
+}

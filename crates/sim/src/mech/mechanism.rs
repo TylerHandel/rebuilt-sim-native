@@ -153,7 +153,7 @@ pub fn abutting(wheels: &mut [Wheel]) {
 pub enum Mount { Fixed, Pivot { shaft: usize, pivot: V3, axis: V3 }, Slide { shaft: usize, dir: V3, k: f64 } }
 
 #[derive(Clone, Debug)]
-enum Shape { Mesh, Block { c: V3, h: V3, r: f64 }, Net(NetDome), Sheet(NetSheet), Panel(Box<Panel>), Plate(Box<Plate>) }
+enum Shape { Mesh, Block { c: V3, h: V3, r: f64 }, Net(NetDome), Sheet(NetSheet), Panel(Box<Panel>), Bungee(Box<Bungee>), Plate(Box<Plate>) }
 
 /// A top plate the load bows up, and a net out past it (js r1690.js Net1690): x0, the back of the
 /// bow; x1, the net's front (the U-frame's, where the carriage has it); y, the plate's height; hw,
@@ -306,6 +306,63 @@ impl Panel {
     }
 }
 
+/// A bungee net stretched over a hopper (js r6328.js Net6328): tied from its back edge (back_x,
+/// back_y) to the sliding front's top (front_x + ext, front_y), across +-hw; its middle risen b (the
+/// one mode of a membrane, (sin x sin)^p), set each step from what the FUEL under it pushed (flex)
+#[derive(Clone, Debug)]
+pub struct Bungee {
+    pub back_x: f64, pub back_y: f64, pub front_x: f64, pub front_y: f64, pub hw: f64, pub bulge: f64, pub k: f64, pub rate: [f64; 2], pub p: f64,
+    pub ext: f64, pub x1: f64, pub b: f64, phi: HashMap<RigidBodyHandle, f64>,
+}
+impl Bungee {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(back_x: f64, back_y: f64, front_x: f64, front_y: f64, hw: f64, bulge: f64, k: f64, rate: [f64; 2], p: f64) -> Self {
+        Bungee { back_x, back_y, front_x, front_y, hw, bulge, k, rate, p, ext: 0.0, x1: front_x, b: 0.0, phi: HashMap::new() }
+    }
+    /// js `place(ext)`
+    pub fn place(&mut self, ext: f64) { self.ext = ext; self.x1 = self.front_x + ext; }
+    /// js `shape(t)`
+    fn shape(&self, t: f64) -> [f64; 2] {
+        let (s, q) = (m::max(0.03, m::sin(m::PI * t)), self.p);
+        [m::pow(s, q), q * m::pow(s, q - 1.0) * m::PI * m::cos(m::PI * t)]
+    }
+    /// js `netAt(x, z, ext, B)`: its height, slopes and the mode's shape there
+    pub fn at(&self, x: f64, z: f64, ext: f64, b: f64) -> [f64; 4] {
+        let fx = self.front_x + ext;
+        let l = m::max(0.01, fx - self.back_x);
+        let w = 2.0 * self.hw;
+        let u = m::min(1.0, m::max(0.0, (x - self.back_x) / l));
+        let v = m::min(1.0, m::max(0.0, (z + self.hw) / w));
+        let ([su, du], [sv, dv]) = (self.shape(u), self.shape(v));
+        let slope = (self.front_y - self.back_y) / l;
+        [self.back_y + slope * l * u + b * su * sv, slope + (b * du * sv) / l, (b * su * dv) / w, su * sv]
+    }
+    /// js `touches(p, b)`
+    fn touches(&mut self, p: V3, who: RigidBodyHandle) -> Vec<Hit> {
+        let [x, y, z] = p;
+        if x <= self.back_x || x >= self.x1 || m::abs(z) >= self.hw { return Vec::new(); }
+        let [h, hx, hz, phi] = self.at(x, z, self.ext, self.b);
+        let l = m::hypot3(hx, 1.0, hz);
+        let dist = (h - y) / l;
+        if dist >= R || dist < -0.03 { return Vec::new(); }
+        self.phi.insert(who, phi);
+        vec![Hit { depth: R - dist, n: [hx / l, -1.0 / l, hz / l] }]
+    }
+    /// js `flex(contacts, dt)`: its rise from the last step's contacts (me: its surface's index)
+    pub fn flex(&mut self, contacts: &[Touch], dt: f64, tread: f64, me: usize) {
+        let (mut a, mut c) = (0.0, 0.0);
+        for ct in contacts {
+            if ct.wheel != Toucher::Surface(me) { continue; }
+            let phi = self.phi.get(&ct.ball).copied().unwrap_or(0.0);
+            a += tread * phi * ct.depth;
+            c += tread * phi * phi;
+        }
+        self.phi.clear();
+        let b = m::min(self.bulge, m::max(0.0, (a + c * self.b) / (self.k + c)));
+        self.b += m::min(self.rate[0] * dt, m::max(-self.rate[1] * dt, b - self.b));
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 struct Near { x: f64, y: f64, z: f64, t: Vec<i32> }
 
@@ -436,6 +493,14 @@ impl Surface {
         s.shape = Shape::Panel(Box::new(panel));
         s
     }
+    /// A bungee net (js Net6328: a Surface built on one small triangle, its touches its own)
+    pub fn bungee(name: &str, mu: f64, tread: f64, net: Bungee) -> Self {
+        let mut s = Surface::mesh(name, &[0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.01], &[0, 1, 2], mu, [0.0; 3], 0.0, 0.0, 0.08, tread);
+        s.shape = Shape::Bungee(Box::new(net));
+        s
+    }
+    pub fn bungee_mut(&mut self) -> Option<&mut Bungee> { if let Shape::Bungee(d) = &mut self.shape { Some(d) } else { None } }
+    pub fn bungee_ref(&self) -> Option<&Bungee> { if let Shape::Bungee(d) = &self.shape { Some(d) } else { None } }
     /// A top plate and net (js Net1690: a Surface built on one small triangle, its touches its own)
     pub fn plate(name: &str, mu: f64, tread: f64, plate: Plate) -> Self {
         let mut s = Surface::mesh(name, &[0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.01], &[0, 1, 2], mu, [0.0; 3], 0.0, 0.0, 0.08, tread);
@@ -447,7 +512,7 @@ impl Surface {
     /// a net's shape, to place it (js Net1678.place)
     pub fn net_mut(&mut self) -> Option<&mut NetDome> { if let Shape::Net(d) = &mut self.shape { Some(d) } else { None } }
     /// whether its own touches are a plain mesh's or a Block's (js surfaceBounds' plain)
-    fn plain(&self) -> bool { !matches!(self.shape, Shape::Net(_) | Shape::Sheet(_) | Shape::Panel(_) | Shape::Plate(_)) }
+    fn plain(&self) -> bool { !matches!(self.shape, Shape::Net(_) | Shape::Sheet(_) | Shape::Panel(_) | Shape::Bungee(_) | Shape::Plate(_)) }
     /// a Block's bottom edge (its center's y less its half height and rounding)
     pub fn block_bottom(&self) -> Option<f64> { if let Shape::Block { c, h, r } = self.shape { Some(c[1] - h[1] - r) } else { None } }
 
@@ -537,6 +602,7 @@ impl Surface {
         if let Shape::Net(d) = &self.shape { return d.touches(p); }
         if let Shape::Sheet(d) = &self.shape { return d.touches(p); }
         if let Shape::Panel(d) = &mut self.shape { return d.touches(p, who); }
+        if let Shape::Bungee(d) = &mut self.shape { return d.touches(p, who); }
         if let Shape::Plate(pl) = &mut self.shape { return pl.touches(p, who); }
         if let Shape::Block { c, h, r } = self.shape {
             let d = [p[0] - c[0], p[1] - c[1], p[2] - c[2]];

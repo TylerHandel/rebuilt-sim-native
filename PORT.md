@@ -35,6 +35,7 @@ is ported and proven.
 | `js/mech/phys7769.js`, `r7769.js` (the intake on its racks (a shaft whose racks hold it against small pushes, `Racks`), the kick bar riding up the bumper, the belt floor, the vectored feeder wheels, the shot table's velocity loop and hood, the Truffle Shuffle; its net over the hopper, a surface with its own touches) | `crates/sim/src/mech/r7769.rs`, `phys7769.rs` | 90983b3 | ported | `intake-7769`, `shoot-7769` |
 | `js/mech/phys341.js`, `r341.js` (the slapdown arm on its pivot, the zipper's rollers, mecanums and flat omnis, the uptake, the turret's shooter and hood, their state machine and unjam, the feeder's back-off, their RobotState aiming point; the guards not in their CAD) | `crates/sim/src/mech/r341.rs`, `phys341.rs` | 90983b3 | ported | `intake-341`, `shoot-341` |
 | `js/mech/phys1114.js`, `r1114.js` (the box on its racks and their slide requests, the kicker, the floor, squish wheels, side and passive rollers, the elevator and roller wall, the flywheel and hood rollers, their aim, Shoot and AgitateIntake gates, LowerIntake and RunIntakeBallevator; its front panel (a solid sheet that remembers each FUEL's side) and its blanket, surfaces with their own touches) | `crates/sim/src/mech/r1114.rs`, `phys1114.rs` | 90983b3 | ported | `intake-1114`, `shoot-1114` |
+| `js/mech/phys6328.js`, `r6328.js` (the slam on its position loop and slews, the hopper's front on its pin and slot, the Superdexer floor, the kickers' velocity loops, Flywheel.runVelocity's profiled setpoint and bang-bang, LaunchCalculator's maps, the compaction; its bungee net, a surface with its own touches that flexes from the load's push) | `crates/sim/src/mech/r6328.rs`, `phys6328.rs` | 90983b3 | ported | `intake-6328`, `shoot-6328` |
 | `js/robot.js` (the climber worked by hand: `driverClimb toggleClimber _manualClimb climbPose climbLevelFromLift`; the automatic climb, `requestClimb _alignCommand _climbStep`, comes with the AIs) | `crates/sim/src/robot.rs` | f325b3c | ported | `tests/climb.rs` |
 | `js/robot.js` (a folding arm's collider, `_intakePhys`, `_shooter`'s autoShuttle, the turret's travel center, a hood the robot sets) | `crates/sim/src/robot.rs` | 0e2e9d1 | ported | `intake-8793`, `trench-8793` |
 
@@ -58,3 +59,5 @@ is ported and proven.
 | `shoot-341` | M3c (341) | yes, identical |
 | `intake-1114` | M3c (1114) | yes, identical |
 | `shoot-1114` | M3c (1114) | yes, identical |
+| `intake-6328` | M3c (6328) | yes, identical |
+| `shoot-6328` | M3c (6328) | yes, identical |

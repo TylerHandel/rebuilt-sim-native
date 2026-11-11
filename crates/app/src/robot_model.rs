@@ -194,6 +194,7 @@ fn animate(game: Res<Game>, time: Res<Time>, mut models: Query<(&mut RobotModel,
             Some(Phys::R8793(p)) => inputs.push(("armTurn", p.arm_turn() as f32)),
             Some(Phys::R1678(p)) => inputs.push(("armTurn", p.arm_turn() as f32)),
             Some(Phys::R341(p)) => { inputs.push(("armTurn", p.arm_turn() as f32)); inputs.push(("hoodTurn", p.hood_turn() as f32)); }
+            Some(Phys::R6328(p)) => { inputs.push(("armTurn", p.arm_turn() as f32)); inputs.push(("hoodTurn", p.hood_turn() as f32)); }
             Some(Phys::R4414(p)) => { inputs.push(("hoodTurn", p.hood_turn() as f32)); inputs.push(("rotorTurn", p.rotor_turn().rem_euclid(std::f64::consts::TAU) as f32)); }
             Some(Phys::R1690(p)) => for (k, v) in p.mech_pose() { if m.rig.rate.contains_key(k) { rates.push((k, v as f32)); } else { inputs.push((k, v as f32)); } },
             Some(Phys::R7769(p)) => for (k, v) in p.mech_pose() { if m.rig.rate.contains_key(k) { rates.push((k, v as f32)); } else { inputs.push((k, v as f32)); } },
