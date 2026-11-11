@@ -138,8 +138,8 @@ fn opt_desc(id: OptId, s: &Settings) -> String {
         OptId::Hp => "The human player at your OUTPOST: it throws FUEL by itself whenever your HUB is active, or you throw it yourself (Y / H held; X / G opens the CHUTE DOOR).".into(),
         OptId::Camera => "Change it any time in a match with D-pad ← → ([ / ]); right stick click (T) turns it around.".into(),
         OptId::Graphics => match s.graphics.as_str() {
-            "ultra" => "Ultra: High, plus temporal anti-aliasing, finer ambient occlusion, soft shadows out to the far wall, and haze in the air the trusses' lights shine through. For a gaming GPU.",
-            "high" => "High: Medium, plus big shadows, 4x anti-aliasing, contact shadows and ambient occlusion, a soft vignette, and glowing HUB lights, robot LEDs and truss lights (bloom).",
+            "ultra" => "Ultra: High, plus temporal anti-aliasing, ambient occlusion in creases and under BUMPERS, and soft shadows out to the far wall. For a gaming GPU.",
+            "high" => "High: Medium, plus big shadows, 4x anti-aliasing, a soft vignette, and glowing HUB lights, robot LEDs and truss lights (bloom).",
             "medium" => "Medium: the arena (its crowd, trusses and screens), its lights and reflections, shadows and FXAA edges.",
             _ => "Low: no arena, shadows or anti-aliasing, for slower PCs.",
         }.into(),

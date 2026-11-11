@@ -4,8 +4,8 @@
 //!     the banners and the big screen. The camera filters it for image-based light (diffuse fill
 //!     from every side, reflections in the aluminum and polycarbonate) and shows it as the sky
 //!     past the venue's walls;
-//!   - the trusses' lights themselves, aimed down and in at the field (venue.js's cans): spot lights,
-//!     no shadows (the sun keeps the one shadowed light);
+//!   - the trusses' lights themselves, aimed down and in at the field (every other one of venue.js's
+//!     cans: 8 spot lights, each twice as bright; no shadows, the sun keeps the one shadowed light);
 //!   - the grade: a little warmth and contrast, and a soft vignette.
 //! How much of it is on follows the graphics preset (camera.rs `graphics`).
 
@@ -29,9 +29,7 @@ pub struct ArenaEnv(pub Handle<Image>);
 /// One of the trusses' lights
 #[derive(Component)]
 pub struct TrussLight;
-/// The haze in the gym's air (Ultra: the trusses' light shows in it)
-#[derive(Component)]
-pub struct ArenaHaze;
+
 
 /// How bright the environment is (cd/m^2 per unit of its radiance)
 pub const ENV_INTENSITY: f32 = 550.0;
@@ -56,26 +54,19 @@ fn truss_lights() -> Vec<(Vec3, Vec3)> {
         while x <= hl - 0.5 {
             // (aimed down and in: 0.55 rad off straight down, toward the field)
             v.push((Vec3::new(x, TRUSS_Y - 0.42, s * zt), Vec3::new(0.0, -(0.55f32).cos(), -s * (0.55f32).sin())));
-            x += 2.2;
+            x += 4.4;
         }
     }
     v
 }
 
 fn spawn_truss_lights(mut commands: Commands) {
-    // (a light haze over the field and stands, up to the trusses and a little over)
-    commands.spawn((
-        bevy::light::FogVolume { density_factor: 0.06, scattering: 0.6, absorption: 0.1, fog_color: Color::srgb(0.9, 0.9, 0.92), ..default() },
-        Transform::from_xyz(0.0, 4.5, 0.0).with_scale(Vec3::new(36.0, 9.0, 24.0)),
-        Visibility::Hidden,
-        ArenaHaze,
-    ));
     for (p, d) in truss_lights() {
         commands.spawn((
             SpotLight {
                 color: Color::srgb(1.0, 0.985, 0.96),
-                intensity: 800_000.0,
-                range: 22.0,
+                intensity: 1_600_000.0,
+                range: 14.0,
                 radius: 0.13,
                 shadow_maps_enabled: false,
                 inner_angle: 0.3,
@@ -189,7 +180,9 @@ fn radiance(dir: Vec3, lights: &[(Vec3, Vec3)]) -> Vec3 {
 /// The environment, drawn into a cubemap (RGBA16F, each face size x size: wgpu's face order and
 /// orientation)
 fn make_env(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
-    let n = 256usize;
+    // (128 a face: Bevy filters it on the GPU every frame, so it's kept small; the venue hides most
+    // of it as a sky)
+    let n = 128usize;
     let lights = truss_lights();
     let mut data: Vec<u8> = Vec::with_capacity(n * n * 6 * 8);
     for face in 0..6 {
@@ -220,3 +213,4 @@ fn make_env(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     img.texture_view_descriptor = Some(TextureViewDescriptor { dimension: Some(TextureViewDimension::Cube), ..default() });
     commands.insert_resource(ArenaEnv(images.add(img)));
 }
+

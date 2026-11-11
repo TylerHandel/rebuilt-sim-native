@@ -311,8 +311,16 @@ and wear, and a varnished maple gym floor round it (field.rs); FUEL's skin (fuel
 a texture; bursts over a HUB as FUEL goes in (effects.rs); materials by kind (materials.rs:
 polycarbonate as refracting glass from High up, aluminum, bumper fabric, rubber). High adds contact
 shadows, SSAO and a vignette; Ultra a haze the trusses' lights shine through. A Motion effects
-setting: shot trails, motion blur, or both. (Not done: a brushed grain on the aluminum, which needs
-a custom shader.)
+setting: shot trails, motion blur, or both.
+*Round 2 (Nov 11, the owner: realistic, detail over costly shading; ~30 fps on Ultra):* no sparks
+or flash over the HUBs; polycarbonate no longer drawn as refracting glass (it tinted what's behind it
+gray and darkened hoppers) and its reflectance down to 0.2 (Bevy's grazing reflectance follows F0:
+it ringed every panel's edge). Cheaper: no volumetric haze, no contact shadows, SSAO only on Ultra
+(Medium quality), 8 truss lights (14 m reach) instead of 16, and the environment cubemap 128 a face
+(Bevy re-filters a GeneratedEnvironmentMapLight every frame; taking it off once filtered lost the
+light). Detail instead, in two cheap material extensions (materials.rs): brushed aluminum
+(assets/shaders/brushed.wesl, js robotModels.js's grain in each part's own frame) and worn paint and
+plastic (worn.wesl: color and gloss uneven by a few percent, scuffs near the carpet).
 
 ### M3: mechanisms
 Owner (Nov 10): the HUMAN PLAYER throws by itself by default ("nobody presses a button to throw while
