@@ -34,11 +34,16 @@ struct Looks {
     part: Handle<StandardMaterial>,
 }
 
-fn setup(mut commands: Commands, game: Res<Game>, mut meshes: ResMut<Assets<Mesh>>, mut mats: ResMut<Assets<StandardMaterial>>) {
+fn setup(mut commands: Commands, game: Res<Game>, mut meshes: ResMut<Assets<Mesh>>, mut mats: ResMut<Assets<StandardMaterial>>, mut images: ResMut<Assets<Image>>, fonts: Res<crate::ui::Fonts>) {
     let r = game.0.data.fuel.body.radius;
+    // (js fuelSkin.js fuelMaterial: the molded skin, vivid and only a little glossy)
+    let skin = fuel_skin(&mut commands, &mut images, &fonts);
+    let fuel_mat = mats.add(StandardMaterial {
+        base_color_texture: Some(skin), perceptual_roughness: 0.55, reflectance: 0.4, clearcoat: 0.25, clearcoat_perceptual_roughness: 0.4, ..default()
+    });
     let mut m = |c: Color, rough: f32| mats.add(StandardMaterial { base_color: c, perceptual_roughness: rough, ..default() });
     commands.insert_resource(Looks {
-        fuel: (meshes.add(Sphere::new(r).mesh().ico(3).unwrap()), m(Color::srgb(0.98, 0.80, 0.05), 0.85)),
+        fuel: (meshes.add(Sphere::new(r).mesh().uv(40, 20)), fuel_mat),
         blue: m(Color::srgb(0.10, 0.25, 0.85), 0.8),
         red: m(Color::srgb(0.85, 0.12, 0.10), 0.8),
         frame: m(Color::srgb(0.55, 0.57, 0.60), 0.4),
@@ -46,6 +51,37 @@ fn setup(mut commands: Commands, game: Res<Game>, mut meshes: ResMut<Assets<Mesh
         part: m(Color::srgb(0.30, 0.32, 0.35), 0.6),
     });
 }
+
+/// js fuelSkin.js fuelTexture: FUEL's skin, wrapped round it (longitude across, latitude down): the
+/// lemon yellow of the official ball, its molding's mid seam, a black print on one side and a date
+/// code on the other, so its spin shows from any side. Drawn once, by a UI into a texture.
+fn fuel_skin(commands: &mut Commands, images: &mut Assets<Image>, fonts: &crate::ui::Fonts) -> Handle<Image> {
+    use crate::ui::Face;
+    use bevy::camera::RenderTarget;
+    let (w, h) = (512.0, 256.0);
+    let image = images.add(Image::new_target_texture(w as u32, h as u32, bevy::render::render_resource::TextureFormat::Rgba8UnormSrgb, None));
+    let cam = commands.spawn((
+        Camera2d,
+        Camera { order: -20, clear_color: ClearColorConfig::Custom(Color::srgb_u8(0xe9, 0xce, 0x02)), ..default() },
+        RenderTarget::Image(image.clone().into()),
+    )).id();
+    // (its camera keeps drawing: stopped after its first frames, a slow first load could leave the
+    // skin undrawn, and a 512 x 256 UI is next to nothing)
+    let ink = Color::srgb_u8(0x16, 0x16, 0x16);
+    // (a line of text centered on (cx, cy))
+    let line = |s: &'static str, size: f32, weight: u16, cx: f32, cy: f32| {
+        (Node { position_type: PositionType::Absolute, left: Val::Px(cx - 128.0), top: Val::Px(cy - size * 0.62), width: Val::Px(256.0), justify_content: JustifyContent::Center, ..default() },
+         children![fonts.text(s, Face::Barlow(weight), size, ink)])
+    };
+    commands.spawn((Node { width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() }, UiTargetCamera(cam))).with_children(|p| {
+        p.spawn((Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: Val::Px(h / 2.0 - 1.5), width: Val::Percent(100.0), height: Val::Px(3.0), ..default() }, BackgroundColor(Color::srgb_u8(0xc4, 0xa9, 0x00))));
+        p.spawn(line("FUEL", 38.0, 800, w * 0.25, h * 0.39));
+        p.spawn(line("REBUILT 2026", 21.0, 700, w * 0.25, h * 0.6));
+        p.spawn(line("026", 17.0, 700, w * 0.75, h * 0.44));
+    });
+    image
+}
+
 
 /// At the start and after a restart (a new World), make the views of its bodies.
 fn respawn(

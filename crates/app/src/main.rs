@@ -2,17 +2,21 @@
 //! REBUILT Sim, native: the browser game (github.com/TylerHandel/rebuilt-sim-2026) rebuilt in Rust.
 //! The simulation runs in the `sim` crate; this draws it, takes input, and keeps itself updated.
 
+mod arena;
 mod camera;
 mod field;
 mod draw;
+mod effects;
 mod game;
 mod lights;
+mod materials;
 mod net;
 mod robot_model;
 mod settings;
 mod shot;
 mod ui;
 mod update;
+mod venue;
 
 use bevy::prelude::*;
 use bevy::window::PresentMode;
@@ -39,6 +43,6 @@ fn main() {
         .insert_resource(ClearColor(Color::srgb(0.05, 0.06, 0.08)))
         .insert_resource(settings::Settings::load())
         .insert_resource(robot_model::AssetDir(bevy::asset::io::file::FileAssetReader::get_base_path().join(assets)))
-        .add_plugins((ui::UiPlugin, game::GamePlugin, robot_model::RobotModelPlugin, camera::OrbitCameraPlugin, field::FieldPlugin, draw::DrawPlugin, update::UpdatePlugin, shot::ShotPlugin, lights::LightsPlugin))
+        .add_plugins((ui::UiPlugin, game::GamePlugin, robot_model::RobotModelPlugin, camera::OrbitCameraPlugin, field::FieldPlugin, draw::DrawPlugin, update::UpdatePlugin, shot::ShotPlugin, lights::LightsPlugin, arena::ArenaPlugin, venue::VenuePlugin, effects::EffectsPlugin, materials::MaterialsPlugin))
         .run();
 }

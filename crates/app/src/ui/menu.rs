@@ -34,7 +34,7 @@ impl Mode {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum OptId { Auto, Start, Alliance, Ds, Hp, Camera, Graphics, Fps }
+pub enum OptId { Auto, Start, Alliance, Ds, Hp, Camera, Graphics, Motion, Fps }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Item {
@@ -81,7 +81,7 @@ fn items(page: Page) -> Vec<Item> {
         ],
         Page::Settings => vec![
             Item::Section("View"), Item::Opt(OptId::Camera),
-            Item::Section("Graphics"), Item::Opt(OptId::Graphics), Item::Opt(OptId::Fps),
+            Item::Section("Graphics"), Item::Opt(OptId::Graphics), Item::Opt(OptId::Motion), Item::Opt(OptId::Fps),
             btn("BACK", Act::Open(Page::Home), true, false, true),
         ],
     }
@@ -93,7 +93,7 @@ fn focusables(page: Page) -> Vec<Item> { items(page).into_iter().filter(|i| !mat
 fn opt_label(id: OptId) -> &'static str {
     match id {
         OptId::Auto => "Auto routine", OptId::Start => "Starting position", OptId::Alliance => "Alliance", OptId::Ds => "Driver station", OptId::Hp => "Your human player",
-        OptId::Camera => "Starting camera", OptId::Graphics => "Graphics", OptId::Fps => "Show FPS",
+        OptId::Camera => "Starting camera", OptId::Graphics => "Graphics", OptId::Motion => "Motion effects", OptId::Fps => "Show FPS",
     }
 }
 
@@ -107,6 +107,7 @@ fn opt_values(id: OptId) -> Vec<(String, String)> {
         OptId::Hp => vec![v("auto", "Auto-throw when HUB active"), v("manual", "Manual (X / Y)")],
         OptId::Camera => crate::camera::CAMERA_MODES.iter().map(|m| v(m.key(), m.name())).collect(),
         OptId::Graphics => vec![v("ultra", "Ultra"), v("high", "High"), v("medium", "Medium"), v("low", "Low")],
+        OptId::Motion => vec![v("off", "Off"), v("trails", "Trails"), v("blur", "Blur"), v("both", "Both")],
         OptId::Fps => vec![v("off", "Off"), v("on", "On")],
     }
 }
@@ -115,7 +116,7 @@ fn opt_get(id: OptId, s: &Settings) -> String {
     match id {
         OptId::Auto => s.auto.clone(), OptId::Start => s.start.clone(), OptId::Alliance => s.alliance.clone(),
         OptId::Ds => s.ds.to_string(), OptId::Hp => s.hp.clone(), OptId::Camera => s.camera.clone(),
-        OptId::Graphics => s.graphics.clone(), OptId::Fps => if s.fps { "on".into() } else { "off".into() },
+        OptId::Graphics => s.graphics.clone(), OptId::Motion => s.motion.clone(), OptId::Fps => if s.fps { "on".into() } else { "off".into() },
     }
 }
 
@@ -123,7 +124,7 @@ fn opt_set(id: OptId, s: &mut Settings, v: &str) {
     match id {
         OptId::Auto => s.auto = v.into(), OptId::Start => s.start = v.into(), OptId::Alliance => s.alliance = v.into(),
         OptId::Ds => s.ds = v.parse().unwrap_or(1), OptId::Hp => s.hp = v.into(), OptId::Camera => s.camera = v.into(),
-        OptId::Graphics => s.graphics = v.into(), OptId::Fps => s.fps = v == "on",
+        OptId::Graphics => s.graphics = v.into(), OptId::Motion => s.motion = v.into(), OptId::Fps => s.fps = v == "on",
     }
 }
 
@@ -137,10 +138,16 @@ fn opt_desc(id: OptId, s: &Settings) -> String {
         OptId::Hp => "The human player at your OUTPOST: it throws FUEL by itself whenever your HUB is active, or you throw it yourself (Y / H held; X / G opens the CHUTE DOOR).".into(),
         OptId::Camera => "Change it any time in a match with D-pad ← → ([ / ]); right stick click (T) turns it around.".into(),
         OptId::Graphics => match s.graphics.as_str() {
-            "ultra" => "Ultra: High, plus temporal anti-aliasing, ambient occlusion in creases and under BUMPERS, and soft shadows out to the far wall. For a gaming GPU.",
-            "high" => "High: big shadows, 4x anti-aliasing, and glowing HUB lights and robot LEDs (bloom).",
-            "medium" => "Medium: shadows and FXAA edges.",
-            _ => "Low: no shadows or anti-aliasing, for slower PCs.",
+            "ultra" => "Ultra: High, plus temporal anti-aliasing, finer ambient occlusion, soft shadows out to the far wall, and haze in the air the trusses' lights shine through. For a gaming GPU.",
+            "high" => "High: Medium, plus big shadows, 4x anti-aliasing, contact shadows and ambient occlusion, a soft vignette, and glowing HUB lights, robot LEDs and truss lights (bloom).",
+            "medium" => "Medium: the arena (its crowd, trusses and screens), its lights and reflections, shadows and FXAA edges.",
+            _ => "Low: no arena, shadows or anti-aliasing, for slower PCs.",
+        }.into(),
+        OptId::Motion => match s.motion.as_str() {
+            "trails" => "Trails: a fading streak behind each shot FUEL.",
+            "blur" => "Blur: motion blur on what moves fast (the camera, shots, spinning wheels).",
+            "both" => "Both: shot trails and motion blur.",
+            _ => "Off: no trails or motion blur.",
         }.into(),
         OptId::Fps => "Frame rate, physics time per step and the update status in the corner.".into(),
     }

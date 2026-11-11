@@ -261,6 +261,7 @@ name = "app"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "half",
  "rapier3d",
  "serde",
  "serde_json",

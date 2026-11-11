@@ -136,7 +136,7 @@ impl Plugin for OrbitCameraPlugin {
 }
 
 fn spawn(mut commands: Commands) {
-    commands.spawn((Camera3d::default(), Transform::from_xyz(0.0, 10.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y)));
+    commands.spawn((Camera3d::default(), IsDefaultUiCamera, Transform::from_xyz(0.0, 10.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y)));
 }
 
 /// A new match (not a resume): the starting camera, on the robot's ALLIANCE's side
@@ -200,7 +200,17 @@ fn place(
 /// Medium: shadows and FXAA; High: 4x MSAA, bigger shadows and bloom (what glows, glows: the HUB
 /// lights and the LEDs); Ultra: temporal anti-aliasing, ambient occlusion and temporally filtered
 /// soft shadows, 4K cascades out further.
-fn graphics(settings: Res<Settings>, mut commands: Commands, cams: Query<Entity, With<Camera3d>>, mut suns: Query<(Entity, &mut DirectionalLight)>) {
+#[allow(clippy::too_many_arguments)]
+fn graphics(
+    settings: Res<Settings>,
+    mut commands: Commands,
+    cams: Query<Entity, With<Camera3d>>,
+    mut suns: Query<(Entity, &mut DirectionalLight)>,
+    env: Option<Res<crate::arena::ArenaEnv>>,
+    mut truss: Query<(Entity, &mut Visibility), (With<crate::arena::TrussLight>, Without<crate::arena::ArenaHaze>)>,
+    mut haze: Query<&mut Visibility, (With<crate::arena::ArenaHaze>, Without<crate::arena::TrussLight>)>,
+    mut ambient: ResMut<GlobalAmbientLight>,
+) {
     use bevy::anti_alias::{fxaa::Fxaa, taa::TemporalAntiAliasing};
     use bevy::core_pipeline::prepass::{DepthPrepass, MotionVectorPrepass, NormalPrepass};
     use bevy::light::{CascadeShadowConfigBuilder, DirectionalLightShadowMap, ShadowFilteringMethod};
@@ -208,13 +218,53 @@ fn graphics(settings: Res<Settings>, mut commands: Commands, cams: Query<Entity,
     use bevy::post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter};
     use bevy::camera::Hdr;
     use bevy::render::camera::{TemporalJitter, MipBias};
+    use bevy::light::{GeneratedEnvironmentMapLight, Skybox};
+    use bevy::pbr::ContactShadows;
+    use bevy::post_process::effect_stack::Vignette;
+    use bevy::render::view::{ColorGrading, ColorGradingGlobal, ColorGradingSection};
     if !settings.is_changed() { return }
     let g = settings.graphics.as_str();
     let (high, ultra) = (g == "high" || g == "ultra", g == "ultra");
+    // (the arena's light, arena.rs: from Medium up, the environment's fill and reflections and the
+    // trusses' lights; Low keeps the plain sun and ambient)
+    let arena = g != "low" && env.is_some();
+    ambient.brightness = if arena { 60.0 } else { 400.0 };
+    // (Ultra: haze in the air, the trusses' lights shining through it)
+    let hazy = ultra && arena;
+    for (e, mut v) in &mut truss {
+        *v = if arena { Visibility::Visible } else { Visibility::Hidden };
+        if hazy { commands.entity(e).insert(bevy::light::VolumetricLight); } else { commands.entity(e).remove::<bevy::light::VolumetricLight>(); }
+    }
+    for mut v in &mut haze { *v = if hazy { Visibility::Visible } else { Visibility::Hidden }; }
+    let blur = g != "low" && matches!(settings.motion.as_str(), "blur" | "both");
     for c in &cams {
         let mut e = commands.entity(c);
         e.remove::<(Fxaa, TemporalAntiAliasing, TemporalJitter, MipBias, ScreenSpaceAmbientOcclusion, Bloom, Hdr)>()
-            .remove::<(DepthPrepass, NormalPrepass, MotionVectorPrepass)>();
+            .remove::<(DepthPrepass, NormalPrepass, MotionVectorPrepass)>()
+            .remove::<(GeneratedEnvironmentMapLight, Skybox, ContactShadows, Vignette, ColorGrading)>()
+            .remove::<(bevy::light::VolumetricFog, bevy::post_process::motion_blur::MotionBlur)>();
+        if hazy { e.insert(bevy::light::VolumetricFog { ambient_intensity: 0.0, ..default() }); }
+        // (motion blur, as the Motion effects setting asks: half a frame's shutter)
+        if blur { e.insert(bevy::post_process::motion_blur::MotionBlur { shutter_angle: 0.5, samples: 3 }); }
+        if let (true, Some(env)) = (arena, env.as_ref()) {
+            let i = crate::arena::ENV_INTENSITY;
+            e.insert((
+                GeneratedEnvironmentMapLight { environment_map: env.0.clone(), intensity: i, ..default() },
+                Skybox { image: Some(env.0.clone()), brightness: i, ..default() },
+                // (an arena's warmer light, a touch more contrast and color)
+                ColorGrading {
+                    global: ColorGradingGlobal { temperature: 0.01, post_saturation: 1.08, ..default() },
+                    midtones: ColorGradingSection { contrast: 1.1, ..default() },
+                    shadows: ColorGradingSection { contrast: 1.05, ..default() },
+                    ..default()
+                },
+            ));
+        }
+        if high && arena {
+            // (contact shadows where robots and FUEL meet the carpet; a soft vignette)
+            e.insert((ContactShadows::default(), Vignette { intensity: 0.3, radius: 0.95, smoothness: 3.0, ..default() }));
+            if !ultra { e.insert(ScreenSpaceAmbientOcclusion { quality_level: ScreenSpaceAmbientOcclusionQualityLevel::Medium, ..default() }); }
+        }
         e.insert(match g { "high" => Msaa::Sample4, _ => Msaa::Off });
         e.insert(if ultra { ShadowFilteringMethod::Temporal } else { ShadowFilteringMethod::Gaussian });
         if g == "medium" { e.insert(Fxaa::default()); }
@@ -235,6 +285,9 @@ fn graphics(settings: Res<Settings>, mut commands: Commands, cams: Query<Entity,
     commands.insert_resource(DirectionalLightShadowMap { size: if high { 4096 } else { 2048 } });
     for (e, mut s) in &mut suns {
         s.shadow_maps_enabled = g != "low";
+        // (with the trusses' lights and the arena's fill, the sun's a key light, half as bright)
+        s.illuminance = if arena { 4500.0 } else { 9000.0 };
+        s.contact_shadows_enabled = high && arena;
         commands.entity(e).insert(if ultra {
             CascadeShadowConfigBuilder { num_cascades: 4, first_cascade_far_bound: 6.0, maximum_distance: 60.0, ..default() }.build()
         } else {

@@ -301,6 +301,18 @@ shadow cascades, HDR with bloom), Ultra (TAA, SSAO, temporally filtered soft sha
 What glows (crates/app/src/lights.rs): the HUBs' light bars (field.js setHubLights, from
 Match::hub_light_mode) and the robots' LED strips (leds.js LED_LAYOUT and each team's scheme from
 its code), past bloom's threshold so only they bloom.
+*The arena (Nov 11):* from Medium up the field sits in an arena (arena.rs): an environment drawn
+in code (the gym, its high-bay lights, the trusses' lights, the crowd, banners and screen) that
+lights everything from every side and shows in the metal and polycarbonate, the trusses' 16 spot
+lights, the sun as a key light, and a grade; venue.js's venue exported whole (export-models.mjs
+venue.glb: its crowd baked at rest, the drive teams apart, hidden at the Driver Station view) with
+live scoreboards on its screens (venue.rs); a carpet with mips, anisotropic filtering, fiber normals
+and wear, and a varnished maple gym floor round it (field.rs); FUEL's skin (fuelSkin.js) drawn into
+a texture; bursts over a HUB as FUEL goes in (effects.rs); materials by kind (materials.rs:
+polycarbonate as refracting glass from High up, aluminum, bumper fabric, rubber). High adds contact
+shadows, SSAO and a vignette; Ultra a haze the trusses' lights shine through. A Motion effects
+setting: shot trails, motion blur, or both. (Not done: a brushed grain on the aluminum, which needs
+a custom shader.)
 
 ### M3: mechanisms
 Owner (Nov 10): the HUMAN PLAYER throws by itself by default ("nobody presses a button to throw while
