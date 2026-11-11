@@ -91,7 +91,8 @@ impl World {
         let climbs: Vec<_> = self.robots.iter().map(|r| (r.alliance, r.climb_level)).collect();
         self.match_.update(dt, &climbs, &mut self.rng);
         let on = self.match_.robot_enabled();
-        for r in &mut self.robots { r.enabled = on; }
+        let (auto, pt) = (self.match_.is_auto(), self.match_.phase_time);
+        for r in &mut self.robots { r.enabled = on; r.is_auto = auto; r.phase_time = pt; }
         probe(self, "match");
         probe(self, "drivers");
         let teleop = self.match_.is_teleop();

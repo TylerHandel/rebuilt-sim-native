@@ -153,7 +153,7 @@ pub fn abutting(wheels: &mut [Wheel]) {
 pub enum Mount { Fixed, Pivot { shaft: usize, pivot: V3, axis: V3 }, Slide { shaft: usize, dir: V3, k: f64 } }
 
 #[derive(Clone, Debug)]
-enum Shape { Mesh, Block { c: V3, h: V3, r: f64 }, Net(NetDome), Sheet(NetSheet), Panel(Box<Panel>), Bungee(Box<Bungee>), Plate(Box<Plate>) }
+enum Shape { Mesh, Block { c: V3, h: V3, r: f64 }, Net(NetDome), Sheet(NetSheet), Panel(Box<Panel>), Bungee(Box<Bungee>), Lean(NetLean), Plate(Box<Plate>) }
 
 /// A top plate the load bows up, and a net out past it (js r1690.js Net1690): x0, the back of the
 /// bow; x1, the net's front (the U-frame's, where the carriage has it); y, the plate's height; hw,
@@ -363,6 +363,31 @@ impl Bungee {
     }
 }
 
+/// A net from a fixed top edge (top_x, top_y) down to a front edge that rides out with a slide (fx,
+/// fy), across +-hw, bulging up to `bulge` at its middle (js r581.js Net581)
+#[derive(Clone, Copy, Debug)]
+pub struct NetLean { pub top_x: f64, pub top_y: f64, pub fx: f64, pub fy: f64, pub hw: f64, pub bulge: f64 }
+impl NetLean {
+    /// js `netAt(x, z, ext)`
+    pub fn at(&self, x: f64, z: f64) -> [f64; 3] {
+        let (l, w, b) = (m::max(0.01, self.fx - self.top_x), 2.0 * self.hw, self.bulge);
+        let u = m::min(1.0, m::max(0.0, (x - self.top_x) / l));
+        let v = m::min(1.0, m::max(0.0, (z + self.hw) / w));
+        let (su, sv, slope) = (m::sin(m::PI * u), m::sin(m::PI * v), (self.fy - self.top_y) / l);
+        [self.top_y + slope * l * u + b * su * sv, slope + (b * m::PI * m::cos(m::PI * u) * sv) / l, (b * su * m::PI * m::cos(m::PI * v)) / w]
+    }
+    /// js Net581 `touches(p)`
+    fn touches(&self, p: V3) -> Vec<Hit> {
+        let [x, y, z] = p;
+        if !(x > self.top_x && x < self.fx && m::abs(z) < self.hw) { return Vec::new(); }
+        let [h, hx, hz] = self.at(x, z);
+        let l = m::hypot3(hx, 1.0, hz);
+        let dist = (h - y) / l;
+        if dist >= R || dist < -0.03 { return Vec::new(); }
+        vec![Hit { depth: R - dist, n: [hx / l, -1.0 / l, hz / l] }]
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 struct Near { x: f64, y: f64, z: f64, t: Vec<i32> }
 
@@ -501,6 +526,13 @@ impl Surface {
     }
     pub fn bungee_mut(&mut self) -> Option<&mut Bungee> { if let Shape::Bungee(d) = &mut self.shape { Some(d) } else { None } }
     pub fn bungee_ref(&self) -> Option<&Bungee> { if let Shape::Bungee(d) = &self.shape { Some(d) } else { None } }
+    /// A leaning net (js Net581: a Surface built on one small triangle, its touches its own)
+    pub fn lean(name: &str, mu: f64, tread: f64, net: NetLean) -> Self {
+        let mut s = Surface::mesh(name, &[0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.01], &[0, 1, 2], mu, [0.0; 3], 0.0, 0.0, 0.08, tread);
+        s.shape = Shape::Lean(net);
+        s
+    }
+    pub fn lean_mut(&mut self) -> Option<&mut NetLean> { if let Shape::Lean(d) = &mut self.shape { Some(d) } else { None } }
     /// A top plate and net (js Net1690: a Surface built on one small triangle, its touches its own)
     pub fn plate(name: &str, mu: f64, tread: f64, plate: Plate) -> Self {
         let mut s = Surface::mesh(name, &[0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.01], &[0, 1, 2], mu, [0.0; 3], 0.0, 0.0, 0.08, tread);
@@ -512,7 +544,7 @@ impl Surface {
     /// a net's shape, to place it (js Net1678.place)
     pub fn net_mut(&mut self) -> Option<&mut NetDome> { if let Shape::Net(d) = &mut self.shape { Some(d) } else { None } }
     /// whether its own touches are a plain mesh's or a Block's (js surfaceBounds' plain)
-    fn plain(&self) -> bool { !matches!(self.shape, Shape::Net(_) | Shape::Sheet(_) | Shape::Panel(_) | Shape::Bungee(_) | Shape::Plate(_)) }
+    fn plain(&self) -> bool { !matches!(self.shape, Shape::Net(_) | Shape::Sheet(_) | Shape::Panel(_) | Shape::Bungee(_) | Shape::Lean(_) | Shape::Plate(_)) }
     /// a Block's bottom edge (its center's y less its half height and rounding)
     pub fn block_bottom(&self) -> Option<f64> { if let Shape::Block { c, h, r } = self.shape { Some(c[1] - h[1] - r) } else { None } }
 
@@ -603,6 +635,7 @@ impl Surface {
         if let Shape::Sheet(d) = &self.shape { return d.touches(p); }
         if let Shape::Panel(d) = &mut self.shape { return d.touches(p, who); }
         if let Shape::Bungee(d) = &mut self.shape { return d.touches(p, who); }
+        if let Shape::Lean(d) = &self.shape { return d.touches(p); }
         if let Shape::Plate(pl) = &mut self.shape { return pl.touches(p, who); }
         if let Shape::Block { c, h, r } = self.shape {
             let d = [p[0] - c[0], p[1] - c[1], p[2] - c[2]];
