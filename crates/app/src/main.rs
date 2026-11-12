@@ -12,6 +12,7 @@ mod game;
 mod lights;
 mod loading;
 mod materials;
+mod nature;
 mod net;
 mod robot_model;
 mod scene;
@@ -59,6 +60,6 @@ fn main() {
         .insert_resource(settings)
         .insert_resource(robot_model::AssetDir(bevy::asset::io::file::FileAssetReader::get_base_path().join(assets)))
         .add_plugins((ui::UiPlugin, game::GamePlugin, robot_model::RobotModelPlugin, camera::OrbitCameraPlugin, field::FieldPlugin, draw::DrawPlugin, update::UpdatePlugin, shot::ShotPlugin, lights::LightsPlugin, arena::ArenaPlugin, venue::VenuePlugin, effects::EffectsPlugin, materials::MaterialsPlugin, bevel::BevelPlugin))
-        .add_plugins((scene::ScenePlugin, showcase::ShowcasePlugin, loading::LoadingPlugin, bevy::post_process::auto_exposure::AutoExposurePlugin))
+        .add_plugins((scene::ScenePlugin, showcase::ShowcasePlugin, loading::LoadingPlugin, nature::NaturePlugin, bevy::post_process::auto_exposure::AutoExposurePlugin))
         .run();
 }

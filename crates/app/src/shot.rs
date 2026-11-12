@@ -6,7 +6,7 @@
 //! walks the screens first, in order: "practice" (open the Practice page), "settings", "start" (start
 //! a match), "pause", "controls", "results" (end the match).
 //! REBUILT_BENCH=1 prints the mean frame time over the last half of the wait (what a change costs).
-//! REBUILT_OFF=crowd,venue,truss,shadows,env turns those off, to see what each costs.
+//! REBUILT_OFF=crowd,venue,truss,shadows,env,nature turns those off, to see what each costs.
 //! REBUILT_SHOT_SIZE=<w>x<h> sizes the window (what a lower render resolution saves: DLSS's case).
 
 use bevy::prelude::*;

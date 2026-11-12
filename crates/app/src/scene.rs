@@ -171,6 +171,7 @@ fn apply(
     mut vis: Query<&mut Visibility, (Without<Name>, Without<Haze>, Without<Tower>, Without<TowerPart>, Without<TrussLight>)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
+    added: Query<(), Added<Name>>,
     mut commands: Commands,
 ) {
     let look = Look::of(&settings);
@@ -179,15 +180,17 @@ fn apply(
     // (the turf, once the floors are made: out to the stands)
     if show.turf.is_none() {
         if let Some(f) = &floors {
-            if let Some(mut m) = mats.get_mut(&f.turf) { m.uv_transform = bevy::math::Affine2::from_scale(Vec2::splat(84.0 / 9.0)); }
-            let e = commands.spawn((Mesh3d(meshes.add(Plane3d::new(Vec3::Y, Vec2::splat(42.0)))), MeshMaterial3d(f.turf.clone()), Transform::from_xyz(0.0, -0.006, 0.0), Visibility::Hidden)).id();
+            // (a mowed disk 30 m across the field's middle; nature.rs's meadow and hills beyond it)
+            if let Some(mut m) = mats.get_mut(&f.turf) { m.uv_transform = bevy::math::Affine2::from_scale(Vec2::splat(60.0 / 9.0)); }
+            let e = commands.spawn((Mesh3d(meshes.add(Circle::new(30.0).mesh().resolution(96))), MeshMaterial3d(f.turf.clone()), Transform::from_xyz(0.0, -0.006, 0.0).with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)), Visibility::Hidden)).id();
             show.turf = Some(e);
             show.applied = None;
             // (it's not in the queries until next frame: the look's applied then)
             return;
         }
     }
-    if show.applied.as_ref() == Some(&key_now) && !settings.is_changed() { return }
+    // (again when parts come in, the venue's model loading after the look was first applied)
+    if show.applied.as_ref() == Some(&key_now) && !settings.is_changed() && added.is_empty() { return }
     show.applied = Some(key_now);
     let arena = g != "low";
     let haze_on = arena && settings.haze != "off";
@@ -225,9 +228,11 @@ fn apply(
     // (the towers' lamps: lit at night)
     // the trusses' lights in the haze
     for e in &trusses { if haze_on { commands.entity(e).insert(VolumetricLight); } else { commands.entity(e).remove::<VolumetricLight>(); } }
-    // outdoors: no gym walls, roof band, banners or drapes; the turf instead of the gym floor
+    // outdoors: the turf instead of the gym floor
     for (n, mut v) in &mut named {
-        if matches!(n.as_str(), "venue-wall" | "venue-accent" | "venue-banner" | "venue-drape") {
+        // (outdoors, in the countryside: no gym, stands, crowd or its screens; the scoring table,
+        // the staff and the drive teams stay)
+        if matches!(n.as_str(), "venue-wall" | "venue-accent" | "venue-banner" | "venue-drape" | "venue-stand" | "venue-seat" | "venue-crowd" | "venue-metal" | "venue-screens" | "venue-dark" | "venue-lens") {
             let want = if look.outdoor { Visibility::Hidden } else { Visibility::Inherited };
             if *v != want { *v = want; }
         }
@@ -363,7 +368,8 @@ fn grain(settings: Res<Settings>, mut show: ResMut<Show>, mut outer: Query<(&mut
 /// The crowd's camera flashes, at night: one here and there, for an instant
 fn flashes(time: Res<Time>, settings: Res<Settings>, mut show: ResMut<Show>, mut q: Query<(&mut Flash, &mut Transform, &mut Visibility)>) {
     let look = Look::of(&settings);
-    let on = settings.graphics != "low" && look.time == Tod::Night;
+    // (indoors only: outdoors there's no crowd)
+    let on = settings.graphics != "low" && look.time == Tod::Night && !look.outdoor;
     let dt = time.delta_secs();
     let mut fire = on && show.rand() < dt * 7.0;
     for (mut f, mut tf, mut v) in &mut q {

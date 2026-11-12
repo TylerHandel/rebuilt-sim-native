@@ -460,6 +460,19 @@ weather, the haze, and the film look; all of it is presentation only (no sim sta
   (Bevy's AutoExposure) meters the image after that exposure and corrects toward the look's tuned
   average (2^-2.25 day, -2.75 sunset, -3.75 night) by at most 1.5 stops. The meter's range is in
   the image's log luminance, not EV100: an EV100-sized range there meters nothing and goes black.
+- **Outdoors is countryside** (nature.rs; the setting's key stays "stadium"): no gym, stands or
+  crowd; mowed turf 30 m round the field, then terrain out to 900 m (flat near, hills further),
+  a meadow of grass blades in 2 m patches (drawn within 26/36/46 m of the camera on
+  Medium/High/Ultra, Bevy's VisibilityRange fading them out), 45/80/110 generated trees (four
+  broadleaves, three conifers: tapered limbs and leaf cards), and 900 cut-out trees in a treeline
+  115-300 m out. All made in code at the start (no assets). Wind: foliage.wesl bends blades and
+  leaves in the vertex shader (no prepass for foliage, so TAA/DLSS see no motion vectors there),
+  the trees sway as a whole. Leaf and treeline textures get coverage-preserving mips (alpha
+  rescaled per mip), without which the cards vanish at a distance. The environment map's
+  surroundings match (ground, treeline, hills). Rain darkens and wets it; the wind follows the
+  weather.
+  Measured (2026-11-12, driver camera, day, software renderer, ratios only): High 1337 ms without it,
+  1642 with (+23%: denser grass, the trees' alpha-cut shadows); Medium 733 / 794 (+8%).
 - **Volumetric haze**: Bevy's raymarched fog inside a `FogVolume` over the field; per pixel at main
   pass resolution, each step sampling every `VolumetricLight` (shadowed lights only, so the cost
   scales with steps x lights x pixels). Low = 24 steps, High = 48; Ultra jitters the start so TAA

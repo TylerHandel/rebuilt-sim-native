@@ -44,10 +44,7 @@ const GYM_H: f32 = 11.0;
 /// where the environment is seen from (about a camera's height, the field's middle)
 const EYE: Vec3 = Vec3::new(0.0, 1.6, 0.0);
 
-/// The stadium (outdoors): its bowl of stands round the field (radius, top), and its light towers
-/// (where their banks of lights are)
-pub const STAND_R: f32 = 36.0;
-const STAND_TOP: f32 = 15.0;
+/// Outdoors: the light towers round the field (where their banks of lights are)
 pub const TOWERS: [Vec3; 4] = [Vec3::new(31.0, 30.0, 22.0), Vec3::new(-31.0, 30.0, 22.0), Vec3::new(31.0, 30.0, -22.0), Vec3::new(-31.0, 30.0, -22.0)];
 
 /// The time of day
@@ -80,8 +77,8 @@ impl Look {
     pub fn cloud(&self) -> f32 { match self.weather { Weather::Clear => 0.0, Weather::Cloudy => 0.55, Weather::Rain => 1.0, Weather::Fog => 0.9 } }
     /// the fog's color, and how thick it is (1/m)
     pub fn haze(&self) -> (Vec3, f32) {
-        let c = match self.time { Tod::Day => Vec3::new(0.30, 0.32, 0.35), Tod::Sunset => Vec3::new(0.30, 0.20, 0.16), Tod::Night => Vec3::new(0.012, 0.013, 0.017) };
-        let k = if !self.outdoor { 0.0 } else { match self.weather { Weather::Fog => 0.055, Weather::Rain => 0.014, Weather::Cloudy => 0.003, Weather::Clear => 0.0015 } };
+        let c = match self.time { Tod::Day => Vec3::new(0.28, 0.33, 0.40), Tod::Sunset => Vec3::new(0.30, 0.20, 0.16), Tod::Night => Vec3::new(0.012, 0.013, 0.017) };
+        let k = if !self.outdoor { 0.0 } else { match self.weather { Weather::Fog => 0.055, Weather::Rain => 0.014, Weather::Cloudy => 0.003, Weather::Clear => 0.001 } };
         (c, k)
     }
 }
@@ -124,7 +121,7 @@ fn spawn_truss_lights(mut commands: Commands) {
 
 // ------------------------------------------------------------------ the environment
 /// a hash of a cell (0..1)
-fn hash(a: i32, b: i32, c: i32) -> f32 {
+pub(crate) fn hash(a: i32, b: i32, c: i32) -> f32 {
     let mut h = (a as u32).wrapping_mul(0x8da6_b343) ^ (b as u32).wrapping_mul(0xd816_3841) ^ (c as u32).wrapping_mul(0xcb1a_b31f);
     h ^= h >> 13;
     h = h.wrapping_mul(0x5bd1_e995);
@@ -247,7 +244,7 @@ fn indoor(d: Vec3, lights: &[(Vec3, Vec3)]) -> (Vec3, Lit) {
 }
 
 /// 2D value noise (0..1), smooth
-fn noise(x: f32, y: f32) -> f32 {
+pub(crate) fn noise(x: f32, y: f32) -> f32 {
     let (ix, iy) = (x.floor() as i32, y.floor() as i32);
     let (fx, fy) = (x - x.floor(), y - y.floor());
     let (ux, uy) = (fx * fx * (3.0 - 2.0 * fx), fy * fy * (3.0 - 2.0 * fy));
@@ -255,7 +252,7 @@ fn noise(x: f32, y: f32) -> f32 {
     let b = hash(ix, iy + 1, 91) * (1.0 - ux) + hash(ix + 1, iy + 1, 91) * ux;
     a * (1.0 - uy) + b * uy
 }
-fn fbm(x: f32, y: f32) -> f32 { 0.55 * noise(x, y) + 0.3 * noise(2.1 * x + 5.0, 2.1 * y) + 0.15 * noise(4.3 * x, 4.3 * y + 9.0) }
+pub(crate) fn fbm(x: f32, y: f32) -> f32 { 0.55 * noise(x, y) + 0.3 * noise(2.1 * x + 5.0, 2.1 * y) + 0.15 * noise(4.3 * x, 4.3 * y + 9.0) }
 
 /// The sky outdoors (above the stands): blue by day, warm low toward the sun at sunset, dark and
 /// starry at night; the sun (or moon) in it; the clouds over it
@@ -264,7 +261,7 @@ fn sky(d: Vec3, look: &Look) -> Vec3 {
     let h = d.y.max(0.0);
     let cs = d.dot(sun);
     let mut c = match look.time {
-        Tod::Day => Vec3::new(0.07, 0.16, 0.42).lerp(Vec3::new(0.40, 0.48, 0.58), (1.0 - h).powi(4)) * 0.75,
+        Tod::Day => Vec3::new(0.045, 0.13, 0.46).lerp(Vec3::new(0.34, 0.45, 0.6), (1.0 - h).powi(5)) * 0.75,
         Tod::Sunset => {
             let toward = (cs * 0.5 + 0.5).powi(3);
             let horizon = Vec3::new(0.28, 0.14, 0.22).lerp(Vec3::new(1.0, 0.45, 0.14), toward);
@@ -318,33 +315,35 @@ fn outdoor(d: Vec3, look: &Look) -> Vec3 {
             return through(c, dist * 0.5);
         }
     }
-    // the stands: the bowl round the field, rising from its edge to its top
+    // the countryside (nature.rs): the ground, a treeline 120 m out, hills beyond it
     let horiz = Vec2::new(d.x, d.z).length().max(1e-4);
-    let t_wall = STAND_R / horiz;
-    let y_wall = EYE.y + d.y * t_wall;
-    if d.y < 0.0 && -EYE.y / d.y < t_wall {
-        // the ground inside the bowl: the carpet, the turf round it (mowed in stripes)
+    let az = d.z.atan2(d.x);
+    const TREES_AT: f32 = 120.0;
+    let wet = if look.weather == Weather::Rain { 0.7 } else { 1.0 };
+    if d.y < 0.0 && -EYE.y / d.y * horiz < TREES_AT {
+        // the ground: the mowed turf round the field (in stripes), the meadow beyond it
         let t = -EYE.y / d.y;
         let p = EYE + d * t;
+        let r = Vec2::new(p.x, p.z).length();
         let c = if p.x.abs() < hl && p.z.abs() < hw { Vec3::new(0.13, 0.135, 0.14) }
-            else if ((p.x / 4.5).floor() as i32) % 2 == 0 { Vec3::new(0.035, 0.07, 0.025) } else { Vec3::new(0.03, 0.06, 0.02) };
-        let wet = if look.weather == Weather::Rain { 0.7 } else { 1.0 };
+            else if r < 30.0 { if ((p.x / 4.5).floor() as i32) % 2 == 0 { Vec3::new(0.035, 0.07, 0.025) } else { Vec3::new(0.03, 0.06, 0.02) } }
+            else { Vec3::new(0.025, 0.075, 0.016) * (0.8 + 0.4 * fbm(p.x / 23.0, p.z / 23.0)) };
         return through(c * light * wet * tint, t);
     }
-    if y_wall < STAND_TOP {
-        // the crowd in rows, the concourse under them, the roof's edge over them
-        let along = d.z.atan2(d.x) * STAND_R;
-        let c = if y_wall < 1.2 { Vec3::splat(0.03) }
-            else if y_wall > STAND_TOP - 1.2 { Vec3::splat(0.015) }
-            else {
-                let (cx, cy) = ((along / 0.55).floor() as i32, ((y_wall - 1.2) / 0.62).floor() as i32);
-                let fy = ((y_wall - 1.2) / 0.62).fract();
-                if fy < 0.2 { Vec3::splat(0.012) }
-                else if hash(cx, cy, 21) > 0.75 { Vec3::new(0.025, 0.03, 0.04) }
-                else { shirt((hash(cx, cy, 23) * 18.0) as usize) * 0.12 }
-            };
-        let lit = if look.time == Tod::Night { 0.6 } else { light };
-        return through(c * lit * tint, t_wall);
+    // (the treeline's top: crowns in a lumpy line, higher where there are spires)
+    let crown = 9.0 + 7.0 * fbm(az * 6.0, 3.0) + 2.5 * noise(az * 60.0, 1.0);
+    let y_trees = EYE.y + d.y * TREES_AT / horiz;
+    if y_trees < crown {
+        let shade = 0.75 + 0.5 * noise(az * 90.0, y_trees * 0.6);
+        let top = (y_trees / crown).clamp(0.0, 1.0);
+        let c = Vec3::new(0.018, 0.04, 0.014) * shade * (0.7 + 0.6 * top);
+        return through(c * light * wet * tint, TREES_AT);
+    }
+    // (the hills: a few degrees over the horizon, hazier the further)
+    let hill = 0.035 + 0.06 * fbm(az * 2.2 + 13.0, 7.0);
+    if d.y / horiz < hill {
+        let c = Vec3::new(0.022, 0.05, 0.03) * (0.8 + 0.3 * noise(az * 20.0, 2.0));
+        return through(c * light * wet * tint, 650.0);
     }
     // the sky over it all (the fog swallows it)
     through(sky(d, look), 400.0)

@@ -242,7 +242,8 @@ fn graphics(
     // (the arena's light, arena.rs: from Medium up, the environment's fill and reflections and the
     // trusses' lights; Low keeps the plain sun and ambient)
     let arena = g != "low" && env.is_some();
-    for mut v in &mut truss { *v = if arena { Visibility::Visible } else { Visibility::Hidden }; }
+    // (outdoors there are no trusses: the light towers instead, scene.rs)
+    for mut v in &mut truss { *v = if arena && !look.outdoor { Visibility::Visible } else { Visibility::Hidden }; }
     let blur = g != "low" && matches!(settings.motion.as_str(), "blur" | "both");
     for c in &cams {
         let mut e = commands.entity(c);
@@ -259,7 +260,9 @@ fn graphics(
             e.insert((
                 // (filtered once at the start, arena.rs: nothing to do for it each frame)
                 bevy::light::EnvironmentMapLight { diffuse_map: env.diffuse.clone(), specular_map: env.specular.clone(), intensity: i, ..default() },
-                Skybox { image: Some(env.sky.clone()), brightness: i, ..default() },
+                // (outdoors the sky itself brighter than the light it gives: a clear sky's as bright as
+                // the sunlit grass under it, and the sun here is scaled down with everything else)
+                Skybox { image: Some(env.sky.clone()), brightness: i * if look.outdoor { match look.time { crate::arena::Tod::Day => 5.0, crate::arena::Tod::Sunset => 3.0, crate::arena::Tod::Night => 1.5 } } else { 1.0 }, ..default() },
                 // (an arena's warmer light, a touch more contrast and color)
                 ColorGrading {
                     global: ColorGradingGlobal { temperature: 0.01, post_saturation: 1.08, ..default() },

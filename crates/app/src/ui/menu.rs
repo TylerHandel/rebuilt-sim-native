@@ -116,7 +116,7 @@ fn opt_values(id: OptId) -> Vec<(String, String)> {
         OptId::Graphics => vec![v("ultra", "Ultra"), v("high", "High"), v("medium", "Medium"), v("low", "Low")],
         OptId::Motion => vec![v("off", "Off"), v("trails", "Trails"), v("blur", "Blur"), v("both", "Both")],
         OptId::Fps => vec![v("off", "Off"), v("on", "On")],
-        OptId::Venue => vec![v("arena", "Arena"), v("stadium", "Stadium")],
+        OptId::Venue => vec![v("arena", "Arena"), v("stadium", "Outdoors")],
         OptId::Time => vec![v("day", "Day"), v("sunset", "Sunset"), v("night", "Night")],
         OptId::Weather => vec![v("clear", "Clear"), v("cloudy", "Cloudy"), v("rain", "Rain"), v("fog", "Fog")],
         OptId::Haze => vec![v("off", "Off"), v("low", "Low"), v("high", "High")],
@@ -172,7 +172,7 @@ fn opt_desc(id: OptId, s: &Settings) -> String {
             _ => "Off: no trails or motion blur.",
         }.into(),
         OptId::Fps => "Frame rate, physics time per step and the update status in the corner.".into(),
-        OptId::Venue => if s.venue == "stadium" { "Stadium: outdoors, under the sky, its stands round the field and light towers over them; the weather's yours to pick." } else { "Arena: indoors, in a gym, the crowd in its bleachers, the lights on the trusses and in the roof." }.into(),
+        OptId::Venue => if s.venue == "stadium" { "Outdoors: the field on mowed turf in the countryside, a meadow blowing in the wind, trees and rolling hills, light towers for the night; the weather's yours to pick. Medium shows less grass, High and Ultra more and the trees' shadows." } else { "Arena: indoors, in a gym, the crowd in its bleachers, the lights on the trusses and in the roof." }.into(),
         OptId::Time => match s.time.as_str() {
             "sunset" => "Sunset: a low, warm sun and long shadows (indoors: an evening, the house lights half down).",
             "night" => "Night: the house lights down and the show's lights up: moving colored spots, the robots' LEDs lighting the carpet, the crowd's camera flashes (outdoors: under the light towers and the stars). Without the sun's shadows it runs faster than day.",
