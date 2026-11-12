@@ -66,8 +66,11 @@ jobs:
         shell: bash
         run: |
           git clone -q --depth 1 --filter=blob:none --sparse -b v310.9.1 https://github.com/NVIDIA/DLSS.git _dlss
-          git -C _dlss sparse-checkout set --no-cone /include /lib/Windows_x86_64/x64 /lib/Windows_x86_64/rel/nvngx_dlss.dll /LICENSE.txt
           git clone -q --depth 1 -b v1.4.335 https://github.com/KhronosGroup/Vulkan-Headers.git _vk
+          # (MSYS_NO_PATHCONV: Git Bash would turn the patterns' leading / into a Windows path)
+          MSYS_NO_PATHCONV=1 git -C _dlss sparse-checkout set --no-cone /include /lib/Windows_x86_64/x64 /lib/Windows_x86_64/rel/nvngx_dlss.dll /LICENSE.txt
+          test -f _dlss/lib/Windows_x86_64/x64/nvsdk_ngx_d.lib && test -f _dlss/lib/Windows_x86_64/rel/nvngx_dlss.dll && test -f _dlss/include/nvsdk_ngx.h && test -f _dlss/LICENSE.txt
+          test -f _vk/include/vulkan/vulkan.h
           echo "DLSS_SDK=$(cygpath -w "$PWD/_dlss")" >> "$GITHUB_ENV"
           echo "VULKAN_SDK=$(cygpath -w "$PWD/_vk")" >> "$GITHUB_ENV"
           echo "LIBCLANG_PATH=C:\\Program Files\\LLVM\\bin" >> "$GITHUB_ENV"
