@@ -351,7 +351,6 @@ const keys = only.length ? only : (await page.evaluate(() => window.keys())).fil
 mkdirSync(out, { recursive: true });
 for (const key of keys) {
   if (key === 'venue') continue;
-  if (!only.length && !(await page.evaluate((k) => window.physical(k), key))) continue;
   const t = Date.now();
   const { glb, rig } = await page.evaluate((k) => window.exportRobot(k), key);
   // (the CAD parts' meshes come over quantized, as the game loads them: Bevy doesn't read

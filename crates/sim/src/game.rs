@@ -54,14 +54,19 @@ impl World {
             hps: [HumanPlayer::new(Alliance::Blue), HumanPlayer::new(Alliance::Red)],
             rng: Mulberry32::new(s.seed), robots: Vec::new(), under: Vec::new(), steps: 0, hp_controls: HpControls::default(),
         };
-        let pre = w.fuel.stage(&mut w.physics, s.preload * s.robots.len(), &mut w.rng);
+        let pre_balls = w.fuel.stage(&mut w.physics, s.preload * s.robots.len(), &mut w.rng);
         let all: serde_json::Value = serde_json::from_str(include_str!("../../../assets/robots.json")).unwrap();
         for (k, (key, alliance, [x, z, yaw])) in s.robots.iter().enumerate() {
-            let cfg = all["robots"][key.as_str()].clone();
+            let mut cfg = all["robots"][key.as_str()].clone();
+            // (a generic robot's hopper as the JS measured it: robots.json geoCap)
+            if let Some(g) = all["geoCap"].get(key.as_str()) { cfg["geoCap"] = g.clone(); }
             assert!(!cfg.is_null(), "no robot {key}");
             let mut r = Robot::new(key, cfg, *alliance, &mut w.physics, &mut w.under);
             r.spawn(&mut w.physics, *x, *z, *yaw);
-            r.load_fuel(&mut w.physics, &mut w.fuel, &pre[k * s.preload..(k + 1) * s.preload]);
+            // (a generic robot drops its preload into its hopper a little at random: from a stream of
+            // its own, as native-trace.mjs has it, not the match's)
+            let mut pre = Mulberry32::new(s.seed ^ 0x2545F491 ^ k as u32);
+            r.load_fuel(&mut w.physics, &mut w.fuel, &pre_balls[k * s.preload..(k + 1) * s.preload], &mut pre);
             r.loc.truth = s.aim_truth;
             w.robots.push(r);
         }
@@ -109,7 +114,10 @@ impl World {
         for i in 0..self.robots.len() {
             // (the others as they are: those before it already moved on to this step's poses)
             let others: Vec<[f64; 4]> = self.robots.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, o)| [o.pos[0], o.pos[2], o.half_l, o.half_w]).collect();
-            self.robots[i].post_step(&mut self.physics, &mut self.fuel, dt, t, &others);
+            self.robots[i].post_step(&mut self.physics, &mut self.fuel, dt, t, &others, &mut self.rng);
+            // (its fouls: a generic robot's intake catching FUEL fresh out of a HUB, G408)
+            let a = self.robots[i].alliance;
+            for (rule, desc) in std::mem::take(&mut self.robots[i].fouls) { self.match_.add_foul(a, false, rule, desc); }
         }
         probe(self, "robotsPost");
         assert!(self.robots.len() < 2, "the rules between robots arrive with M4");

@@ -120,7 +120,8 @@ impl Roster {
             let physical: Vec<&str> = all["physical"].as_array().unwrap().iter().filter_map(|x| x.as_str()).collect();
             let mut order: Vec<String> = all["order"].as_array().unwrap().iter().filter_map(|x| x.as_str().map(String::from)).collect();
             for k in all["robots"].as_object().unwrap().keys() { if !order.contains(k) { order.push(k.clone()); } }
-            let robots = order.iter().filter(|k| physical.contains(&k.as_str())).map(|k| {
+            // (the physical robots, and the generic ones whose hoppers hold their FUEL: sim generic.rs)
+            let robots = order.iter().filter(|k| physical.contains(&k.as_str()) || sim::robot::GENERIC.contains(&k.as_str())).map(|k| {
                 let c = &all["robots"][k];
                 let s = |f: &str| c[f].as_str().unwrap_or("").to_string();
                 let capacity = all["capacity"][k].as_u64().unwrap_or(0) as u32;

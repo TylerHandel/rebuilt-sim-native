@@ -128,7 +128,20 @@ fn respawn(
 
 fn sync(game: Res<Game>, mut fuel: Query<(&FuelView, &mut Transform, &mut Visibility), Without<PartView>>, mut parts: Query<(&PartView, &mut Transform), Without<FuelView>>) {
     let w = &game.0;
+    // (a generic robot's FUEL are in its hopper, in its frame, not bodies: drawn where it holds them)
+    let mut held: std::collections::HashMap<usize, (Vec3, Quat)> = std::collections::HashMap::new();
+    for r in &w.robots {
+        let (Some(g), Some(b)) = (&r.generic, w.physics.bodies.get(r.body)) else { continue };
+        let (bt, bq) = (b.translation(), *b.rotation());
+        for e in &g.hopper.list { held.insert(e.b, (bt + bq * Vec3::new(e.p[0] as f32, e.p[1] as f32, e.p[2] as f32), bq)); }
+    }
     for (f, mut t, mut v) in &mut fuel {
+        if let Some(&(p, q)) = held.get(&f.0) {
+            if *v != Visibility::Inherited { *v = Visibility::Inherited; }
+            t.translation = p;
+            t.rotation = q;
+            continue;
+        }
         let Some(b) = w.fuel.balls.get(f.0).and_then(|b| w.physics.bodies.get(b.body)) else { continue };
         let show = b.is_enabled() && b.translation().y > -1.0;
         let want = if show { Visibility::Inherited } else { Visibility::Hidden };

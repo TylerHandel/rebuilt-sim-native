@@ -1,0 +1,59 @@
+{
+  "name": "intake-971",
+  "about": "971 alone in TELEOP: its 4-bar intake swings down (pushing the hopper out), it drives into the NEUTRAL ZONE's FUEL, the roller floor carries them back to the separator; then it turns with its load, stows and compacts (M3c generic).",
+  "seed": 5,
+  "slots": [
+    {
+      "robot": "971",
+      "alliance": "blue",
+      "pose": [
+        -1.75,
+        1.0,
+        0.0
+      ]
+    }
+  ],
+  "humanPlayers": false,
+  "phase": "teleop",
+  "steps": 1200,
+  "commands": [
+    {
+      "from": 0,
+      "robot": 0,
+      "cmd": {
+        "intake": true
+      }
+    },
+    {
+      "from": 72,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.8,
+        "intake": true
+      }
+    },
+    {
+      "from": 480,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.5,
+        "omega": 1.2,
+        "intake": true
+      }
+    },
+    {
+      "from": 720,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.8,
+        "vz": 0.4,
+        "intake": true
+      }
+    },
+    {
+      "from": 1080,
+      "robot": 0,
+      "cmd": {}
+    }
+  ]
+}

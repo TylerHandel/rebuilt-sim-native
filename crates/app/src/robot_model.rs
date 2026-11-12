@@ -189,6 +189,16 @@ fn animate(game: Res<Game>, time: Res<Time>, mut models: Query<(&mut RobotModel,
         let floor = match &r.phys { Some(Phys::R2910(p)) => p.floor_spin() as f32, Some(Phys::R1114(p)) => p.floor_spin() as f32, _ => 0.0 };
         let feeding = if m.rig.rate.contains_key("floorSpin") { 0.0 } else { r.out.feeding as f32 };
         let mut rates: Vec<(&str, f32)> = vec![("floorSpin", floor), ("feeding", feeding), ("intakeSpeed", r.out.intake_speed as f32), ("flywheel", r.flywheel as f32)];
+        // (a generic robot: its rotor's turn, its intake's rollers as fast as they turn, slowed while
+        // FUEL waits in them, and its feed while it's feeding)
+        if let Some(g) = &r.generic {
+            inputs.push(("rotorAngle", g.hopper.fin_angle.rem_euclid(std::f64::consts::TAU) as f32));
+            let s = g.intake_speed * if g.intake_speed > 0.0 { g.roller_speed } else { 1.0 };
+            for (k, v) in rates.iter_mut() {
+                if *k == "intakeSpeed" { *v = s as f32; }
+                if *k == "feeding" && !m.rig.rate.contains_key("floorSpin") { *v = if g.feeding { 1.0 } else { 0.0 }; }
+            }
+        }
         // (what a physical robot says of its parts itself: an arm's turn, where its mechanisms have it
         // (lifted by FUEL under it, pushed by a TRENCH arm); 4414's hood and Dye Rotor; 1690's
         // mechanisms, mechPose)
@@ -321,11 +331,11 @@ fn drape_nets(
         // (the FUEL it holds, in its frame: js netLoad)
         let Some(b) = w.physics.bodies.get(r.body) else { continue };
         let (bt, bq) = (b.translation(), b.rotation().inverse());
-        let load: Vec<[f64; 3]> = r.stored.iter().map(|&k| {
+        let load: Vec<[f64; 3]> = if let Some(g) = &r.generic { g.hopper.list.iter().map(|e| e.p).collect() } else { r.stored.iter().map(|&k| {
             let p = w.fuel.balls[k].pos;
             let l = bq * (Vec3::new(p[0] as f32, p[1] as f32, p[2] as f32) - bt);
             [l.x as f64, l.y as f64, l.z as f64]
-        }).collect();
+        }).collect() };
         net.drape(&load, a[0].unwrap_or(0.0), a[1], a[2], a[3], &mut meshes);
     }
 }

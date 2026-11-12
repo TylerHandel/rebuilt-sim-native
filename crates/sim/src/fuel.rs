@@ -47,6 +47,8 @@ pub struct Ball {
     /// thrown in from the OUTPOST AREA at this time: not "out" until it has entered
     pub from_outside: Option<f64>,
     pub chute_alliance: Option<Alliance>,
+    /// js b.captor: the robot whose intake has hold of it (a generic one's, generic.rs), by key
+    pub captor: Option<String>,
 }
 
 /// A FUEL waiting for field staff to bring it back (fuel.outQueue)
@@ -85,7 +87,7 @@ impl Fuel {
             phys.bodies[body].set_enabled(false);
             balls.push(Ball { id: i, body, col, state: State::Off, pos: [0.0, -10.0, 0.0], prev_vel: [0.0; 3], in_flight: false, launch: None,
                 hub_fresh: false, ignore_until: 0.0, ignoring: false, held: false, in_corral: None, in_hub: None, hub_t: 0.0,
-                mech_touched: false, from_outside: None, chute_alliance: None });
+                mech_touched: false, from_outside: None, chute_alliance: None, captor: None });
         }
         Fuel { balls, out_queue: Vec::new(), chute: [Vec::new(), Vec::new()], outposts }
     }
@@ -306,7 +308,7 @@ impl Fuel {
                     phys.bodies[self.balls[i].body].wake_up(true); // never parked inside: the load keeps flowing out
                     continue;
                 }
-            } else if p[1] < HUB::funnelBottomY && p[1] > HUB::exitHeight - 0.05 {
+            } else if p[1] < HUB::funnelBottomY && p[1] > HUB::exitHeight - 0.05 && self.balls[i].captor.is_none() {
                 for a in ALLIANCES {
                     let (cx, cz) = field::hub_center(a);
                     if m::abs(p[0] - cx) < HUB::size / 2.0 - 0.05 && m::abs(p[2] - cz) < HUB::size / 2.0 - 0.05 {

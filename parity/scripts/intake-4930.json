@@ -1,0 +1,59 @@
+{
+  "name": "intake-4930",
+  "about": "4930 alone in TELEOP: its intake folds out, it drives into the NEUTRAL ZONE's FUEL, the floor carries them back to the three lanes; then it turns with its load, folds in and compacts (M3c generic).",
+  "seed": 5,
+  "slots": [
+    {
+      "robot": "4930",
+      "alliance": "blue",
+      "pose": [
+        -1.75,
+        1.0,
+        0.0
+      ]
+    }
+  ],
+  "humanPlayers": false,
+  "phase": "teleop",
+  "steps": 1200,
+  "commands": [
+    {
+      "from": 0,
+      "robot": 0,
+      "cmd": {
+        "intake": true
+      }
+    },
+    {
+      "from": 72,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.8,
+        "intake": true
+      }
+    },
+    {
+      "from": 480,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.5,
+        "omega": 1.2,
+        "intake": true
+      }
+    },
+    {
+      "from": 720,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.8,
+        "vz": 0.4,
+        "intake": true
+      }
+    },
+    {
+      "from": 1080,
+      "robot": 0,
+      "cmd": {}
+    }
+  ]
+}

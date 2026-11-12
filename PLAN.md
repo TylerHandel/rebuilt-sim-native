@@ -337,6 +337,13 @@ in its spare uvs; the brushed and worn shaders bend the normal within a few mm o
 least a pixel and a half wide). Practice's AUTO: "Drive AUTO yourself" (the default; G402 is for
 matches), "Stand still" now holds the robot still.
 
+*The generic robots (Nov 12):* 971, 4946, 3928 and 4930, the roster's robots not built of physical
+mechanisms, play as the browser game's generic robots do (hopper.rs: js hopper.js's held FUEL;
+generic.rs: robot.js's generic intake, feed and shooter). Their hoppers' capacities come measured
+from the JS (robots.json geoCap). Parity traces reload a generic robot's preload from a stream of its
+own (native-trace.mjs: mulberry32(seed ^ 0x2545F491 ^ index), its hopper as new); the native game
+loads it the same way. Every robot on the roster is now in the native game.
+
 ### M3: mechanisms
 Owner (Nov 10): the HUMAN PLAYER throws by itself by default ("nobody presses a button to throw while
 driving"), as the browser game now does (rebuilt-sim-2026 33e4f12); manual stays a setting. 2910 is

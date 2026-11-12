@@ -2869,6 +2869,34 @@
   "7769": 66,
   "8793": 16
  },
+ "geoCap": {
+  "971": {
+   "retracted": 33,
+   "extended": 61,
+   "compacted": 43,
+   "capLimited": false,
+   "intakePush": 98.37463826308488
+  },
+  "3928": {
+   "retracted": 47,
+   "extended": 80,
+   "capLimited": true,
+   "intakePush": 98.37463826308488
+  },
+  "4930": {
+   "retracted": 33,
+   "extended": 58,
+   "compacted": 34,
+   "capLimited": false,
+   "intakePush": 98.37463826308488
+  },
+  "4946": {
+   "retracted": 74,
+   "extended": 96,
+   "capLimited": false,
+   "intakePush": 98.37463826308488
+  }
+ },
  "startPositions": {
   "leftTrench": {
    "name": "Left Trench",

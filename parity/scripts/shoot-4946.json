@@ -1,0 +1,57 @@
+{
+  "name": "shoot-4946",
+  "about": "4946 alone in TELEOP with 8 FUEL: it shoots them at its HUB from the ALLIANCE ZONE, drives out and picks more up, then passes (M3c generic).",
+  "seed": 9,
+  "slots": [
+    {
+      "robot": "4946",
+      "alliance": "blue",
+      "pose": [
+        -6.0,
+        1.5,
+        0.4
+      ]
+    }
+  ],
+  "humanPlayers": false,
+  "preload": 8,
+  "phase": "teleop",
+  "steps": 1800,
+  "commands": [
+    {
+      "from": 0,
+      "robot": 0,
+      "cmd": {}
+    },
+    {
+      "from": 60,
+      "robot": 0,
+      "cmd": {
+        "shoot": true
+      }
+    },
+    {
+      "from": 600,
+      "robot": 0,
+      "cmd": {
+        "vx": 2.0,
+        "vz": -0.3
+      }
+    },
+    {
+      "from": 840,
+      "robot": 0,
+      "cmd": {
+        "vx": 0.8,
+        "intake": true
+      }
+    },
+    {
+      "from": 1320,
+      "robot": 0,
+      "cmd": {
+        "pass": true
+      }
+    }
+  ]
+}
