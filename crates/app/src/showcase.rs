@@ -16,8 +16,8 @@ use crate::ui::Screen;
 /// The studio: well out of the arena's way (and its sun's shadows)
 const AT: Vec3 = Vec3::new(0.0, -400.0, 0.0);
 /// The image's size: twice what the card shows it at
-pub const W: u32 = 720;
-pub const H: u32 = 450;
+pub const W: u32 = 640;
+pub const H: u32 = 400;
 
 pub struct ShowcasePlugin;
 
@@ -45,7 +45,7 @@ fn spawn(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut meshes: 
     commands.insert_resource(ShowcaseImage(image.clone()));
     let layer = RenderLayers::layer(1);
     // a three-quarter view from the front, a little above the bumpers
-    let eye = AT + Vec3::new(1.55, 0.95, 1.25);
+    let eye = AT + Vec3::new(1.4, 0.95, 1.12);
     commands.spawn((
         StudioCam,
         Camera3d::default(),
@@ -54,7 +54,7 @@ fn spawn(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut meshes: 
         Projection::Perspective(PerspectiveProjection { fov: 32f32.to_radians(), ..default() }),
         Msaa::Sample4,
         bevy::core_pipeline::tonemapping::Tonemapping::AgX,
-        Transform::from_translation(eye).looking_at(AT + Vec3::new(0.0, 0.28, 0.0), Vec3::Y),
+        Transform::from_translation(eye).looking_at(AT + Vec3::new(0.0, 0.14, 0.0), Vec3::Y),
         layer.clone(),
     ));
     // a key light high to one side, a cool rim from behind, a warm fill low on the other side
@@ -72,13 +72,13 @@ fn spawn(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut meshes: 
     }
     // the turntable: a dark, satin disc with a lit rim
     commands.spawn((
-        Mesh3d(meshes.add(Cylinder::new(0.78, 0.03))),
+        Mesh3d(meshes.add(Cylinder::new(0.62, 0.03))),
         MeshMaterial3d(mats.add(StandardMaterial { base_color: Color::srgb(0.035, 0.038, 0.045), perceptual_roughness: 0.32, reflectance: 0.6, ..default() })),
         Transform::from_translation(AT - Vec3::Y * 0.016),
         layer.clone(),
     ));
     commands.spawn((
-        Mesh3d(meshes.add(Torus::new(0.775, 0.79))),
+        Mesh3d(meshes.add(Torus::new(0.615, 0.63))),
         MeshMaterial3d(mats.add(StandardMaterial { base_color: Color::BLACK, emissive: LinearRgba::rgb(2.4, 1.9, 0.35), ..default() })),
         Transform::from_translation(AT),
         layer,

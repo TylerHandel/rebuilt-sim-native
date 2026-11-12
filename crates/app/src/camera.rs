@@ -284,11 +284,11 @@ fn graphics(
         if ultra {
             e.insert(TemporalAntiAliasing::default());
         }
-        // how bright the scene's drawn: the sunlit stadium's a stop darker, night's half a stop brighter
+        // how bright the scene's drawn: the sunlit stadium's a stop darker; night as the arena by day, so it's dark
         let ev = match (look.outdoor, look.time) {
             (true, crate::arena::Tod::Day) if look.cloud() < 0.5 => 10.6,
             (true, crate::arena::Tod::Day) => 10.0,
-            (_, crate::arena::Tod::Night) => 9.0,
+            (_, crate::arena::Tod::Night) => 9.7,
             _ => 9.7,
         };
         e.insert(Exposure { ev100: if arena { ev } else { 9.7 } });
@@ -302,7 +302,7 @@ fn graphics(
                 // stays night) is what the eye corrects toward, by at most a stop and a half either
                 // way; the curve's y is that correction plus the average. Quarter stops: exact in
                 // binary, as the curve checks its joins with ==)
-                let a = match look.time { crate::arena::Tod::Day => -2.25, crate::arena::Tod::Sunset => -2.75, crate::arena::Tod::Night => -3.75 };
+                let a = match look.time { crate::arena::Tod::Day => -2.25, crate::arena::Tod::Sunset => -2.75, crate::arena::Tod::Night => -4.25 };
                 let k = (a * 4.0) as i32;
                 let curve = match eye.iter().find(|(j, _)| *j == k) {
                     Some((_, h)) => h.clone(),

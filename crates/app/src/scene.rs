@@ -239,7 +239,7 @@ fn apply(
     // the haze: thicker at night (it's what the beams are for), thickest in the fog
     for (mut fv, mut v) in &mut haze {
         *v = if haze_on { Visibility::Visible } else { Visibility::Hidden };
-        let base = if haze_high { 0.03 } else { 0.018 };
+        let base = if haze_high { 0.05 } else { 0.032 };
         let t = match look.time { Tod::Night => 1.0, Tod::Sunset => 0.8, Tod::Day => 0.5 };
         let w = if look.outdoor && look.weather == Weather::Fog { 3.0 } else if look.outdoor && look.weather == Weather::Rain { 1.6 } else { 1.0 };
         fv.density_factor = base * t * w;

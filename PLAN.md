@@ -443,6 +443,34 @@ full game.**
 Sound (Cheesy Arena audio fetched at runtime, never bundled), rumble, LEDs, venue, FUEL skins and
 squash, nets, spin blur, and graphics presets (render scale, shadows off, no MSAA).
 
+### Atmosphere (graphics round 4)
+Settings > Atmosphere picks the venue (the arena, or an outdoor stadium), the time of day, the
+weather, the haze, and the film look; all of it is presentation only (no sim state).
+
+- **Light by look** (scene.rs `key`): one key light (sun, stage wash or a light tower) whose
+  direction, lux, color and shadows follow the look; ambient fill by time and cloud cover. The
+  environment map (arena.rs) is rendered on the CPU per look in the background, so a change costs
+  no frame time.
+- **Exposure**: a fixed EV100 per look; with the film look on High/Ultra, eye adaptation
+  (Bevy's AutoExposure) meters the image after that exposure and corrects toward the look's tuned
+  average (2^-2.25 day, -2.75 sunset, -3.75 night) by at most 1.5 stops. The meter's range is in
+  the image's log luminance, not EV100: an EV100-sized range there meters nothing and goes black.
+- **Volumetric haze**: Bevy's raymarched fog inside a `FogVolume` over the field; per pixel at main
+  pass resolution, each step sampling every `VolumetricLight` (shadowed lights only, so the cost
+  scales with steps x lights x pixels). Low = 24 steps, High = 48; Ultra jitters the start so TAA
+  smooths the banding. Lights in it: the trusses' spots, the light towers at night, the sun on
+  High. Measured (2026-11-12, High preset, indoor night, broadcast camera, software renderer so
+  only the ratios mean anything): off 1090 ms a frame, Low 1179 (+8%), High 1205 (+10.5%). The
+  step count barely matters; the pass itself does. On a GPU it's fill-rate bound and scales with
+  resolution, which is what render scale (or DLSS) buys back.
+- **DLSS** (not shipped): Bevy 0.20 has it behind the `dlss` feature (dlss_wgpu). It needs an RTX
+  GPU and the Vulkan backend (Windows defaults to DX12, so the app would force Vulkan), the NVIDIA
+  DLSS SDK at build time (`DLSS_SDK`), the Vulkan SDK and clang in CI, and the DLSS DLL plus
+  NVIDIA's license notice shipped with the app. Accepting NVIDIA's SDK license and redistributing
+  its DLL is the owner's decision. Where it pays: rendering at 50-67% and upscaling would cover the
+  haze and shadows' cost on RTX cards; it does nothing for other GPUs, so the presets must stand
+  without it.
+
 ## Risks
 
 - **Windows matching Linux and the browser: confirmed so far.** The Windows CI job runs the engine
