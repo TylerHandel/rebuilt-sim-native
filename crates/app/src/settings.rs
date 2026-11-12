@@ -38,6 +38,10 @@ pub struct Settings {
     pub haze: String,
     /// the film look: filmic tone mapping, a touch of lens fringing, film grain, eyes that adapt
     pub film: bool,
+    /// NVIDIA DLSS (where the build has it and the GPU's an RTX): "off", "dlaa" (full resolution,
+    /// DLSS's anti-aliasing only), "quality", "balanced" or "performance" (fewer pixels drawn, then
+    /// upscaled); takes effect on restart, as it runs on Vulkan
+    pub upscaler: String,
 }
 
 impl Default for Settings {
@@ -45,7 +49,7 @@ impl Default for Settings {
         Settings {
             robot: "2910".into(), alliance: "blue".into(), ds: 1, start: "rightTrench".into(), auto: "drive".into(),
             fps: false, graphics: "high".into(), camera: "driver".into(), hp: "auto".into(), motion: "off".into(),
-            venue: "arena".into(), time: "day".into(), weather: "clear".into(), haze: "off".into(), film: true,
+            venue: "arena".into(), time: "day".into(), weather: "clear".into(), haze: "off".into(), film: true, upscaler: "off".into(),
         }
     }
 }
@@ -81,6 +85,7 @@ impl Settings {
         if !["day", "sunset", "night"].contains(&self.time.as_str()) { self.time = d.time.clone(); }
         if !["clear", "cloudy", "rain", "fog"].contains(&self.weather.as_str()) { self.weather = d.weather.clone(); }
         if !["off", "low", "high"].contains(&self.haze.as_str()) { self.haze = d.haze.clone(); }
+        if !["off", "dlaa", "quality", "balanced", "performance"].contains(&self.upscaler.as_str()) || !cfg!(feature = "dlss") { self.upscaler = d.upscaler.clone(); }
         if crate::camera::CamMode::from_key(&self.camera).key() != self.camera { self.camera = d.camera; }
         self
     }

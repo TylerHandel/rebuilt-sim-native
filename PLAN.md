@@ -463,13 +463,21 @@ weather, the haze, and the film look; all of it is presentation only (no sim sta
   only the ratios mean anything): off 1090 ms a frame, Low 1179 (+8%), High 1205 (+10.5%). The
   step count barely matters; the pass itself does. On a GPU it's fill-rate bound and scales with
   resolution, which is what render scale (or DLSS) buys back.
-- **DLSS** (not shipped): Bevy 0.20 has it behind the `dlss` feature (dlss_wgpu). It needs an RTX
-  GPU and the Vulkan backend (Windows defaults to DX12, so the app would force Vulkan), the NVIDIA
-  DLSS SDK at build time (`DLSS_SDK`), the Vulkan SDK and clang in CI, and the DLSS DLL plus
-  NVIDIA's license notice shipped with the app. Accepting NVIDIA's SDK license and redistributing
-  its DLL is the owner's decision. Where it pays: rendering at 50-67% and upscaling would cover the
-  haze and shadows' cost on RTX cards; it does nothing for other GPUs, so the presets must stand
-  without it.
+- **DLSS** (Settings > Graphics > NVIDIA DLSS: Off, DLAA, Quality, Balanced, Performance): Bevy's
+  `dlss` feature (dlss_wgpu), behind the app's `dlss` cargo feature, which the release build turns
+  on. CI fetches NVIDIA's DLSS SDK v310.9.1 (sparse: headers, libraries, the DLL, the license) and
+  the Vulkan headers, builds with the runner's LLVM for bindgen, and ships `nvngx_dlss.dll` beside
+  the exe with NVIDIA's license and the programming guide's section 9.5 notices in
+  assets/licenses (the SDK is never committed). DLSS runs only on Vulkan, so turning it on switches
+  the renderer to Vulkan at the next start (main.rs); without an RTX GPU and driver,
+  `DlssSuperResolutionSupported` is missing and the camera keeps the preset's anti-aliasing (checked
+  on llvmpipe: starts, renders, no DLSS). With DLSS on, it replaces MSAA, FXAA and TAA. The loading
+  screen credits NVIDIA DLSS (the license asks for attribution on splash and credit screens). The
+  Cargo.lock pins prettyplease 0.2 so bindgen's syn and prettyplease's agree.
+  What resolution buys (2026-11-12, High, arena, broadcast camera, REBUILT_SHOT_SIZE, software
+  renderer): 1280x720 1092 ms, 854x480 (Quality's input) 883 ms (-19%), 640x360 (Performance's)
+  734 ms (-33%): about 45% of the frame scales with pixels here (shadow maps, culling and the CPU
+  side don't). On a GPU more of it usually does, and DLSS adds roughly 0.5-1.5 ms back.
 
 ## Risks
 

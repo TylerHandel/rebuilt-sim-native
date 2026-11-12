@@ -215,6 +215,7 @@ fn graphics(
     mut truss: Query<&mut Visibility, With<crate::arena::TrussLight>>,
     mut curves: ResMut<Assets<bevy::post_process::auto_exposure::AutoExposureCompensationCurve>>,
     mut eye: Local<Vec<(i32, Handle<bevy::post_process::auto_exposure::AutoExposureCompensationCurve>)>>,
+    dlss: Upscaler,
 ) {
     use bevy::anti_alias::{fxaa::Fxaa, taa::TemporalAntiAliasing};
     use bevy::core_pipeline::prepass::{DepthPrepass, MotionVectorPrepass, NormalPrepass};
@@ -234,6 +235,7 @@ fn graphics(
     use bevy::post_process::effect_stack::ChromaticAberration;
     // (again when a new environment's ready: its look's made in the background, arena.rs)
     if !settings.is_changed() && !env.as_ref().is_some_and(|e| e.is_changed()) { return }
+    dlss.note();
     let look = crate::arena::Look::of(&settings);
     let g = settings.graphics.as_str();
     let (high, ultra) = (g == "high" || g == "ultra", g == "ultra");
@@ -249,6 +251,7 @@ fn graphics(
             .remove::<(GeneratedEnvironmentMapLight, bevy::light::EnvironmentMapLight, Skybox, Vignette, ColorGrading)>()
             .remove::<bevy::post_process::motion_blur::MotionBlur>()
             .remove::<(Tonemapping, ChromaticAberration, AutoExposure, VolumetricFog, DistanceFog, Exposure)>();
+        dlss.clear(&mut e);
         // (motion blur, as the Motion effects setting asks: half a frame's shutter)
         if blur { e.insert(bevy::post_process::motion_blur::MotionBlur { shutter_angle: 0.5, samples: 3 }); }
         if let (true, Some(env)) = (arena, env.as_ref()) {
@@ -268,9 +271,12 @@ fn graphics(
         }
         // (a soft vignette; screen-space effects only on Ultra: the time goes to detail instead)
         if high && arena { e.insert(Vignette { intensity: 0.3, radius: 0.95, smoothness: 3.0, ..default() }); }
-        e.insert(match g { "high" => Msaa::Sample4, _ => Msaa::Off });
         e.insert(ShadowFilteringMethod::Gaussian);
-        if g == "medium" { e.insert(Fxaa::default()); }
+        // NVIDIA DLSS, where it's on and the GPU has it: it anti-aliases (and upscales) in place of
+        // MSAA, FXAA and TAA
+        let upscaled = dlss.apply(&settings, &mut e);
+        e.insert(match g { "high" if !upscaled => Msaa::Sample4, _ => Msaa::Off });
+        if g == "medium" && !upscaled { e.insert(Fxaa::default()); }
         if high {
             // (only what's brighter than a lit panel blooms: the lights, lights.rs glow)
             e.insert((Hdr, Bloom {
@@ -281,7 +287,7 @@ fn graphics(
                 ..Bloom::NATURAL
             }));
         }
-        if ultra {
+        if ultra && !upscaled {
             e.insert(TemporalAntiAliasing::default());
         }
         // how bright the scene's drawn: the sunlit stadium's a stop darker; night as the arena by day, so it's dark
@@ -349,5 +355,48 @@ fn graphics(
             // (each cascade draws every shadow caster again: Medium's two, out to the far wall)
             CascadeShadowConfigBuilder { num_cascades: 2, first_cascade_far_bound: 8.0, maximum_distance: 30.0, ..default() }.build()
         });
+    }
+}
+
+/// Whether the game started on Vulkan for DLSS (main.rs), and whether the GPU has it (the menu says)
+pub static DLSS_LAUNCHED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub static DLSS_READY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// NVIDIA DLSS as the Upscaler setting has it (only in builds with the `dlss` feature, and only
+/// where the GPU and driver support it: `DlssSuperResolutionSupported`)
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct Upscaler<'w> {
+    #[cfg(feature = "dlss")]
+    supported: Option<Res<'w, bevy::anti_alias::dlss::DlssSuperResolutionSupported>>,
+    #[cfg(not(feature = "dlss"))]
+    _none: std::marker::PhantomData<&'w ()>,
+}
+
+impl Upscaler<'_> {
+    /// whether this build and GPU can run it
+    pub fn available(&self) -> bool {
+        #[cfg(feature = "dlss")]
+        return self.supported.is_some();
+        #[cfg(not(feature = "dlss"))]
+        false
+    }
+
+    fn note(&self) { DLSS_READY.store(self.available(), std::sync::atomic::Ordering::Relaxed); }
+
+    fn clear(&self, _e: &mut EntityCommands) {
+        #[cfg(feature = "dlss")]
+        _e.remove::<bevy::anti_alias::dlss::Dlss<bevy::anti_alias::dlss::DlssSuperResolutionFeature>>();
+    }
+
+    /// on the camera, as the setting asks (whether it's on)
+    fn apply(&self, _s: &Settings, _e: &mut EntityCommands) -> bool {
+        #[cfg(feature = "dlss")]
+        if self.available() {
+            use bevy::anti_alias::dlss::{Dlss, DlssPerfQualityMode as Q};
+            let mode = match _s.upscaler.as_str() { "dlaa" => Q::Dlaa, "quality" => Q::Quality, "balanced" => Q::Balanced, "performance" => Q::Performance, _ => return false };
+            _e.insert(Dlss::<bevy::anti_alias::dlss::DlssSuperResolutionFeature> { perf_quality_mode: mode, reset: true, ..default() });
+            return true;
+        }
+        false
     }
 }

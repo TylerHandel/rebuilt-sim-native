@@ -7,6 +7,7 @@
 //! a match), "pause", "controls", "results" (end the match).
 //! REBUILT_BENCH=1 prints the mean frame time over the last half of the wait (what a change costs).
 //! REBUILT_OFF=crowd,venue,truss,shadows,env turns those off, to see what each costs.
+//! REBUILT_SHOT_SIZE=<w>x<h> sizes the window (what a lower render resolution saves: DLSS's case).
 
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{save_to_disk, Screenshot, ScreenshotCaptured};
@@ -21,7 +22,7 @@ impl Plugin for ShotPlugin {
     fn build(&self, app: &mut App) {
         if let Some(path) = std::env::var_os("REBUILT_SHOT") {
             app.insert_resource(Shot { path: path.into(), frames: 0, taken: false, t0: 0.0 })
-                .add_systems(Update, (shoot, off))
+                .add_systems(Update, (shoot, off, size))
                 .add_systems(PreUpdate, hold_keys.after(bevy::input::InputSystems));
         }
     }
@@ -33,6 +34,14 @@ struct Shot {
     frames: u32,
     taken: bool,
     t0: f32,
+}
+
+/// REBUILT_SHOT_SIZE: the window's size
+fn size(mut windows: Query<&mut Window>, mut done: Local<bool>) {
+    if *done { return }
+    *done = true;
+    let Some((w, h)) = std::env::var("REBUILT_SHOT_SIZE").ok().and_then(|v| { let (a, b) = v.split_once('x')?; Some((a.parse::<u32>().ok()?, b.parse::<u32>().ok()?)) }) else { return };
+    for mut win in &mut windows { win.resolution.set_physical_resolution(w, h); }
 }
 
 /// REBUILT_OFF: the pieces to leave out

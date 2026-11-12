@@ -15,3 +15,8 @@ rapier3d.workspace = true
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 half = "2"
+
+[features]
+# NVIDIA DLSS (the Upscaler setting): needs the DLSS SDK (DLSS_SDK), Vulkan headers (VULKAN_SDK) and
+# clang to build; the release build turns it on and ships the DLSS DLL with the game
+dlss = ["bevy/dlss"]

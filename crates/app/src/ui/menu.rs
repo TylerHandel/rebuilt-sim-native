@@ -34,7 +34,7 @@ impl Mode {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum OptId { Auto, Start, Alliance, Ds, Hp, Camera, Graphics, Motion, Fps, Venue, Time, Weather, Haze, Film }
+pub enum OptId { Auto, Start, Alliance, Ds, Hp, Camera, Graphics, Motion, Fps, Venue, Time, Weather, Haze, Film, Upscaler }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Item {
@@ -79,12 +79,17 @@ fn items(page: Page) -> Vec<Item> {
             btn("START MATCH", Act::Start, false, false, true),
             btn("BACK", Act::Open(Page::Home), true, false, true),
         ],
-        Page::Settings => vec![
-            Item::Section("View"), Item::Opt(OptId::Camera),
-            Item::Section("Graphics"), Item::Opt(OptId::Graphics), Item::Opt(OptId::Motion), Item::Opt(OptId::Fps),
-            Item::Section("Atmosphere"), Item::Opt(OptId::Venue), Item::Opt(OptId::Time), Item::Opt(OptId::Weather), Item::Opt(OptId::Haze), Item::Opt(OptId::Film),
-            btn("BACK", Act::Open(Page::Home), true, false, true),
-        ],
+        Page::Settings => {
+            let mut v = vec![Item::Section("View"), Item::Opt(OptId::Camera), Item::Section("Graphics"), Item::Opt(OptId::Graphics)];
+            // (NVIDIA DLSS: in builds that have it)
+            if cfg!(feature = "dlss") { v.push(Item::Opt(OptId::Upscaler)); }
+            v.extend([
+                Item::Opt(OptId::Motion), Item::Opt(OptId::Fps),
+                Item::Section("Atmosphere"), Item::Opt(OptId::Venue), Item::Opt(OptId::Time), Item::Opt(OptId::Weather), Item::Opt(OptId::Haze), Item::Opt(OptId::Film),
+                btn("BACK", Act::Open(Page::Home), true, false, true),
+            ]);
+            v
+        }
     }
 }
 
@@ -95,7 +100,7 @@ fn opt_label(id: OptId) -> &'static str {
     match id {
         OptId::Auto => "Auto routine", OptId::Start => "Starting position", OptId::Alliance => "Alliance", OptId::Ds => "Driver station", OptId::Hp => "Your human player",
         OptId::Camera => "Starting camera", OptId::Graphics => "Graphics", OptId::Motion => "Motion effects", OptId::Fps => "Show FPS",
-        OptId::Venue => "Venue", OptId::Time => "Time of day", OptId::Weather => "Weather", OptId::Haze => "Volumetric fog", OptId::Film => "Film look",
+        OptId::Venue => "Venue", OptId::Time => "Time of day", OptId::Weather => "Weather", OptId::Haze => "Volumetric fog", OptId::Film => "Film look", OptId::Upscaler => "NVIDIA DLSS",
     }
 }
 
@@ -116,6 +121,7 @@ fn opt_values(id: OptId) -> Vec<(String, String)> {
         OptId::Weather => vec![v("clear", "Clear"), v("cloudy", "Cloudy"), v("rain", "Rain"), v("fog", "Fog")],
         OptId::Haze => vec![v("off", "Off"), v("low", "Low"), v("high", "High")],
         OptId::Film => vec![v("off", "Off"), v("on", "On")],
+        OptId::Upscaler => vec![v("off", "Off"), v("dlaa", "DLAA"), v("quality", "Quality"), v("balanced", "Balanced"), v("performance", "Performance")],
     }
 }
 
@@ -126,6 +132,7 @@ fn opt_get(id: OptId, s: &Settings) -> String {
         OptId::Graphics => s.graphics.clone(), OptId::Motion => s.motion.clone(), OptId::Fps => if s.fps { "on".into() } else { "off".into() },
         OptId::Venue => s.venue.clone(), OptId::Time => s.time.clone(), OptId::Weather => s.weather.clone(), OptId::Haze => s.haze.clone(),
         OptId::Film => if s.film { "on".into() } else { "off".into() },
+        OptId::Upscaler => s.upscaler.clone(),
     }
 }
 
@@ -136,6 +143,7 @@ fn opt_set(id: OptId, s: &mut Settings, v: &str) {
         OptId::Graphics => s.graphics = v.into(), OptId::Motion => s.motion = v.into(), OptId::Fps => s.fps = v == "on",
         OptId::Venue => s.venue = v.into(), OptId::Time => s.time = v.into(), OptId::Weather => s.weather = v.into(), OptId::Haze => s.haze = v.into(),
         OptId::Film => s.film = v == "on",
+        OptId::Upscaler => s.upscaler = v.into(),
     }
 }
 
@@ -181,6 +189,22 @@ fn opt_desc(id: OptId, s: &Settings) -> String {
             "high" => "High: a thicker haze, smoother beams, and the sun's rays too (48 steps a pixel). For a strong GPU.",
             _ => "Off: clear air.",
         }.into(),
+        OptId::Upscaler => {
+            let what = match s.upscaler.as_str() {
+                "dlaa" => "DLAA: NVIDIA DLSS's AI anti-aliasing at full resolution, in place of the preset's: sharper and steadier than TAA, at about its cost.",
+                "quality" => "DLSS Quality: draws 67% of the width and height (44% of the pixels) and NVIDIA's AI upscales it: nearly as sharp as full resolution, noticeably faster.",
+                "balanced" => "DLSS Balanced: draws 58% of the width and height (34% of the pixels), then upscales: faster still, a little softer.",
+                "performance" => "DLSS Performance: draws half the width and height (25% of the pixels), then upscales: the most frames, softer in motion.",
+                _ => "Off: every pixel drawn, anti-aliased as the Graphics preset says. NVIDIA DLSS needs an NVIDIA RTX GPU.",
+            };
+            let launched = crate::camera::DLSS_LAUNCHED.load(std::sync::atomic::Ordering::Relaxed);
+            let ready = crate::camera::DLSS_READY.load(std::sync::atomic::Ordering::Relaxed);
+            let note = if s.upscaler == "off" { "" }
+                else if !launched { " Takes effect when you restart the game (it runs on Vulkan)." }
+                else if !ready { " Not available here: it needs an NVIDIA RTX GPU and a current driver, so it's off." }
+                else { "" };
+            format!("{what}{note}")
+        }
         OptId::Film => "Film look: filmic tone mapping (rich colors, soft highlights), a touch of lens fringing at the edges, fine film grain, and eyes that adapt between bright and dark.".into(),
     }
 }
@@ -242,10 +266,11 @@ fn input(
     mut settings: ResMut<Settings>,
     mut acts: ResMut<Acts>,
     controls: Res<ControlsOpen>,
+    loading: Option<Res<crate::loading::Loading>>,
 ) {
     let nav = read_nav(&keys, &pads, &mut rep, time.delta_secs());
-    // (and not on the press that closed the Controls)
-    if controls.0 || controls.is_changed() { return }
+    // (and not on the press that closed the Controls, nor under the loading screen)
+    if controls.0 || controls.is_changed() || loading.is_some() { return }
     let f = focusables(menu.page);
     let n = f.len();
     if nav.up && menu.focus > 0 { menu.focus -= 1; menu.dirty = true; }

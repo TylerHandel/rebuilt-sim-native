@@ -59,11 +59,23 @@ jobs:
       # (the sim's tests here too: its parity with the browser game's engine, on Windows)
       - name: Test
         run: cargo test -p sim -p jsmath --release
+      # NVIDIA DLSS (the Upscaler setting): its SDK's headers, libraries and DLL (NVIDIA's license:
+      # assets/licenses; the SDK itself is never committed), Vulkan's headers for the bindings, and
+      # the runner's LLVM for bindgen
+      - name: DLSS SDK and Vulkan headers
+        shell: bash
+        run: |
+          git clone -q --depth 1 --filter=blob:none --sparse -b v310.9.1 https://github.com/NVIDIA/DLSS.git _dlss
+          git -C _dlss sparse-checkout set --no-cone /include /lib/Windows_x86_64/x64 /lib/Windows_x86_64/rel/nvngx_dlss.dll /LICENSE.txt
+          git clone -q --depth 1 -b v1.4.335 https://github.com/KhronosGroup/Vulkan-Headers.git _vk
+          echo "DLSS_SDK=$(cygpath -w "$PWD/_dlss")" >> "$GITHUB_ENV"
+          echo "VULKAN_SDK=$(cygpath -w "$PWD/_vk")" >> "$GITHUB_ENV"
+          echo "LIBCLANG_PATH=C:\\Program Files\\LLVM\\bin" >> "$GITHUB_ENV"
       - name: Build
         shell: bash
         run: |
           sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
-          cargo build --release -p app
+          cargo build --release -p app --features dlss
 
       - name: Stage
         shell: bash
@@ -71,6 +83,9 @@ jobs:
           mkdir -p dist
           cp target/release/rebuilt-sim.exe dist/
           cp -r assets dist/assets
+          # (DLSS's DLL beside the game, and NVIDIA's license with its notices)
+          cp _dlss/lib/Windows_x86_64/rel/nvngx_dlss.dll dist/
+          cp _dlss/LICENSE.txt dist/assets/licenses/NVIDIA-RTX-SDK-LICENSE.txt
 
       - name: Package and publish (Velopack)
         shell: bash
