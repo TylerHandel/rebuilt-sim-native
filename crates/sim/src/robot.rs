@@ -62,7 +62,7 @@ pub const PORTED: &[&str] = &["2910", "4414", "8793", "1678", "1690", "7769", "3
 /// The generic robots (not built of physical mechanisms) that are ported: generic.rs, hopper.rs
 pub const GENERIC: &[&str] = &["971", "4946", "3928", "4930"];
 /// The ported robots whose intake folds (on a pivot their mechanisms turn)
-pub const FOLDS: &[&str] = &["8793"];
+pub const FOLDS: &[&str] = &["8793", "341", "581", "604", "6328"];
 
 /// Whether this sim can build robot `cfg` yet (its mechanisms and intake are ported)
 pub fn ported(cfg: &Value) -> bool {

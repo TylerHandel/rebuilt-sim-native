@@ -412,6 +412,11 @@ intaking and feeding to their feed point). Its hopper box slides on a cam geared
 *581 done (Nov 11):* identical at every step (intake-581; shoot-581). Its floor tilts on a cam off
 the deploy pinions; its intake on racks has the robot's sliding-intake colliders (ic.slide). The
 robots now read the match's AUTO flag and phase time as the JS's do.
+*Folding and sliding intakes in play (Nov 12):* 341, 604 and 6328 (folding) and 581 (sliding)
+were held back from the menus until their intakes' colliders had been checked stowing and
+deploying and under their TRENCH: fold-341, fold-581, fold-604 and fold-6328 (deploy, drive with
+it out, stow, back under the TRENCH and out again) are identical at every step, so all 17 robots
+are in the native game (robot.rs FOLDS).
 *2056 done (Nov 11):* identical at every step (intake-2056; shoot-2056: 8 of 8 into the HUB, then
 intaking and passing at the hood's lowest angle). Its surfaces are all built in code (gen2056.json);
 its net is 1690's plate generalized (Plate::new2056), its kicker bar's pin rides the intake

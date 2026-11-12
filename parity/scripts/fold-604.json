@@ -1,0 +1,70 @@
+{
+  "name": "fold-604",
+  "about": "604 deploys its intake, drives forward with it out, stows it, then backs under its TRENCH and drives out again: its intake's colliders follow it in and out (ic.fold turns the arm on its pivot, ic.slide moves it on its racks) and meet the TRENCH arm as the browser game's do (M3c).",
+  "seed": 3,
+  "slots": [
+    {
+      "robot": "604",
+      "alliance": "blue",
+      "pose": [
+        -1.6,
+        3.39,
+        0.0
+      ]
+    }
+  ],
+  "humanPlayers": false,
+  "phase": "teleop",
+  "steps": 1260,
+  "commands": [
+    {
+      "from": 0,
+      "robot": 0,
+      "cmd": {}
+    },
+    {
+      "from": 20,
+      "robot": 0,
+      "cmd": {
+        "intake": true
+      }
+    },
+    {
+      "from": 110,
+      "robot": 0,
+      "cmd": {
+        "intake": true,
+        "vx": 0.8
+      }
+    },
+    {
+      "from": 220,
+      "robot": 0,
+      "cmd": {}
+    },
+    {
+      "from": 330,
+      "robot": 0,
+      "cmd": {
+        "vx": -1.5
+      }
+    },
+    {
+      "from": 720,
+      "robot": 0,
+      "cmd": {}
+    },
+    {
+      "from": 800,
+      "robot": 0,
+      "cmd": {
+        "vx": 1.5
+      }
+    },
+    {
+      "from": 1160,
+      "robot": 0,
+      "cmd": {}
+    }
+  ]
+}
