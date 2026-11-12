@@ -42,6 +42,8 @@ pub struct MatchSetup {
     pub alliance: Alliance,
     pub start: String,
     pub skip_auto: bool,
+    /// AUTO with the robot standing still (settings auto "none"); otherwise in AUTO you drive it
+    pub still_auto: bool,
     /// your HUMAN PLAYER throws by itself (settings hp "auto")
     pub hp_auto: bool,
 }
@@ -94,7 +96,9 @@ impl Plugin for GamePlugin {
 fn step(mut game: ResMut<Game>, driver: Res<Driver>, setup: Option<Res<MatchSetup>>, mut st: ResMut<StepTime>) {
     let t = Instant::now();
     let w = &mut game.0;
-    if let Some(r) = w.robots.first_mut() { r.cmd = driver.0; }
+    // (in AUTO, practice: you drive it yourself, unless it's to stand still)
+    let still = setup.as_ref().is_some_and(|s| s.still_auto) && w.match_.phase == Phase::Auto;
+    if let Some(r) = w.robots.first_mut() { r.cmd = if still { Cmd::default() } else { driver.0 }; }
     w.step(&mut |_, _| {});
     // (frameGame runs every second step, as the headless game and the parity traces run it)
     if w.steps % 2 == 0 { w.frame(2.0 * PHYSICS_DT); }
@@ -206,7 +210,7 @@ fn commands(
             GameCmd::Start | GameCmd::Restart => {
                 let m = match (&setup, c) {
                     (Some(s), GameCmd::Restart) => (**s).clone(),
-                    _ => MatchSetup { robot: settings.robot.clone(), alliance: settings.alliance(), start: settings.start.clone(), skip_auto: settings.auto == "skip", hp_auto: settings.hp == "auto" },
+                    _ => MatchSetup { robot: settings.robot.clone(), alliance: settings.alliance(), start: settings.start.clone(), skip_auto: settings.auto == "skip", still_auto: settings.auto == "none", hp_auto: settings.hp == "auto" },
                 };
                 game.0 = new_world(Some(&m));
                 commands.insert_resource(m);

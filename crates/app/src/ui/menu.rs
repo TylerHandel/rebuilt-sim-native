@@ -100,7 +100,7 @@ fn opt_label(id: OptId) -> &'static str {
 fn opt_values(id: OptId) -> Vec<(String, String)> {
     let v = |a: &str, b: &str| (a.to_string(), b.to_string());
     match id {
-        OptId::Auto => vec![v("skip", "Skip AUTO"), v("none", "Stand still in AUTO")],
+        OptId::Auto => vec![v("drive", "Drive AUTO yourself"), v("skip", "Skip AUTO"), v("none", "Stand still in AUTO")],
         OptId::Start => Roster::get().starts.iter().map(|(k, n, _)| (k.clone(), n.clone())).collect(),
         OptId::Alliance => vec![v("blue", "Blue"), v("red", "Red")],
         OptId::Ds => vec![v("0", "Left (DS1)"), v("1", "Center (DS2)"), v("2", "Right (DS3)")],
@@ -130,15 +130,18 @@ fn opt_set(id: OptId, s: &mut Settings, v: &str) {
 
 fn opt_desc(id: OptId, s: &Settings) -> String {
     match id {
-        OptId::Auto => format!("The teams' own AUTOs and the built-in routines aren't in this version yet. {} Drivers can't control the robot in AUTO (G402).",
-            if s.auto == "skip" { "Skip: GET READY, then straight to TELEOP (who goes inactive first is decided as after an AUTO with no FUEL scored)." } else { "Stand still: the 20 s AUTO runs with the robot waiting." }),
+        OptId::Auto => match s.auto.as_str() {
+            "drive" => "Drive AUTO yourself: the 20 s AUTO runs with you at the controls, as practice for writing one (in a real match drivers can't control the robot in AUTO, G402). FUEL scored counts as AUTO's.".into(),
+            "skip" => "Skip: GET READY, then straight to TELEOP (who goes inactive first is decided as after an AUTO with no FUEL scored). The teams' own AUTOs and the built-in routines aren't in this version yet.".into(),
+            _ => "Stand still: the 20 s AUTO runs with the robot waiting (drivers can't control the robot in AUTO, G402). The teams' own AUTOs and the built-in routines aren't in this version yet.".into(),
+        },
         OptId::Start => "BUMPERS overlap the ROBOT STARTING LINE without touching a BUMP (G303).".into(),
         OptId::Alliance => "Which ALLIANCE you drive for: you start on its side of the field.".into(),
         OptId::Ds => "Where you stand behind your ALLIANCE WALL (for the Driver Station camera).".into(),
         OptId::Hp => "The human player at your OUTPOST: it throws FUEL by itself whenever your HUB is active, or you throw it yourself (Y / H held; X / G opens the CHUTE DOOR).".into(),
         OptId::Camera => "Change it any time in a match with D-pad ← → ([ / ]); right stick click (T) turns it around.".into(),
         OptId::Graphics => match s.graphics.as_str() {
-            "ultra" => "Ultra: High, plus temporal anti-aliasing, ambient occlusion in creases and under BUMPERS, and soft shadows out to the far wall. For a gaming GPU.",
+            "ultra" => "Ultra: High, plus temporal anti-aliasing (smooth edges, no shimmer on thin parts) and sharp shadows out to the far wall. For a gaming GPU.",
             "high" => "High: Medium, plus big shadows, 4x anti-aliasing, a soft vignette, and glowing HUB lights, robot LEDs and truss lights (bloom).",
             "medium" => "Medium: the arena (its crowd, trusses and screens), its lights and reflections, shadows and FXAA edges.",
             _ => "Low: no arena, shadows or anti-aliasing, for slower PCs.",

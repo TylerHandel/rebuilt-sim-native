@@ -322,6 +322,21 @@ light). Detail instead, in two cheap material extensions (materials.rs): brushed
 (assets/shaders/brushed.wesl, js robotModels.js's grain in each part's own frame) and worn paint and
 plastic (worn.wesl: color and gloss uneven by a few percent, scuffs near the carpet).
 
+*Round 3 (Nov 12, the owner: 37 fps on Ultra, "fewer raytracing steps"; then: Medium with the crowd
+drops to 40 fps):* the arena's environment light filtered once on the CPU at the start (arena.rs:
+diffuse 16, specular 64 x 7 mips) instead of Bevy re-filtering it every frame; no screen-space
+ambient occlusion (its rays marched the depth each pixel) and Gaussian shadow filtering on Ultra.
+Measured (REBUILT_BENCH, software rendering, Medium, Broadcast view): the sun's shadows were 60% of
+the frame, the crowd 3%, the truss lights 5%, the environment 3%; so FUEL 24 x 12 (from 40 x 20:
+~500 of them drawn again into every cascade), Medium 2 cascades (Bevy's default was 4), High 3, and
+the crowd slimmed at load (no necks or hands, no faces that never face the field; no shadow lookups
+on the venue): 921 -> 557 ms a frame. The ALLIANCE WALL glass as field.js dsGlass (3.5%, clear), the
+field's other polycarbonate as cadModels.js tintClear. The CAD's sharp edges rounded as drawn
+(bevel.rs: each triangle's distances to its edges and their sharpness, worked out as a model loads,
+in its spare uvs; the brushed and worn shaders bend the normal within a few mm of a sharp edge, at
+least a pixel and a half wide). Practice's AUTO: "Drive AUTO yourself" (the default; G402 is for
+matches), "Stand still" now holds the robot still.
+
 ### M3: mechanisms
 Owner (Nov 10): the HUMAN PLAYER throws by itself by default ("nobody presses a button to throw while
 driving"), as the browser game now does (rebuilt-sim-2026 33e4f12); manual stays a setting. 2910 is

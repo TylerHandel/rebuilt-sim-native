@@ -198,8 +198,9 @@ fn place(
 
 /// The graphics preset (js graphics.js, as far as Bevy goes): Low: no shadows or anti-aliasing;
 /// Medium: shadows and FXAA; High: 4x MSAA, bigger shadows and bloom (what glows, glows: the HUB
-/// lights and the LEDs); Ultra: temporal anti-aliasing, ambient occlusion and temporally filtered
-/// soft shadows, 4K cascades out further.
+/// lights and the LEDs); Ultra: temporal anti-aliasing and 4K shadows out further. (No screen-space
+/// ambient occlusion: its rays marched through the depth each pixel every frame for little the
+/// arena's fill doesn't already give.)
 #[allow(clippy::too_many_arguments)]
 fn graphics(
     settings: Res<Settings>,
@@ -213,7 +214,7 @@ fn graphics(
     use bevy::anti_alias::{fxaa::Fxaa, taa::TemporalAntiAliasing};
     use bevy::core_pipeline::prepass::{DepthPrepass, MotionVectorPrepass, NormalPrepass};
     use bevy::light::{CascadeShadowConfigBuilder, DirectionalLightShadowMap, ShadowFilteringMethod};
-    use bevy::pbr::{ScreenSpaceAmbientOcclusion, ScreenSpaceAmbientOcclusionQualityLevel};
+    use bevy::pbr::ScreenSpaceAmbientOcclusion;
     use bevy::post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter};
     use bevy::camera::Hdr;
     use bevy::render::camera::{TemporalJitter, MipBias};
@@ -240,8 +241,9 @@ fn graphics(
         if let (true, Some(env)) = (arena, env.as_ref()) {
             let i = crate::arena::ENV_INTENSITY;
             e.insert((
-                GeneratedEnvironmentMapLight { environment_map: env.0.clone(), intensity: i, ..default() },
-                Skybox { image: Some(env.0.clone()), brightness: i, ..default() },
+                // (filtered once at the start, arena.rs: nothing to do for it each frame)
+                bevy::light::EnvironmentMapLight { diffuse_map: env.diffuse.clone(), specular_map: env.specular.clone(), intensity: i, ..default() },
+                Skybox { image: Some(env.sky.clone()), brightness: i, ..default() },
                 // (an arena's warmer light, a touch more contrast and color)
                 ColorGrading {
                     global: ColorGradingGlobal { temperature: 0.01, post_saturation: 1.08, ..default() },
@@ -254,7 +256,7 @@ fn graphics(
         // (a soft vignette; screen-space effects only on Ultra: the time goes to detail instead)
         if high && arena { e.insert(Vignette { intensity: 0.3, radius: 0.95, smoothness: 3.0, ..default() }); }
         e.insert(match g { "high" => Msaa::Sample4, _ => Msaa::Off });
-        e.insert(if ultra { ShadowFilteringMethod::Temporal } else { ShadowFilteringMethod::Gaussian });
+        e.insert(ShadowFilteringMethod::Gaussian);
         if g == "medium" { e.insert(Fxaa::default()); }
         if high {
             // (only what's brighter than a lit panel blooms: the lights, lights.rs glow)
@@ -267,7 +269,7 @@ fn graphics(
             }));
         }
         if ultra {
-            e.insert((TemporalAntiAliasing::default(), ScreenSpaceAmbientOcclusion { quality_level: ScreenSpaceAmbientOcclusionQualityLevel::Medium, ..default() }));
+            e.insert(TemporalAntiAliasing::default());
         }
     }
     commands.insert_resource(DirectionalLightShadowMap { size: if high { 4096 } else { 2048 } });
@@ -277,9 +279,12 @@ fn graphics(
         s.illuminance = if arena { 4500.0 } else { 9000.0 };
         s.contact_shadows_enabled = false;
         commands.entity(e).insert(if ultra {
-            CascadeShadowConfigBuilder { num_cascades: 4, first_cascade_far_bound: 6.0, maximum_distance: 60.0, ..default() }.build()
+            CascadeShadowConfigBuilder { num_cascades: 3, first_cascade_far_bound: 7.0, maximum_distance: 50.0, ..default() }.build()
+        } else if high {
+            CascadeShadowConfigBuilder { num_cascades: 3, first_cascade_far_bound: 6.0, maximum_distance: 40.0, ..default() }.build()
         } else {
-            CascadeShadowConfigBuilder { maximum_distance: 40.0, ..default() }.build()
+            // (each cascade draws every shadow caster again: Medium's two, out to the far wall)
+            CascadeShadowConfigBuilder { num_cascades: 2, first_cascade_far_bound: 8.0, maximum_distance: 30.0, ..default() }.build()
         });
     }
 }

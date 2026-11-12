@@ -3,6 +3,7 @@
 //! The simulation runs in the `sim` crate; this draws it, takes input, and keeps itself updated.
 
 mod arena;
+mod bevel;
 mod camera;
 mod field;
 mod draw;
@@ -43,6 +44,6 @@ fn main() {
         .insert_resource(ClearColor(Color::srgb(0.05, 0.06, 0.08)))
         .insert_resource(settings::Settings::load())
         .insert_resource(robot_model::AssetDir(bevy::asset::io::file::FileAssetReader::get_base_path().join(assets)))
-        .add_plugins((ui::UiPlugin, game::GamePlugin, robot_model::RobotModelPlugin, camera::OrbitCameraPlugin, field::FieldPlugin, draw::DrawPlugin, update::UpdatePlugin, shot::ShotPlugin, lights::LightsPlugin, arena::ArenaPlugin, venue::VenuePlugin, effects::EffectsPlugin, materials::MaterialsPlugin))
+        .add_plugins((ui::UiPlugin, game::GamePlugin, robot_model::RobotModelPlugin, camera::OrbitCameraPlugin, field::FieldPlugin, draw::DrawPlugin, update::UpdatePlugin, shot::ShotPlugin, lights::LightsPlugin, arena::ArenaPlugin, venue::VenuePlugin, effects::EffectsPlugin, materials::MaterialsPlugin, bevel::BevelPlugin))
         .run();
 }

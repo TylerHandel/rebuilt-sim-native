@@ -43,7 +43,9 @@ fn setup(mut commands: Commands, game: Res<Game>, mut meshes: ResMut<Assets<Mesh
     });
     let mut m = |c: Color, rough: f32| mats.add(StandardMaterial { base_color: c, perceptual_roughness: rough, ..default() });
     commands.insert_resource(Looks {
-        fuel: (meshes.add(Sphere::new(r).mesh().uv(40, 20)), fuel_mat),
+        // (24 x 12: round at any distance it's seen from, and its ~500 drawn again into each
+        // shadow cascade: the triangles count)
+        fuel: (meshes.add(Sphere::new(r).mesh().uv(24, 12)), fuel_mat),
         blue: m(Color::srgb(0.10, 0.25, 0.85), 0.8),
         red: m(Color::srgb(0.85, 0.12, 0.10), 0.8),
         frame: m(Color::srgb(0.55, 0.57, 0.60), 0.4),

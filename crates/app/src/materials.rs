@@ -10,6 +10,7 @@
 //!   - black parts (rubber, belts, plastics): duller;
 //!   - painted and plastic parts, and those black ones: worn (assets/shaders/worn.wesl: color and
 //!     gloss uneven by a few percent, scuffed near the carpet). Not the venue's.
+//! The brushed and worn parts' sharp edges are rounded as they're drawn (bevel.rs).
 //! Each material's tuned copies are made once and shared. Only the CAD's meshes: not the app's own
 //! (the HUB light bars and LEDs, lights.rs, update their materials in place; they, the venue's and
 //! the nets are the ones that cast no shadow).
@@ -65,9 +66,9 @@ enum Copy { Std(Handle<StandardMaterial>), Brushed(Handle<BrushedMaterial>), Wor
 #[derive(Resource, Default)]
 struct Tuned { map: HashMap<AssetId<StandardMaterial>, Copy> }
 
-/// a mesh whose material is tuned
+/// a mesh whose material is tuned (or set as it should be elsewhere, field.rs's glass: left alone)
 #[derive(Component)]
-struct Look;
+pub struct Look;
 
 fn kind(m: &StandardMaterial, name: Option<&str>) -> Kind {
     if m.unlit || m.emissive != LinearRgba::BLACK { return Kind::Other; }
@@ -85,11 +86,12 @@ fn kind(m: &StandardMaterial, name: Option<&str>) -> Kind {
 /// newly in meshes: their materials swapped for their tuned copies
 #[allow(clippy::type_complexity)]
 fn tune(
-    new: Query<(Entity, &MeshMaterial3d<StandardMaterial>, Option<&GltfMaterialName>, Option<&Name>), (Added<MeshMaterial3d<StandardMaterial>>, With<Mesh3d>, Without<Look>, Without<bevy::light::NotShadowCaster>)>,
+    new: Query<(Entity, &MeshMaterial3d<StandardMaterial>, &Mesh3d, Option<&GltfMaterialName>, Option<&Name>), (Added<MeshMaterial3d<StandardMaterial>>, With<Mesh3d>, Without<Look>, Without<bevy::light::NotShadowCaster>)>,
     mut mats: ResMut<Assets<StandardMaterial>>,
     mut brushed: ResMut<Assets<BrushedMaterial>>,
     mut worn: ResMut<Assets<WornMaterial>>,
     mut tuned: ResMut<Tuned>,
+    mut bevel: ResMut<crate::bevel::BevelQueue>,
     mut commands: Commands,
 ) {
     let put = |commands: &mut Commands, e: Entity, c: &Copy| match c {
@@ -97,11 +99,15 @@ fn tune(
         Copy::Brushed(h) => { commands.entity(e).remove::<MeshMaterial3d<StandardMaterial>>().insert((MeshMaterial3d(h.clone()), Look)); }
         Copy::Worn(h) => { commands.entity(e).remove::<MeshMaterial3d<StandardMaterial>>().insert((MeshMaterial3d(h.clone()), Look)); }
     };
-    for (e, h, name, ename) in &new {
+    for (e, h, mesh, name, ename) in &new {
         // (not the venue's: it's drawn plain)
         if ename.is_some_and(|n| n.as_str().starts_with("venue")) { continue; }
         let id = h.0.id();
-        if let Some(c) = tuned.map.get(&id).cloned() { put(&mut commands, e, &c); continue; }
+        if let Some(c) = tuned.map.get(&id).cloned() {
+            if !matches!(c, Copy::Std(_)) { bevel.todo.push(mesh.0.clone()); }
+            put(&mut commands, e, &c);
+            continue;
+        }
         let Some(m) = mats.get(&h.0).cloned() else { continue };
         let k = kind(&m, name.map(|n| n.0.as_str()));
         if k == Kind::Other { continue; }
@@ -126,6 +132,7 @@ fn tune(
             Kind::Other => continue,
         };
         tuned.map.insert(id, c.clone());
+        if !matches!(c, Copy::Std(_)) { bevel.todo.push(mesh.0.clone()); }
         put(&mut commands, e, &c);
     }
 }

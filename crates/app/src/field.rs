@@ -27,15 +27,68 @@ fn spawn_field(mut commands: Commands, assets: Res<AssetServer>) {
     let d = std::f32::consts::PI / 180.0;
     let scene = assets.load(GltfAssetLabel::Scene(0).from_asset("cad/field/field.glb"));
     commands.insert_resource(FieldScene(scene.clone()));
-    commands.spawn((
-        WorldAssetRoot(scene),
-        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -90.0 * d, 0.0, 180.0 * d)),
-    ));
+    commands
+        .spawn((
+            WorldAssetRoot(scene),
+            Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -90.0 * d, 0.0, 180.0 * d)),
+        ))
+        .observe(clear_parts);
     commands.spawn((
         DirectionalLight { illuminance: 9000.0, shadow_maps_enabled: true, ..default() },
         Transform::from_xyz(4.0, 12.0, 6.0).looking_at(Vec3::ZERO, Vec3::Y),
         CascadeShadowConfigBuilder { maximum_distance: 40.0, ..default() }.build(),
     ));
+}
+
+/// js cadModels.js: the field CAD's clear parts. The ALLIANCE WALL's glass (the Driver Stations'
+/// panels, "Outpost Exchange Border"), which the drivers look through all match: field.js dsGlass,
+/// barely tinted, 3.5% there, perfectly smooth, casting no shadow. The rest of its polycarbonate
+/// (the HUB's panels and funnel, the tags' bases) tintClear: a light blue-gray tint, 7-10% there.
+fn clear_parts(
+    ev: On<bevy::world_serialization::WorldInstanceReady>,
+    children: Query<&Children>,
+    names: Query<&Name>,
+    parts: Query<&MeshMaterial3d<StandardMaterial>, With<Mesh3d>>,
+    mut mats: ResMut<Assets<StandardMaterial>>,
+    mut commands: Commands,
+) {
+    let glass = mats.add(StandardMaterial {
+        base_color: Color::srgba_u8(0xee, 0xf4, 0xfa, 9),
+        alpha_mode: AlphaMode::Blend,
+        perceptual_roughness: 0.0,
+        reflectance: 0.2,
+        cull_mode: None,
+        double_sided: true,
+        ..default()
+    });
+    // (each CAD material's tinted copy, made once)
+    let mut tinted: std::collections::HashMap<_, Result<Handle<StandardMaterial>, StandardMaterial>> = std::collections::HashMap::new();
+    let mut glass_parts = Vec::new();
+    for e in children.iter_descendants(ev.entity) {
+        if names.get(e).is_ok_and(|n| n.as_str().contains("Outpost Exchange Border")) {
+            glass_parts.extend(children.iter_descendants(e).chain([e]).filter(|k| parts.contains(*k)));
+        }
+    }
+    for e in children.iter_descendants(ev.entity) {
+        let Ok(h) = parts.get(e) else { continue };
+        if glass_parts.contains(&e) {
+            commands.entity(e).insert((MeshMaterial3d(glass.clone()), crate::materials::Look, bevy::light::NotShadowCaster));
+            continue;
+        }
+        let Some(m) = mats.get(&h.0) else { continue };
+        if !matches!(m.alpha_mode, AlphaMode::Blend) || m.base_color.alpha() >= 0.7 { continue }
+        let t = tinted.entry(h.0.id()).or_insert_with(|| Err({
+            let mut m = m.clone();
+            let c = m.base_color.to_srgba();
+            let k = Srgba::rgb_u8(0xc4, 0xd6, 0xe8);
+            let mix = |a: f32, b: f32| a + (b - a) * 0.35;
+            m.base_color = Color::srgba(mix(c.red, k.red), mix(c.green, k.green), mix(c.blue, k.blue), c.alpha.clamp(0.07, 0.1));
+            m.reflectance = 0.2;
+            m
+        }));
+        let t = match t { Ok(h) => h.clone(), Err(m) => { let h = mats.add(m.clone()); *t = Ok(h.clone()); h } };
+        commands.entity(e).insert((MeshMaterial3d(t), crate::materials::Look));
+    }
 }
 
 #[derive(Component)]

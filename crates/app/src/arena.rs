@@ -24,7 +24,7 @@ impl Plugin for ArenaPlugin {
 
 /// The arena's environment cubemap
 #[derive(Resource)]
-pub struct ArenaEnv(pub Handle<Image>);
+pub struct ArenaEnv { pub sky: Handle<Image>, pub diffuse: Handle<Image>, pub specular: Handle<Image> }
 
 /// One of the trusses' lights
 #[derive(Component)]
@@ -179,38 +179,96 @@ fn radiance(dir: Vec3, lights: &[(Vec3, Vec3)]) -> Vec3 {
 
 /// The environment, drawn into a cubemap (RGBA16F, each face size x size: wgpu's face order and
 /// orientation)
+/// a cubemap texel's direction (wgpu's face order and orientation)
+fn face_dir(face: usize, u: f32, v: f32) -> Vec3 {
+    match face {
+        0 => Vec3::new(1.0, -v, -u),
+        1 => Vec3::new(-1.0, -v, u),
+        2 => Vec3::new(u, 1.0, v),
+        3 => Vec3::new(u, -1.0, -v),
+        4 => Vec3::new(u, -v, 1.0),
+        _ => Vec3::new(-u, -v, -1.0),
+    }
+}
+/// every texel of an n x n cube: (face, direction, solid angle)
+fn texels(n: usize) -> Vec<(usize, Vec3, f32)> {
+    let mut v = Vec::with_capacity(n * n * 6);
+    for face in 0..6 { for y in 0..n { for x in 0..n {
+        let (u, w) = (2.0 * (x as f32 + 0.5) / n as f32 - 1.0, 2.0 * (y as f32 + 0.5) / n as f32 - 1.0);
+        let d = face_dir(face, u, w);
+        let l2 = d.length_squared();
+        // (a texel's solid angle: its area, 4/n^2, over the distance cubed)
+        v.push((face, d / l2.sqrt(), 4.0 / (n * n) as f32 / (l2 * l2.sqrt())));
+    } } }
+    v
+}
+fn cube(n: u32, mips: u32, data: Vec<u8>) -> Image {
+    let mut img = Image::new(Extent3d { width: n, height: n, depth_or_array_layers: 6 }, TextureDimension::D2, data, TextureFormat::Rgba16Float, RenderAssetUsages::RENDER_WORLD);
+    img.texture_descriptor.mip_level_count = mips;
+    img.texture_view_descriptor = Some(TextureViewDescriptor { dimension: Some(TextureViewDimension::Cube), ..default() });
+    img
+}
+fn push(data: &mut Vec<u8>, c: Vec3) { for k in [c.x, c.y, c.z, 1.0] { data.extend_from_slice(&half::f16::from_f32(k).to_le_bytes()); } }
+
+/// The environment, drawn into cubemaps once, at the start: the sky (128 a face), and its light
+/// filtered here on the CPU, not by the GPU every frame (as a GeneratedEnvironmentMapLight is):
+/// the diffuse light from every side (16 a face) and the specular, its mips blurrier for rougher
+/// surfaces (64 a face, 7 mips, mip k for perceptual roughness k/6: a Phong lobe of GGX's width)
 fn make_env(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
-    // (128 a face: Bevy filters it on the GPU every frame, so it's kept small; the venue hides most
-    // of it as a sky)
-    let n = 128usize;
     let lights = truss_lights();
-    let mut data: Vec<u8> = Vec::with_capacity(n * n * 6 * 8);
+    let rad = |d: Vec3| radiance(d, &lights);
+    // the sky
+    let mut sky = Vec::new();
+    for (_, d, _) in texels(128) { push(&mut sky, rad(d)); }
+    // the source the filters gather from (32 and 16 a face): direction, radiance, solid angle
+    let src = |n: usize| -> Vec<(Vec3, Vec3, f32)> { texels(n).into_iter().map(|(_, d, sa)| (d, rad(d), sa)).collect() };
+    let (src32, src16) = (src(32), src(16));
+    // (a lobe max(0, n.d)^p's average of the radiance, each texel weighed by its solid angle)
+    let gather = |src: &[(Vec3, Vec3, f32)], n: Vec3, p: f32| {
+        let (mut c, mut w) = (Vec3::ZERO, 0.0f32);
+        for (d, l, sa) in src {
+            let k = n.dot(*d);
+            if k <= 0.0 { continue }
+            let wk = k.powf(p) * sa;
+            c += *l * wk;
+            w += wk;
+        }
+        c / w.max(1e-9)
+    };
+    // the diffuse light: the cosine-weighted average (irradiance over pi)
+    let mut diffuse = Vec::new();
+    for (_, n, _) in texels(16) { push(&mut diffuse, gather(&src16, n, 1.0)); }
+    // the specular mips, layer by layer (wgpu's LayerMajor order)
+    let mips = 7u32;
+    let mut levels: Vec<Vec<Vec3>> = Vec::new();
+    for k in 0..mips {
+        let n = 64usize >> k;
+        let r = k as f32 / (mips - 1) as f32;
+        let alpha = (r * r).max(1e-3);
+        let p = (2.0 / (alpha * alpha) - 2.0).max(1.0);
+        let lv: Vec<Vec3> = texels(n).into_iter().map(|(face, d, _)| {
+            if k <= 1 {
+                // (sharp: the radiance itself, a few points across the texel)
+                let e = 0.5 / n as f32;
+                let t = d.any_orthonormal_vector() * e * 2.0;
+                let b = d.cross(t);
+                let _ = face;
+                (rad(d + t) + rad(d - t) + rad(d + b) + rad(d - b)) * 0.25
+            } else if k == 2 { gather(&src32, d, p) } else { gather(&src16, d, p) }
+        }).collect();
+        levels.push(lv);
+    }
+    let mut spec = Vec::new();
     for face in 0..6 {
-        for y in 0..n {
-            for x in 0..n {
-                let u = 2.0 * (x as f32 + 0.5) / n as f32 - 1.0;
-                let v = 2.0 * (y as f32 + 0.5) / n as f32 - 1.0;
-                let dir = match face {
-                    0 => Vec3::new(1.0, -v, -u),
-                    1 => Vec3::new(-1.0, -v, u),
-                    2 => Vec3::new(u, 1.0, v),
-                    3 => Vec3::new(u, -1.0, -v),
-                    4 => Vec3::new(u, -v, 1.0),
-                    _ => Vec3::new(-u, -v, -1.0),
-                };
-                let c = radiance(dir, &lights);
-                for k in [c.x, c.y, c.z, 1.0] { data.extend_from_slice(&half::f16::from_f32(k).to_le_bytes()); }
-            }
+        for (k, lv) in levels.iter().enumerate() {
+            let n = 64usize >> k;
+            for c in &lv[face * n * n..(face + 1) * n * n] { push(&mut spec, *c); }
         }
     }
-    let mut img = Image::new(
-        Extent3d { width: n as u32, height: n as u32, depth_or_array_layers: 6 },
-        TextureDimension::D2,
-        data,
-        TextureFormat::Rgba16Float,
-        RenderAssetUsages::RENDER_WORLD,
-    );
-    img.texture_view_descriptor = Some(TextureViewDescriptor { dimension: Some(TextureViewDimension::Cube), ..default() });
-    commands.insert_resource(ArenaEnv(images.add(img)));
+    commands.insert_resource(ArenaEnv {
+        sky: images.add(cube(128, 1, sky)),
+        diffuse: images.add(cube(16, 1, diffuse)),
+        specular: images.add(cube(64, mips, spec)),
+    });
 }
 

@@ -15,7 +15,8 @@ pub struct Settings {
     pub ds: usize,
     /// js START_POSITIONS key
     pub start: String,
-    /// "skip": straight to TELEOP; "none": AUTO with the robot standing still (no routines yet)
+    /// "drive": you drive it through AUTO (practice); "skip": straight to TELEOP; "none": AUTO with
+    /// the robot standing still (no routines yet)
     pub auto: String,
     pub fps: bool,
     /// "high", "medium" or "low"
@@ -31,7 +32,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Settings {
-            robot: "2910".into(), alliance: "blue".into(), ds: 1, start: "rightTrench".into(), auto: "skip".into(),
+            robot: "2910".into(), alliance: "blue".into(), ds: 1, start: "rightTrench".into(), auto: "drive".into(),
             fps: false, graphics: "high".into(), camera: "driver".into(), hp: "auto".into(), motion: "off".into(),
         }
     }
@@ -60,7 +61,7 @@ impl Settings {
         if self.alliance != "blue" && self.alliance != "red" { self.alliance = d.alliance.clone(); }
         if self.ds > 2 { self.ds = d.ds; }
         if !r.starts.iter().any(|(k, _, _)| *k == self.start) { self.start = d.start.clone(); }
-        if self.auto != "skip" && self.auto != "none" { self.auto = d.auto.clone(); }
+        if !["drive", "skip", "none"].contains(&self.auto.as_str()) { self.auto = d.auto.clone(); }
         if !["ultra", "high", "medium", "low"].contains(&self.graphics.as_str()) { self.graphics = d.graphics; }
         if !["off", "trails", "blur", "both"].contains(&self.motion.as_str()) { self.motion = d.motion.clone(); }
         if self.hp != "auto" && self.hp != "manual" { self.hp = d.hp.clone(); }
