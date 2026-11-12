@@ -18,13 +18,13 @@ pub struct ArenaPlugin;
 
 impl Plugin for ArenaPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (make_env, spawn_truss_lights));
+        app.init_resource::<EnvTask>().add_systems(Startup, spawn_truss_lights).add_systems(Update, make_env);
     }
 }
 
 /// The arena's environment cubemap
 #[derive(Resource)]
-pub struct ArenaEnv { pub sky: Handle<Image>, pub diffuse: Handle<Image>, pub specular: Handle<Image> }
+pub struct ArenaEnv { pub look: Look, pub sky: Handle<Image>, pub diffuse: Handle<Image>, pub specular: Handle<Image> }
 
 /// One of the trusses' lights
 #[derive(Component)]
@@ -44,8 +44,50 @@ const GYM_H: f32 = 11.0;
 /// where the environment is seen from (about a camera's height, the field's middle)
 const EYE: Vec3 = Vec3::new(0.0, 1.6, 0.0);
 
+/// The stadium (outdoors): its bowl of stands round the field (radius, top), and its light towers
+/// (where their banks of lights are)
+pub const STAND_R: f32 = 36.0;
+const STAND_TOP: f32 = 15.0;
+pub const TOWERS: [Vec3; 4] = [Vec3::new(31.0, 30.0, 22.0), Vec3::new(-31.0, 30.0, 22.0), Vec3::new(31.0, 30.0, -22.0), Vec3::new(-31.0, 30.0, -22.0)];
+
+/// The time of day
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub enum Tod { Day, Sunset, Night }
+/// The weather (outdoors)
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub enum Weather { Clear, Cloudy, Rain, Fog }
+/// What the match is played in (Settings venue, time, weather): what the environment and the
+/// lights are made of
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub struct Look { pub outdoor: bool, pub time: Tod, pub weather: Weather }
+impl Look {
+    pub fn of(s: &crate::settings::Settings) -> Look {
+        let outdoor = s.venue == "stadium";
+        let time = match s.time.as_str() { "sunset" => Tod::Sunset, "night" => Tod::Night, _ => Tod::Day };
+        let weather = if !outdoor { Weather::Clear } else { match s.weather.as_str() { "cloudy" => Weather::Cloudy, "rain" => Weather::Rain, "fog" => Weather::Fog, _ => Weather::Clear } };
+        Look { outdoor, time, weather }
+    }
+    /// toward the sun (at night outdoors, the moon; the key light's direction either way)
+    pub fn sun_dir(&self) -> Vec3 {
+        match self.time {
+            Tod::Day => Vec3::new(0.29, 0.86, 0.43).normalize(),
+            // (low in the west, just over the far stands: long raking shadows toward the scoring table)
+            Tod::Sunset => Vec3::new(-0.55, 0.3, -0.83).normalize(),
+            Tod::Night => Vec3::new(0.35, 0.62, -0.7).normalize(),
+        }
+    }
+    /// how much of the sky the clouds cover (0..1)
+    pub fn cloud(&self) -> f32 { match self.weather { Weather::Clear => 0.0, Weather::Cloudy => 0.55, Weather::Rain => 1.0, Weather::Fog => 0.9 } }
+    /// the fog's color, and how thick it is (1/m)
+    pub fn haze(&self) -> (Vec3, f32) {
+        let c = match self.time { Tod::Day => Vec3::new(0.30, 0.32, 0.35), Tod::Sunset => Vec3::new(0.30, 0.20, 0.16), Tod::Night => Vec3::new(0.012, 0.013, 0.017) };
+        let k = if !self.outdoor { 0.0 } else { match self.weather { Weather::Fog => 0.055, Weather::Rain => 0.014, Weather::Cloudy => 0.003, Weather::Clear => 0.0015 } };
+        (c, k)
+    }
+}
+
 /// the trusses' lights: (where, which way it points)
-fn truss_lights() -> Vec<(Vec3, Vec3)> {
+pub fn truss_lights() -> Vec<(Vec3, Vec3)> {
     let (hl, hw) = (HALF_L as f32, HALF_W as f32);
     let zt = hw + TRUSS_OUT;
     let mut v = Vec::new();
@@ -96,16 +138,42 @@ fn shirt(i: usize) -> Vec3 {
     Vec3::new(c.red, c.green, c.blue)
 }
 
-/// What the arena's surfaces send back toward EYE along dir (linear, relative units: a lit wall
-/// ~0.05, the lights tens)
-fn radiance(dir: Vec3, lights: &[(Vec3, Vec3)]) -> Vec3 {
+/// What the arena's (or the stadium's) surfaces send back toward EYE along dir (linear, relative
+/// units: a lit wall ~0.05, the lights tens)
+fn radiance(dir: Vec3, lights: &[(Vec3, Vec3)], look: &Look) -> Vec3 {
+    if look.outdoor { return outdoor(dir.normalize(), look); }
+    // (indoors: in the evening the house lights half down, at night all the way, the stage's up)
+    let n = match look.time { Tod::Day => 0.0, Tod::Sunset => 0.5, Tod::Night => 1.0 };
     let d = dir.normalize();
+    let (c, kind) = indoor(d, lights);
+    match kind {
+        Lit::Stage => c * (1.0 + 0.6 * n),
+        Lit::Screen => c,
+        Lit::House => c * (1.0 - 0.97 * n),
+        Lit::Field => c * (1.0 - 0.55 * n),
+        Lit::Room(along, y) => {
+            // (at night, the stage's colored wash up the walls and over the stands)
+            let wash = if n > 0.0 {
+                let hue = (along * 0.11).sin() * 0.5 + 0.5;
+                let col = Vec3::new(0.35 + 0.4 * hue, 0.08, 0.9 - 0.5 * hue);
+                col * 0.05 * (-((y - 4.5) / 3.0).powi(2)).exp()
+            } else { Vec3::ZERO };
+            c * (1.0 - 0.9 * n) + wash * n
+        }
+    }
+}
+
+/// what kind of light a direction sees indoors: the stage's lights, the screen, the house's lights,
+/// the field under them, or the room (lit by the house: along a wall, at a height)
+enum Lit { Stage, Screen, House, Field, Room(f32, f32) }
+
+fn indoor(d: Vec3, lights: &[(Vec3, Vec3)]) -> (Vec3, Lit) {
     // the trusses' lights, seen as small bright discs (brighter seen from in front of the can)
     for &(p, aim) in lights {
         let to = (p - EYE).normalize();
         if d.dot(to) > 0.99993 {
             let face = aim.dot(-to).max(0.0);
-            return Vec3::new(1.0, 0.95, 0.85) * (20.0 + 40.0 * face);
+            return (Vec3::new(1.0, 0.95, 0.85) * (20.0 + 40.0 * face), Lit::Stage);
         }
     }
     // where the ray meets the gym's box
@@ -123,16 +191,17 @@ fn radiance(dir: Vec3, lights: &[(Vec3, Vec3)]) -> Vec3 {
         1 => {
             let (gx, gz) = ((p.x / 4.5).round() * 4.5, (p.z / 4.0).round() * 4.0);
             let r = Vec2::new(p.x - gx, p.z - gz).length();
-            if r < 0.32 { Vec3::new(1.0, 0.97, 0.9) * 45.0 }
+            let c = if r < 0.32 { Vec3::new(1.0, 0.97, 0.9) * 45.0 }
             else if r < 0.42 { Vec3::splat(0.05) }
             // (the roof's joists, lit from below)
             else if (p.x / 1.5).fract().abs() < 0.04 { Vec3::splat(0.03) }
-            else { Vec3::new(0.012, 0.013, 0.016) }
+            else { Vec3::new(0.012, 0.013, 0.016) };
+            (c, Lit::House)
         }
         // the floor: the lit carpet, the gym floor round it
         2 => {
-            if p.x.abs() < hl && p.z.abs() < hw { Vec3::new(0.13, 0.135, 0.14) }
-            else { Vec3::new(0.05, 0.035, 0.022) } // (a wood gym floor, in the trusses' spill)
+            if p.x.abs() < hl && p.z.abs() < hw { (Vec3::new(0.13, 0.135, 0.14), Lit::Field) }
+            else { (Vec3::new(0.05, 0.035, 0.022), Lit::Room(p.x, 0.0)) } // (a wood gym floor, in the trusses' spill)
         }
         // the walls
         _ => {
@@ -143,7 +212,7 @@ fn radiance(dir: Vec3, lights: &[(Vec3, Vec3)]) -> Vec3 {
             // the screen high on the back wall: the live score's glow
             if back && along.abs() < 3.2 && (5.2..8.8).contains(&y) {
                 let u = (along + 3.2) / 6.4;
-                return if u < 0.3 { Vec3::new(0.05, 0.12, 0.6) } else if u > 0.7 { Vec3::new(0.55, 0.06, 0.05) } else { Vec3::splat(0.25) } * 3.0;
+                return (if u < 0.3 { Vec3::new(0.05, 0.12, 0.6) } else if u > 0.7 { Vec3::new(0.55, 0.06, 0.05) } else { Vec3::splat(0.25) } * 3.0, Lit::Screen);
             }
             // the stands and their crowd: a patchwork of shirts, the rows' shadows between
             let stands = (back && along.abs() < 12.5 && y < 4.0) || (near && (4.0..12.5).contains(&along.abs()) && y < 2.8);
@@ -151,14 +220,14 @@ fn radiance(dir: Vec3, lights: &[(Vec3, Vec3)]) -> Vec3 {
                 let (cx, cy) = ((along / 0.5).floor() as i32, (y / 0.42).floor() as i32);
                 let h = hash(cx, cy, surf);
                 let fy = (y / 0.42).fract();
-                if fy < 0.18 { return Vec3::splat(0.012); }
-                if h > 0.72 { return Vec3::new(0.02, 0.022, 0.026); } // (an empty seat)
+                if fy < 0.18 { return (Vec3::splat(0.012), Lit::Room(along, y)); }
+                if h > 0.72 { return (Vec3::new(0.02, 0.022, 0.026), Lit::Room(along, y)); } // (an empty seat)
                 let skin = fy > 0.78;
                 let c = if skin { Vec3::new(0.32, 0.18, 0.11) * (0.4 + 0.6 * hash(cx, cy, 7)) } else { shirt((hash(cx, cy, 3) * 18.0) as usize) };
-                return c * 0.09;
+                return (c * 0.09, Lit::Room(along, y));
             }
             // the painted band round the gym
-            if (3.35..3.85).contains(&y) { return Vec3::new(0.11, 0.017, 0.03) * 0.5; }
+            if (3.35..3.85).contains(&y) { return (Vec3::new(0.11, 0.017, 0.03) * 0.5, Lit::Room(along, y)); }
             // banners over the stands
             if (4.9..7.5).contains(&y) && (back || near || surf == 3) {
                 let k = ((along + 0.65) / 2.6).floor();
@@ -167,14 +236,118 @@ fn radiance(dir: Vec3, lights: &[(Vec3, Vec3)]) -> Vec3 {
                     let i = k as i32;
                     let base = shirt((hash(i, surf, 11) * 18.0) as usize);
                     let stripe = ((y - 4.9) / 2.6 * 10.0) as i32 % 5 == 1;
-                    return if stripe { shirt((hash(i, surf, 13) * 18.0) as usize) * 0.1 } else { base * 0.1 };
+                    return (if stripe { shirt((hash(i, surf, 13) * 18.0) as usize) * 0.1 } else { base * 0.1 }, Lit::Room(along, y));
                 }
             }
             // the bare wall, lit more toward the floor
             let k = 0.035 - 0.0015 * y;
-            Vec3::new(k, k * 1.02, k * 1.08)
+            (Vec3::new(k, k * 1.02, k * 1.08), Lit::Room(along, y))
         }
     }
+}
+
+/// 2D value noise (0..1), smooth
+fn noise(x: f32, y: f32) -> f32 {
+    let (ix, iy) = (x.floor() as i32, y.floor() as i32);
+    let (fx, fy) = (x - x.floor(), y - y.floor());
+    let (ux, uy) = (fx * fx * (3.0 - 2.0 * fx), fy * fy * (3.0 - 2.0 * fy));
+    let a = hash(ix, iy, 91) * (1.0 - ux) + hash(ix + 1, iy, 91) * ux;
+    let b = hash(ix, iy + 1, 91) * (1.0 - ux) + hash(ix + 1, iy + 1, 91) * ux;
+    a * (1.0 - uy) + b * uy
+}
+fn fbm(x: f32, y: f32) -> f32 { 0.55 * noise(x, y) + 0.3 * noise(2.1 * x + 5.0, 2.1 * y) + 0.15 * noise(4.3 * x, 4.3 * y + 9.0) }
+
+/// The sky outdoors (above the stands): blue by day, warm low toward the sun at sunset, dark and
+/// starry at night; the sun (or moon) in it; the clouds over it
+fn sky(d: Vec3, look: &Look) -> Vec3 {
+    let sun = look.sun_dir();
+    let h = d.y.max(0.0);
+    let cs = d.dot(sun);
+    let mut c = match look.time {
+        Tod::Day => Vec3::new(0.07, 0.16, 0.42).lerp(Vec3::new(0.40, 0.48, 0.58), (1.0 - h).powi(4)) * 0.75,
+        Tod::Sunset => {
+            let toward = (cs * 0.5 + 0.5).powi(3);
+            let horizon = Vec3::new(0.28, 0.14, 0.22).lerp(Vec3::new(1.0, 0.45, 0.14), toward);
+            Vec3::new(0.05, 0.07, 0.18).lerp(horizon, (1.0 - h).powi(5)) * 0.55
+        }
+        Tod::Night => {
+            let base = Vec3::new(0.0012, 0.0018, 0.005).lerp(Vec3::new(0.004, 0.005, 0.009), (1.0 - h).powi(3));
+            // (the stars: a few cells of the sky, bright points)
+            let (a, b) = (((d.x / (d.y + 0.3)) * 160.0).floor() as i32, ((d.z / (d.y + 0.3)) * 160.0).floor() as i32);
+            let st = hash(a, b, 5);
+            base + if st > 0.9975 && h > 0.15 { Vec3::splat(0.08 * (st - 0.9975) / 0.0025) } else { Vec3::ZERO }
+        }
+    };
+    // the sun's (or moon's) disc and its glow
+    let disc = match look.time { Tod::Day => Vec3::new(1.0, 0.96, 0.9) * 3000.0, Tod::Sunset => Vec3::new(1.0, 0.55, 0.25) * 500.0, Tod::Night => Vec3::new(0.75, 0.8, 0.9) * 2.5 };
+    let glow = match look.time { Tod::Day => Vec3::new(1.0, 0.9, 0.75) * 0.6, Tod::Sunset => Vec3::new(1.0, 0.5, 0.2) * 1.2, Tod::Night => Vec3::splat(0.004) };
+    let cover = look.cloud();
+    let mut sunlit = if cs > 0.99996 { disc } else { Vec3::ZERO } + glow * cs.max(0.0).powf(60.0);
+    // the clouds: drifting cells over the sky, lit by the sun (warm underneath at sunset)
+    if cover > 0.0 {
+        let (u, v) = (d.x / (d.y + 0.08) * 0.9, d.z / (d.y + 0.08) * 0.9);
+        let n = fbm(u, v);
+        let k = if cover >= 1.0 { 1.0 } else { ((n - (1.0 - cover)) / 0.25).clamp(0.0, 1.0) };
+        let cloud = match look.time {
+            Tod::Day => Vec3::splat(0.55) * (0.75 + 0.35 * n) * if look.weather == Weather::Rain { 0.45 } else { 1.0 },
+            Tod::Sunset => Vec3::new(0.6, 0.32, 0.24) * 0.45 * (0.7 + 0.5 * n),
+            Tod::Night => Vec3::splat(0.003),
+        };
+        c = c.lerp(cloud, k * (h * 6.0).min(1.0).max(if cover >= 1.0 { 1.0 } else { 0.0 }));
+        sunlit *= 1.0 - k;
+    }
+    c + sunlit
+}
+
+/// What the stadium sends back toward EYE along d: its field and turf, its bowl of stands and the
+/// crowd in them, its light towers, the sky; through the haze
+fn outdoor(d: Vec3, look: &Look) -> Vec3 {
+    let (hl, hw) = (HALF_L as f32, HALF_W as f32);
+    // how the stadium is lit: by the sun (and sky), or at night by its towers
+    let cover = look.cloud();
+    let light = match look.time { Tod::Day => 1.0 - 0.55 * cover, Tod::Sunset => 0.45 - 0.2 * cover, Tod::Night => 0.22 };
+    let tint = match look.time { Tod::Day => Vec3::ONE, Tod::Sunset => Vec3::new(1.0, 0.7, 0.5), Tod::Night => Vec3::new(0.9, 0.95, 1.0) };
+    let (fog_c, fog_k) = look.haze();
+    let through = |c: Vec3, dist: f32| { let f = (-fog_k * dist).exp(); c * f + fog_c * (1.0 - f) };
+    // the towers' banks of lights (lit at night, a pale panel by day)
+    for t in TOWERS {
+        let to = t - EYE;
+        let dist = to.length();
+        if d.dot(to / dist) > 0.99985 {
+            let c = if look.time == Tod::Night { Vec3::new(1.0, 0.97, 0.9) * 60.0 } else { Vec3::splat(0.5) };
+            return through(c, dist * 0.5);
+        }
+    }
+    // the stands: the bowl round the field, rising from its edge to its top
+    let horiz = Vec2::new(d.x, d.z).length().max(1e-4);
+    let t_wall = STAND_R / horiz;
+    let y_wall = EYE.y + d.y * t_wall;
+    if d.y < 0.0 && -EYE.y / d.y < t_wall {
+        // the ground inside the bowl: the carpet, the turf round it (mowed in stripes)
+        let t = -EYE.y / d.y;
+        let p = EYE + d * t;
+        let c = if p.x.abs() < hl && p.z.abs() < hw { Vec3::new(0.13, 0.135, 0.14) }
+            else if ((p.x / 4.5).floor() as i32) % 2 == 0 { Vec3::new(0.035, 0.07, 0.025) } else { Vec3::new(0.03, 0.06, 0.02) };
+        let wet = if look.weather == Weather::Rain { 0.7 } else { 1.0 };
+        return through(c * light * wet * tint, t);
+    }
+    if y_wall < STAND_TOP {
+        // the crowd in rows, the concourse under them, the roof's edge over them
+        let along = d.z.atan2(d.x) * STAND_R;
+        let c = if y_wall < 1.2 { Vec3::splat(0.03) }
+            else if y_wall > STAND_TOP - 1.2 { Vec3::splat(0.015) }
+            else {
+                let (cx, cy) = ((along / 0.55).floor() as i32, ((y_wall - 1.2) / 0.62).floor() as i32);
+                let fy = ((y_wall - 1.2) / 0.62).fract();
+                if fy < 0.2 { Vec3::splat(0.012) }
+                else if hash(cx, cy, 21) > 0.75 { Vec3::new(0.025, 0.03, 0.04) }
+                else { shirt((hash(cx, cy, 23) * 18.0) as usize) * 0.12 }
+            };
+        let lit = if look.time == Tod::Night { 0.6 } else { light };
+        return through(c * lit * tint, t_wall);
+    }
+    // the sky over it all (the fog swallows it)
+    through(sky(d, look), 400.0)
 }
 
 /// The environment, drawn into a cubemap (RGBA16F, each face size x size: wgpu's face order and
@@ -214,9 +387,9 @@ fn push(data: &mut Vec<u8>, c: Vec3) { for k in [c.x, c.y, c.z, 1.0] { data.exte
 /// filtered here on the CPU, not by the GPU every frame (as a GeneratedEnvironmentMapLight is):
 /// the diffuse light from every side (16 a face) and the specular, its mips blurrier for rougher
 /// surfaces (64 a face, 7 mips, mip k for perceptual roughness k/6: a Phong lobe of GGX's width)
-fn make_env(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
+fn build_env(look: Look) -> EnvBytes {
     let lights = truss_lights();
-    let rad = |d: Vec3| radiance(d, &lights);
+    let rad = |d: Vec3| radiance(d, &lights, &look);
     // the sky
     let mut sky = Vec::new();
     for (_, d, _) in texels(128) { push(&mut sky, rad(d)); }
@@ -265,10 +438,36 @@ fn make_env(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
             for c in &lv[face * n * n..(face + 1) * n * n] { push(&mut spec, *c); }
         }
     }
-    commands.insert_resource(ArenaEnv {
-        sky: images.add(cube(128, 1, sky)),
-        diffuse: images.add(cube(16, 1, diffuse)),
-        specular: images.add(cube(64, mips, spec)),
-    });
+    EnvBytes { sky, diffuse, spec, mips }
+}
+
+/// an environment's cubemaps, made (off the main thread) for a look
+struct EnvBytes { sky: Vec<u8>, diffuse: Vec<u8>, spec: Vec<u8>, mips: u32 }
+
+/// the environment being made for a new look
+#[derive(Resource, Default)]
+struct EnvTask(Option<(Look, bevy::tasks::Task<EnvBytes>)>);
+
+/// The environment for the look the settings ask for: made in the background when that changes
+/// (it takes a moment), swapped in when it's done
+fn make_env(settings: Res<crate::settings::Settings>, env: Option<Res<ArenaEnv>>, mut task: ResMut<EnvTask>, mut images: ResMut<Assets<Image>>, mut commands: Commands) {
+    let want = Look::of(&settings);
+    if let Some((look, t)) = &mut task.0 {
+        if let Some(b) = bevy::tasks::block_on(bevy::tasks::futures_lite::future::poll_once(t)) {
+            let look = *look;
+            task.0 = None;
+            if look == want {
+                commands.insert_resource(ArenaEnv {
+                    look,
+                    sky: images.add(cube(128, 1, b.sky)),
+                    diffuse: images.add(cube(16, 1, b.diffuse)),
+                    specular: images.add(cube(64, b.mips, b.spec)),
+                });
+            }
+        }
+        return;
+    }
+    if env.as_ref().is_some_and(|e| e.look == want) { return }
+    task.0 = Some((want, bevy::tasks::AsyncComputeTaskPool::get().spawn(async move { build_env(want) })));
 }
 

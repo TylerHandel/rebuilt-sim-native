@@ -16,10 +16,15 @@ pub struct LightsPlugin;
 
 impl Plugin for LightsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_hub_lights)
+        app.init_resource::<LedGlow>().add_systems(Startup, spawn_hub_lights)
             .add_systems(PostUpdate, (add_leds, hub_lights, leds));
     }
 }
+
+/// each robot's LEDs, their average color (linear, by robot index): what they light round them
+/// (scene.rs's light pools at night)
+#[derive(Resource, Default)]
+pub struct LedGlow(pub Vec<Vec3>);
 
 /// How bright what glows is drawn: past bloom's threshold where there's bloom, so it glows
 pub fn glow(settings: &Settings) -> f32 {
@@ -308,7 +313,7 @@ fn scheme(key: &str, s: &LedState, set: &mut dyn FnMut(usize, Rgb), n: usize, t:
 }
 
 /// js leds.js updateLeds, once a frame per robot: its colors rewritten only when one changes
-fn leds(game: Res<Game>, time: Res<Time>, settings: Res<Settings>, mut strips: Query<&mut Leds>, mut meshes: ResMut<Assets<Mesh>>) {
+fn leds(game: Res<Game>, time: Res<Time>, settings: Res<Settings>, mut strips: Query<&mut Leds>, mut meshes: ResMut<Assets<Mesh>>, mut glow_of: ResMut<LedGlow>) {
     let w = &game.0;
     let m = &w.match_;
     let t = time.elapsed_secs();
@@ -339,6 +344,11 @@ fn leds(game: Res<Game>, time: Res<Time>, settings: Res<Settings>, mut strips: Q
             let v = c.map(|x| x.round().clamp(0.0, 255.0) as u8);
             if rgb[i] != v { rgb[i] = v; changed = true; }
         }, n, t);
+        // (their average, for the light they cast)
+        if glow_of.0.len() <= l.robot { glow_of.0.resize(l.robot + 1, Vec3::ZERO); }
+        let mut avg = Vec3::ZERO;
+        for c in l.rgb.iter() { let q = Color::srgb_u8(c[0], c[1], c[2]).to_linear(); avg += Vec3::new(q.red, q.green, q.blue); }
+        glow_of.0[l.robot] = avg / l.rgb.len().max(1) as f32;
         if !changed { continue }
         l.glow = k;
         let Some(mut mesh) = meshes.get_mut(&l.mesh) else { continue };

@@ -220,44 +220,7 @@ fn animate(game: Res<Game>, time: Res<Time>, mut models: Query<(&mut RobotModel,
             Some(Phys::R2056(p)) => for (k, v) in p.mech_pose() { if m.rig.rate.contains_key(k) { rates.push((k, v as f32)); } else { inputs.push((k, v as f32)); } },
             _ => {}
         }
-        // (and those take over the parts they move from the inputs anim reads otherwise)
-        let pose_taken = |node: &str, b: &str| inputs.iter().any(|(a, _)| overrides(a, b) && m.rig.pose.get(*a).is_some_and(|ch| ch.nodes.contains_key(node)));
-        let rate_taken = |node: &str, b: &str| rates.iter().any(|(a, _)| overrides(a, b) && m.rig.rate.get(*a).is_some_and(|ch| ch.contains_key(node)));
-        let mut spin: Vec<(String, [f32; 3])> = Vec::new();
-        for (name, v) in &rates {
-            let Some(ch) = m.rig.rate.get(*name) else { continue };
-            for (node, d) in ch {
-                if rate_taken(node, name) { continue; }
-                spin.push((node.clone(), [d[0] * v * dt, d[1] * v * dt, d[2] * v * dt]));
-            }
-        }
-        for (node, d) in spin {
-            let s = m.spun.entry(node).or_insert([0.0; 3]);
-            for j in 0..3 { s[j] = (s[j] + d[j]) % std::f32::consts::TAU; }
-        }
-        m.inputs = inputs.iter().map(|(k, v)| (k.to_string(), *v)).collect();
-        let skip: Vec<(String, String)> = m.rig.nodes.keys().flat_map(|node| inputs.iter().filter(|(b, _)| pose_taken(node, b)).map(|(b, _)| (node.clone(), b.to_string())).collect::<Vec<_>>()).collect();
-        for (node, rest) in &m.rig.nodes {
-            let Some(&e) = m.parts.get(node) else { continue };
-            let mut p = rest.rest;
-            for &(name, v) in &inputs {
-                if skip.iter().any(|(n, b)| n == node && b == name) { continue; }
-                let Some(ch) = m.rig.pose.get(name) else { continue };
-                let Some(rows) = ch.nodes.get(node) else { continue };
-                let row = lerp_row(&ch.samples, rows, v);
-                for j in 0..9 { p[j] += row[j] - rest.rest[j]; }
-            }
-            if let Some(s) = m.spun.get(node) { for j in 0..3 { p[3 + j] += s[j]; } }
-            if let Ok(mut t) = parts.get_mut(e) {
-                // (REBUILT_RIG_LOG=1: each posed part where it's put, once a second)
-                if std::env::var_os("REBUILT_RIG_LOG").is_some() && (time.elapsed_secs() % 1.0) < dt && m.rig.pose.values().any(|ch| ch.nodes.contains_key(node)) {
-                    info!("rig {node}: {:?} (inputs {:?})", &p[..6], inputs);
-                }
-                t.translation = Vec3::new(p[0], p[1], p[2]);
-                t.rotation = euler(&rest.order, p[3], p[4], p[5]);
-                t.scale = Vec3::new(p[6], p[7], p[8]);
-            }
-        }
+        pose_parts(m, &inputs, &rates, dt, &mut parts, &time);
         // the swerve modules steer to their motion and roll (js robot.js)
         let (c, sn) = (r.yaw.cos() as f32, r.yaw.sin() as f32);
         let (vx0, vz0) = (r.vel[0] as f32, r.vel[2] as f32);
@@ -273,6 +236,48 @@ fn animate(game: Res<Game>, time: Res<Time>, mut models: Query<(&mut RobotModel,
                 let p = rest.rest;
                 if let Ok(mut t) = parts.get_mut(e) { t.rotation = euler(&rest.order, p[3], y, p[5]); }
             }
+        }
+    }
+}
+
+/// The parts posed from the inputs anim reads (and spun by the rates): js anim(state, dt)
+fn pose_parts(m: &mut RobotModel, inputs: &[(&str, f32)], rates: &[(&str, f32)], dt: f32, parts: &mut Query<&mut Transform, Without<RobotModel>>, time: &Time) {
+    // (and those take over the parts they move from the inputs anim reads otherwise)
+    let pose_taken = |node: &str, b: &str| inputs.iter().any(|(a, _)| overrides(a, b) && m.rig.pose.get(*a).is_some_and(|ch| ch.nodes.contains_key(node)));
+    let rate_taken = |node: &str, b: &str| rates.iter().any(|(a, _)| overrides(a, b) && m.rig.rate.get(*a).is_some_and(|ch| ch.contains_key(node)));
+    let mut spin: Vec<(String, [f32; 3])> = Vec::new();
+    for (name, v) in rates {
+        let Some(ch) = m.rig.rate.get(*name) else { continue };
+        for (node, d) in ch {
+            if rate_taken(node, name) { continue; }
+            spin.push((node.clone(), [d[0] * v * dt, d[1] * v * dt, d[2] * v * dt]));
+        }
+    }
+    for (node, d) in spin {
+        let s = m.spun.entry(node).or_insert([0.0; 3]);
+        for j in 0..3 { s[j] = (s[j] + d[j]) % std::f32::consts::TAU; }
+    }
+    m.inputs = inputs.iter().map(|(k, v)| (k.to_string(), *v)).collect();
+    let skip: Vec<(String, String)> = m.rig.nodes.keys().flat_map(|node| inputs.iter().filter(|(b, _)| pose_taken(node, b)).map(|(b, _)| (node.clone(), b.to_string())).collect::<Vec<_>>()).collect();
+    for (node, rest) in &m.rig.nodes {
+        let Some(&e) = m.parts.get(node) else { continue };
+        let mut p = rest.rest;
+        for &(name, v) in inputs {
+            if skip.iter().any(|(n, b)| n == node && b == name) { continue; }
+            let Some(ch) = m.rig.pose.get(name) else { continue };
+            let Some(rows) = ch.nodes.get(node) else { continue };
+            let row = lerp_row(&ch.samples, rows, v);
+            for j in 0..9 { p[j] += row[j] - rest.rest[j]; }
+        }
+        if let Some(s) = m.spun.get(node) { for j in 0..3 { p[3 + j] += s[j]; } }
+        if let Ok(mut t) = parts.get_mut(e) {
+            // (REBUILT_RIG_LOG=1: each posed part where it's put, once a second)
+            if std::env::var_os("REBUILT_RIG_LOG").is_some() && (time.elapsed_secs() % 1.0) < dt && m.rig.pose.values().any(|ch| ch.nodes.contains_key(node)) {
+                info!("rig {node}: {:?} (inputs {:?})", &p[..6], inputs);
+            }
+            t.translation = Vec3::new(p[0], p[1], p[2]);
+            t.rotation = euler(&rest.order, p[3], p[4], p[5]);
+            t.scale = Vec3::new(p[6], p[7], p[8]);
         }
     }
 }
@@ -349,5 +354,36 @@ fn overrides(a: &str, b: &str) -> bool {
         "turretYaws.0" | "turretYaws.1" => b == "turretYaw",
         _ if a.starts_with("mech.") => matches!(b, "intakeDeploy" | "hopperDeploy" | "hoodDeg" | "intakeSpeed" | "flywheel" | "feeding" | "floorSpin"),
         _ => false,
+    }
+}
+
+/// A model with no robot under it (the robot select screen's, showcase.rs): every posed part
+/// swung through its range in turn, every spinning one turning, its modules steering and rolling
+pub fn pose_demo(m: &mut RobotModel, t: f32, dt: f32, parts: &mut Query<&mut Transform, Without<RobotModel>>, time: &Time) {
+    if !m.ready { return }
+    let mut keys: Vec<&String> = m.rig.pose.keys().collect();
+    keys.sort();
+    // (each input out and back over 5 s, one after another a second and a half apart; the
+    // nets' and lid's inputs too: they rest at their first sample)
+    let vals: Vec<(String, f32)> = keys.iter().enumerate().map(|(i, k)| {
+        let s = &m.rig.pose[*k].samples;
+        let (a, b) = (s.first().copied().unwrap_or(0.0), s.last().copied().unwrap_or(0.0));
+        let ph = ((t - i as f32 * 1.5) / 5.0).rem_euclid(1.0 + keys.len() as f32 * 0.3);
+        let u = if ph < 1.0 { 0.5 - 0.5 * (ph * std::f32::consts::TAU).cos() } else { 0.0 };
+        (k.to_string(), a + (b - a) * u)
+    }).collect();
+    let inputs: Vec<(&str, f32)> = vals.iter().map(|(k, v)| (k.as_str(), *v)).collect();
+    let rk: Vec<String> = m.rig.rate.keys().cloned().collect();
+    let rates: Vec<(&str, f32)> = rk.iter().map(|k| (k.as_str(), 1.0)).collect();
+    pose_parts(m, &inputs, &rates, dt, parts, time);
+    let steer = 0.5 * (t * 0.7).sin();
+    for (i, md) in m.rig.modules.iter().enumerate() {
+        m.steer[i] = steer;
+        m.wheel_turn[i] = (m.wheel_turn[i] - 1.2 * dt / WHEEL_R) % std::f32::consts::TAU;
+        for (node, y) in [(&md.pivot, m.steer[i]), (&md.wheel, m.wheel_turn[i])] {
+            let (Some(&e), Some(rest)) = (m.parts.get(node), m.rig.nodes.get(node)) else { continue };
+            let p = rest.rest;
+            if let Ok(mut tr) = parts.get_mut(e) { tr.rotation = euler(&rest.order, p[3], y, p[5]); }
+        }
     }
 }

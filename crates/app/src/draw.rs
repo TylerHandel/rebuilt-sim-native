@@ -95,7 +95,7 @@ fn respawn(
     mut meshes: ResMut<Assets<Mesh>>,
     fuel: Query<Entity, With<FuelView>>,
     parts: Query<Entity, With<PartView>>,
-    models: Query<Entity, With<RobotModel>>,
+    models: Query<Entity, (With<RobotModel>, Without<crate::showcase::Showcase>)>,
     assets: Res<AssetServer>,
     dir: Res<AssetDir>,
 ) {

@@ -169,7 +169,7 @@ fn spawn_floor(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut mat
         metallic: 0.0,
         ..default()
     });
-    commands.spawn((Mesh3d(meshes.add(m)), MeshMaterial3d(carpet), Transform::default()));
+    commands.spawn((Mesh3d(meshes.add(m)), MeshMaterial3d(carpet.clone()), Transform::default()));
     // (the gym's floor round the field: varnished maple, its strips along the field)
     let (fx, fz) = (30.0f32, 20.0f32);
     let outer = mats.add(StandardMaterial {
@@ -181,7 +181,40 @@ fn spawn_floor(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut mat
         uv_transform: bevy::math::Affine2::from_scale(Vec2::new(2.0 * fx / WOOD_TILE, 2.0 * fz / WOOD_TILE)),
         ..default()
     });
-    commands.spawn((Mesh3d(meshes.add(Plane3d::new(Vec3::Y, Vec2::new(fx, fz)))), MeshMaterial3d(outer), Transform::from_xyz(0.0, -0.005, 0.0)));
+    let ground = commands.spawn((Mesh3d(meshes.add(Plane3d::new(Vec3::Y, Vec2::new(fx, fz)))), MeshMaterial3d(outer.clone()), Transform::from_xyz(0.0, -0.005, 0.0))).id();
+    // (outdoors, the stadium's turf instead: mowed in stripes across the field, out to its stands)
+    let turf = mats.add(StandardMaterial {
+        base_color_texture: Some(images.add(turf_texture())),
+        perceptual_roughness: 0.85,
+        reflectance: 0.3,
+        uv_transform: bevy::math::Affine2::from_scale(Vec2::new(2.0 * fx / TURF_TILE, 2.0 * fz / TURF_TILE)),
+        ..default()
+    });
+    commands.insert_resource(Floors { carpet, turf, ground });
+}
+
+/// The floors (scene.rs swaps the ground's for the stadium's turf, and wets them in the rain)
+#[derive(Resource)]
+pub struct Floors { pub carpet: Handle<StandardMaterial>, pub turf: Handle<StandardMaterial>, pub ground: Entity }
+
+/// how far the turf's stripes repeat (m): a light and a dark band, 4.5 m each
+const TURF_TILE: f32 = 9.0;
+fn turf_texture() -> Image {
+    use bevy::render::render_resource::TextureFormat;
+    let n = 512usize;
+    let mut px = vec![0u8; n * n * 4];
+    for y in 0..n { for x in 0..n {
+        // (blades: fine speckle; the mower's bands along the field's length)
+        let band = x < n / 2;
+        let blade = hash(x as i32, y as i32, 31);
+        let clump = hash(x as i32 / 7, y as i32 / 7, 33);
+        let k = (if band { 1.12 } else { 0.9 }) * (0.82 + 0.22 * blade + 0.12 * clump);
+        let c = [42.0 * k, 92.0 * k, 34.0 * k];
+        let i = (y * n + x) * 4;
+        for j in 0..3 { px[i + j] = (c[j] as f32).clamp(0.0, 255.0) as u8; }
+        px[i + 3] = 255;
+    } }
+    with_mips(n, n, px, TextureFormat::Rgba8UnormSrgb, true)
 }
 
 /// how far the carpet's fiber texture and the wood floor's repeat (m)

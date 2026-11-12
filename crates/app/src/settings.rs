@@ -27,6 +27,17 @@ pub struct Settings {
     pub hp: String,
     /// motion effects: "off", "trails" (behind shot FUEL), "blur" (motion blur) or "both"
     pub motion: String,
+    /// where the match is played: "arena" (indoors) or "stadium" (outdoors: sky and weather)
+    pub venue: String,
+    /// "day", "sunset" (indoors: evening, the house lights half down) or "night" (the house lights
+    /// down, the stage lights up)
+    pub time: String,
+    /// outdoors: "clear", "cloudy", "rain" or "fog"
+    pub weather: String,
+    /// volumetric fog: the lights' beams in the air ("off", "low", "high")
+    pub haze: String,
+    /// the film look: filmic tone mapping, a touch of lens fringing, film grain, eyes that adapt
+    pub film: bool,
 }
 
 impl Default for Settings {
@@ -34,6 +45,7 @@ impl Default for Settings {
         Settings {
             robot: "2910".into(), alliance: "blue".into(), ds: 1, start: "rightTrench".into(), auto: "drive".into(),
             fps: false, graphics: "high".into(), camera: "driver".into(), hp: "auto".into(), motion: "off".into(),
+            venue: "arena".into(), time: "day".into(), weather: "clear".into(), haze: "off".into(), film: true,
         }
     }
 }
@@ -65,6 +77,10 @@ impl Settings {
         if !["ultra", "high", "medium", "low"].contains(&self.graphics.as_str()) { self.graphics = d.graphics; }
         if !["off", "trails", "blur", "both"].contains(&self.motion.as_str()) { self.motion = d.motion.clone(); }
         if self.hp != "auto" && self.hp != "manual" { self.hp = d.hp.clone(); }
+        if !["arena", "stadium"].contains(&self.venue.as_str()) { self.venue = d.venue.clone(); }
+        if !["day", "sunset", "night"].contains(&self.time.as_str()) { self.time = d.time.clone(); }
+        if !["clear", "cloudy", "rain", "fog"].contains(&self.weather.as_str()) { self.weather = d.weather.clone(); }
+        if !["off", "low", "high"].contains(&self.haze.as_str()) { self.haze = d.haze.clone(); }
         if crate::camera::CamMode::from_key(&self.camera).key() != self.camera { self.camera = d.camera; }
         self
     }

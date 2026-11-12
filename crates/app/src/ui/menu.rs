@@ -34,7 +34,7 @@ impl Mode {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum OptId { Auto, Start, Alliance, Ds, Hp, Camera, Graphics, Motion, Fps }
+pub enum OptId { Auto, Start, Alliance, Ds, Hp, Camera, Graphics, Motion, Fps, Venue, Time, Weather, Haze, Film }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Item {
@@ -82,6 +82,7 @@ fn items(page: Page) -> Vec<Item> {
         Page::Settings => vec![
             Item::Section("View"), Item::Opt(OptId::Camera),
             Item::Section("Graphics"), Item::Opt(OptId::Graphics), Item::Opt(OptId::Motion), Item::Opt(OptId::Fps),
+            Item::Section("Atmosphere"), Item::Opt(OptId::Venue), Item::Opt(OptId::Time), Item::Opt(OptId::Weather), Item::Opt(OptId::Haze), Item::Opt(OptId::Film),
             btn("BACK", Act::Open(Page::Home), true, false, true),
         ],
     }
@@ -94,6 +95,7 @@ fn opt_label(id: OptId) -> &'static str {
     match id {
         OptId::Auto => "Auto routine", OptId::Start => "Starting position", OptId::Alliance => "Alliance", OptId::Ds => "Driver station", OptId::Hp => "Your human player",
         OptId::Camera => "Starting camera", OptId::Graphics => "Graphics", OptId::Motion => "Motion effects", OptId::Fps => "Show FPS",
+        OptId::Venue => "Venue", OptId::Time => "Time of day", OptId::Weather => "Weather", OptId::Haze => "Volumetric fog", OptId::Film => "Film look",
     }
 }
 
@@ -109,6 +111,11 @@ fn opt_values(id: OptId) -> Vec<(String, String)> {
         OptId::Graphics => vec![v("ultra", "Ultra"), v("high", "High"), v("medium", "Medium"), v("low", "Low")],
         OptId::Motion => vec![v("off", "Off"), v("trails", "Trails"), v("blur", "Blur"), v("both", "Both")],
         OptId::Fps => vec![v("off", "Off"), v("on", "On")],
+        OptId::Venue => vec![v("arena", "Arena"), v("stadium", "Stadium")],
+        OptId::Time => vec![v("day", "Day"), v("sunset", "Sunset"), v("night", "Night")],
+        OptId::Weather => vec![v("clear", "Clear"), v("cloudy", "Cloudy"), v("rain", "Rain"), v("fog", "Fog")],
+        OptId::Haze => vec![v("off", "Off"), v("low", "Low"), v("high", "High")],
+        OptId::Film => vec![v("off", "Off"), v("on", "On")],
     }
 }
 
@@ -117,6 +124,8 @@ fn opt_get(id: OptId, s: &Settings) -> String {
         OptId::Auto => s.auto.clone(), OptId::Start => s.start.clone(), OptId::Alliance => s.alliance.clone(),
         OptId::Ds => s.ds.to_string(), OptId::Hp => s.hp.clone(), OptId::Camera => s.camera.clone(),
         OptId::Graphics => s.graphics.clone(), OptId::Motion => s.motion.clone(), OptId::Fps => if s.fps { "on".into() } else { "off".into() },
+        OptId::Venue => s.venue.clone(), OptId::Time => s.time.clone(), OptId::Weather => s.weather.clone(), OptId::Haze => s.haze.clone(),
+        OptId::Film => if s.film { "on".into() } else { "off".into() },
     }
 }
 
@@ -125,6 +134,8 @@ fn opt_set(id: OptId, s: &mut Settings, v: &str) {
         OptId::Auto => s.auto = v.into(), OptId::Start => s.start = v.into(), OptId::Alliance => s.alliance = v.into(),
         OptId::Ds => s.ds = v.parse().unwrap_or(1), OptId::Hp => s.hp = v.into(), OptId::Camera => s.camera = v.into(),
         OptId::Graphics => s.graphics = v.into(), OptId::Motion => s.motion = v.into(), OptId::Fps => s.fps = v == "on",
+        OptId::Venue => s.venue = v.into(), OptId::Time => s.time = v.into(), OptId::Weather => s.weather = v.into(), OptId::Haze => s.haze = v.into(),
+        OptId::Film => s.film = v == "on",
     }
 }
 
@@ -153,6 +164,24 @@ fn opt_desc(id: OptId, s: &Settings) -> String {
             _ => "Off: no trails or motion blur.",
         }.into(),
         OptId::Fps => "Frame rate, physics time per step and the update status in the corner.".into(),
+        OptId::Venue => if s.venue == "stadium" { "Stadium: outdoors, under the sky, its stands round the field and light towers over them; the weather's yours to pick." } else { "Arena: indoors, in a gym, the crowd in its bleachers, the lights on the trusses and in the roof." }.into(),
+        OptId::Time => match s.time.as_str() {
+            "sunset" => "Sunset: a low, warm sun and long shadows (indoors: an evening, the house lights half down).",
+            "night" => "Night: the house lights down and the show's lights up: moving colored spots, the robots' LEDs lighting the carpet, the crowd's camera flashes (outdoors: under the light towers and the stars). Without the sun's shadows it runs faster than day.",
+            _ => "Day: the sun high (indoors: the gym's lights all on).",
+        }.into(),
+        OptId::Weather => match s.weather.as_str() {
+            "cloudy" => "Cloudy: clouds across the sky, the sun in and out of them. Outdoors only.",
+            "rain" => "Rain: falling rain, an overcast sky, everything wet and glossy, a haze in the distance. Outdoors only.",
+            "fog" => "Fog: the stands fading into it, the lights glowing through it. Outdoors only.",
+            _ => "Clear: a clear sky. Outdoors only.",
+        }.into(),
+        OptId::Haze => match s.haze.as_str() {
+            "low" => "Low: the lights' beams in a light haze over the field (24 steps a pixel). A few ms on a mid-range GPU; scales with resolution.",
+            "high" => "High: a thicker haze, smoother beams, and the sun's rays too (48 steps a pixel). For a strong GPU.",
+            _ => "Off: clear air.",
+        }.into(),
+        OptId::Film => "Film look: filmic tone mapping (rich colors, soft highlights), a touch of lens fringing at the edges, fine film grain, and eyes that adapt between bright and dark.".into(),
     }
 }
 
@@ -334,6 +363,7 @@ fn rebuild(
     settings: Res<Settings>,
     fonts: Res<Fonts>,
     roots: Query<Entity, With<MenuRoot>>,
+    studio: Option<Res<crate::showcase::ShowcaseImage>>,
 ) {
     if !menu.dirty { return }
     menu.dirty = false;
@@ -392,7 +422,7 @@ fn rebuild(
                     match *it {
                         Item::Section(label) => section(g, &f, label),
                         Item::Tiles => tiles(g, &f, menu.tile, focused, idx),
-                        Item::Robot => picker(g, &f, &settings, focused, idx),
+                        Item::Robot => picker(g, &f, &settings, focused, idx, studio.as_ref().map(|s| s.0.clone())),
                         Item::Opt(id) => opt_row(g, &f, &settings, id, focused, idx),
                         Item::Btn { label, act, secondary, half, foot: true } => foot.push((label, act, secondary, half, focused, idx)),
                         Item::Btn { label, act, secondary, half, .. } => {
@@ -544,7 +574,7 @@ fn stepper(o: &mut ChildSpawnerCommands, f: &Fonts, value: &str, prev: Act, next
 }
 
 /// js ui.js _picker: the robot's card between big arrows, and every robot in a strip under it
-fn picker(g: &mut ChildSpawnerCommands, f: &Fonts, s: &Settings, focused: bool, idx: usize) {
+fn picker(g: &mut ChildSpawnerCommands, f: &Fonts, s: &Settings, focused: bool, idx: usize, studio: Option<Handle<Image>>) {
     let roster = Roster::get();
     let r = roster.robot(&s.robot);
     let n = roster.robots.iter().position(|x| x.key == r.key).unwrap_or(0);
@@ -574,17 +604,25 @@ fn picker(g: &mut ChildSpawnerCommands, f: &Fonts, s: &Settings, focused: bool, 
                             });
                             h.spawn(f.text(format!("{} / {}", n + 1, roster.robots.len()), Face::Inter(600), 12.5, color::MUTED));
                         });
-                        c.spawn((Node { margin: UiRect::new(Val::Px(0.0), Val::Px(0.0), Val::Px(8.0), Val::Px(10.0)), min_height: Val::Px(38.0), ..default() },)).with_children(|d| {
-                            d.spawn(f.text(r.blurb.clone(), Face::Inter(400), 13.0, color::MUTED));
-                        });
-                        c.spawn(Node { flex_direction: FlexDirection::Row, flex_wrap: FlexWrap::Wrap, column_gap: Val::Px(18.0), row_gap: Val::Px(4.0), ..default() }).with_children(|st| {
-                            for (k, v) in &r.stats {
-                                if v.is_empty() { continue }
-                                st.spawn((Node { width: Val::Px(220.0), flex_direction: FlexDirection::Row, justify_content: JustifyContent::SpaceBetween, column_gap: Val::Px(8.0), border: UiRect::bottom(Val::Px(1.0)), padding: UiRect::vertical(Val::Px(1.0)), ..default() }, BorderColor::all(color::tint(0.05))))
-                                    .with_children(|row| {
-                                        row.spawn(f.text(k.clone(), Face::Inter(400), 12.5, color::MUTED));
-                                        row.spawn((f.text(v.clone(), Face::Inter(700), 12.5, color::TEXT), TextLayout::no_wrap()));
-                                    });
+                        // the robot on its turntable beside what it says of itself (showcase.rs)
+                        c.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(14.0), align_items: AlignItems::FlexStart, ..default() }).with_children(|row| {
+                            row.spawn(Node { flex_direction: FlexDirection::Column, flex_grow: 1.0, flex_basis: Val::Px(0.0), ..default() }).with_children(|l| {
+                                l.spawn((Node { margin: UiRect::new(Val::Px(0.0), Val::Px(0.0), Val::Px(8.0), Val::Px(10.0)), min_height: Val::Px(38.0), ..default() },)).with_children(|d| {
+                                    d.spawn(f.text(r.blurb.clone(), Face::Inter(400), 13.0, color::MUTED));
+                                });
+                                l.spawn(Node { flex_direction: FlexDirection::Row, flex_wrap: FlexWrap::Wrap, column_gap: Val::Px(18.0), row_gap: Val::Px(4.0), ..default() }).with_children(|st| {
+                                    for (k, v) in &r.stats {
+                                        if v.is_empty() { continue }
+                                        st.spawn((Node { width: Val::Px(220.0), flex_direction: FlexDirection::Row, justify_content: JustifyContent::SpaceBetween, column_gap: Val::Px(8.0), border: UiRect::bottom(Val::Px(1.0)), padding: UiRect::vertical(Val::Px(1.0)), ..default() }, BorderColor::all(color::tint(0.05))))
+                                            .with_children(|row| {
+                                                row.spawn(f.text(k.clone(), Face::Inter(400), 12.5, color::MUTED));
+                                                row.spawn((f.text(v.clone(), Face::Inter(700), 12.5, color::TEXT), TextLayout::no_wrap()));
+                                            });
+                                    }
+                                });
+                            });
+                            if let Some(img) = studio.clone() {
+                                row.spawn((ImageNode::new(img), Node { width: Val::Px(crate::showcase::W as f32 / 2.0), height: Val::Px(crate::showcase::H as f32 / 2.0), flex_shrink: 0.0, ..default() }));
                             }
                         });
                     });

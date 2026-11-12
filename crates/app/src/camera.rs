@@ -135,8 +135,12 @@ impl Plugin for OrbitCameraPlugin {
     }
 }
 
+/// The camera the match is seen through (not the robot showcase's)
+#[derive(Component)]
+pub struct MainCam;
+
 fn spawn(mut commands: Commands) {
-    commands.spawn((Camera3d::default(), IsDefaultUiCamera, Transform::from_xyz(0.0, 10.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y)));
+    commands.spawn((Camera3d::default(), MainCam, IsDefaultUiCamera, Transform::from_xyz(0.0, 10.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y)));
 }
 
 /// A new match (not a resume): the starting camera, on the robot's ALLIANCE's side
@@ -162,7 +166,7 @@ fn keys(keys: Res<ButtonInput<KeyCode>>, pads: Query<&Gamepad>, mut rig: ResMut<
 
 /// Where the camera is this frame
 fn place(
-    mut cams: Query<(&mut Transform, &mut Projection), With<Camera3d>>,
+    mut cams: Query<(&mut Transform, &mut Projection), With<MainCam>>,
     mut rig: ResMut<CameraRig>,
     game: Res<Game>,
     time: Res<Time>,
@@ -205,11 +209,12 @@ fn place(
 fn graphics(
     settings: Res<Settings>,
     mut commands: Commands,
-    cams: Query<Entity, With<Camera3d>>,
-    mut suns: Query<(Entity, &mut DirectionalLight)>,
+    cams: Query<Entity, With<MainCam>>,
+    suns: Query<Entity, With<DirectionalLight>>,
     env: Option<Res<crate::arena::ArenaEnv>>,
     mut truss: Query<&mut Visibility, With<crate::arena::TrussLight>>,
-    mut ambient: ResMut<GlobalAmbientLight>,
+    mut curves: ResMut<Assets<bevy::post_process::auto_exposure::AutoExposureCompensationCurve>>,
+    mut eye: Local<Vec<(i32, Handle<bevy::post_process::auto_exposure::AutoExposureCompensationCurve>)>>,
 ) {
     use bevy::anti_alias::{fxaa::Fxaa, taa::TemporalAntiAliasing};
     use bevy::core_pipeline::prepass::{DepthPrepass, MotionVectorPrepass, NormalPrepass};
@@ -221,13 +226,20 @@ fn graphics(
     use bevy::light::{GeneratedEnvironmentMapLight, Skybox};
     use bevy::post_process::effect_stack::Vignette;
     use bevy::render::view::{ColorGrading, ColorGradingGlobal, ColorGradingSection};
-    if !settings.is_changed() { return }
+    use bevy::core_pipeline::tonemapping::Tonemapping;
+    use bevy::camera::Exposure;
+    use bevy::light::VolumetricFog;
+    use bevy::pbr::{DistanceFog, FogFalloff};
+    use bevy::post_process::auto_exposure::AutoExposure;
+    use bevy::post_process::effect_stack::ChromaticAberration;
+    // (again when a new environment's ready: its look's made in the background, arena.rs)
+    if !settings.is_changed() && !env.as_ref().is_some_and(|e| e.is_changed()) { return }
+    let look = crate::arena::Look::of(&settings);
     let g = settings.graphics.as_str();
     let (high, ultra) = (g == "high" || g == "ultra", g == "ultra");
     // (the arena's light, arena.rs: from Medium up, the environment's fill and reflections and the
     // trusses' lights; Low keeps the plain sun and ambient)
     let arena = g != "low" && env.is_some();
-    ambient.brightness = if arena { 60.0 } else { 400.0 };
     for mut v in &mut truss { *v = if arena { Visibility::Visible } else { Visibility::Hidden }; }
     let blur = g != "low" && matches!(settings.motion.as_str(), "blur" | "both");
     for c in &cams {
@@ -235,7 +247,8 @@ fn graphics(
         e.remove::<(Fxaa, TemporalAntiAliasing, TemporalJitter, MipBias, ScreenSpaceAmbientOcclusion, Bloom, Hdr)>()
             .remove::<(DepthPrepass, NormalPrepass, MotionVectorPrepass)>()
             .remove::<(GeneratedEnvironmentMapLight, bevy::light::EnvironmentMapLight, Skybox, Vignette, ColorGrading)>()
-            .remove::<bevy::post_process::motion_blur::MotionBlur>();
+            .remove::<bevy::post_process::motion_blur::MotionBlur>()
+            .remove::<(Tonemapping, ChromaticAberration, AutoExposure, VolumetricFog, DistanceFog, Exposure)>();
         // (motion blur, as the Motion effects setting asks: half a frame's shutter)
         if blur { e.insert(bevy::post_process::motion_blur::MotionBlur { shutter_angle: 0.5, samples: 3 }); }
         if let (true, Some(env)) = (arena, env.as_ref()) {
@@ -271,13 +284,63 @@ fn graphics(
         if ultra {
             e.insert(TemporalAntiAliasing::default());
         }
+        // how bright the scene's drawn: the sunlit stadium's a stop darker, night's half a stop brighter
+        let ev = match (look.outdoor, look.time) {
+            (true, crate::arena::Tod::Day) if look.cloud() < 0.5 => 10.6,
+            (true, crate::arena::Tod::Day) => 10.0,
+            (_, crate::arena::Tod::Night) => 9.0,
+            _ => 9.7,
+        };
+        e.insert(Exposure { ev100: if arena { ev } else { 9.7 } });
+        // the film look: filmic tone mapping and a touch of lens fringing; eyes that adapt (where
+        // the image is HDR, High and Ultra), within a stop and a half either way
+        if settings.film {
+            e.insert((Tonemapping::AgX, ChromaticAberration { intensity: 0.0035, max_samples: 6, ..default() }));
+            if high {
+                // (the meter reads the image after the camera's exposure: the average the look's
+                // tuned to (2^-2.25 by day, darker at dusk and darker still at night, so night
+                // stays night) is what the eye corrects toward, by at most a stop and a half either
+                // way; the curve's y is that correction plus the average. Quarter stops: exact in
+                // binary, as the curve checks its joins with ==)
+                let a = match look.time { crate::arena::Tod::Day => -2.25, crate::arena::Tod::Sunset => -2.75, crate::arena::Tod::Night => -3.75 };
+                let k = (a * 4.0) as i32;
+                let curve = match eye.iter().find(|(j, _)| *j == k) {
+                    Some((_, h)) => h.clone(),
+                    None => {
+                        use bevy::{curve::cubic_splines::LinearSpline, math::vec2};
+                        let s = 1.5;
+                        let h = curves.add(bevy::post_process::auto_exposure::AutoExposureCompensationCurve::from_curve(LinearSpline::new([
+                            vec2(-10.0, -10.0 + s), vec2(a - s, a), vec2(a + s, a), vec2(4.0, 4.0 - s),
+                        ])).expect("a monotonic eye curve"));
+                        eye.push((k, h.clone()));
+                        h
+                    }
+                };
+                e.insert(AutoExposure { range: -10.0..=4.0, speed_brighten: 1.5, speed_darken: 2.0, compensation_curve: curve, ..default() });
+            }
+        } else {
+            e.insert(Tonemapping::TonyMcMapface);
+        }
+        // the haze the lights' beams show in (scene.rs's volume over the field): the steps each
+        // pixel's ray takes through it; jittered where temporal anti-aliasing smooths the grain
+        if arena && settings.haze != "off" {
+            e.insert(VolumetricFog { step_count: if settings.haze == "high" { 48 } else { 24 }, jitter: if ultra { 0.6 } else { 0.0 }, ambient_intensity: 0.0, ..default() });
+        }
+        // outdoors: the distance hazing over (the fog's own, the rain's, a clear day's faint one)
+        let (fc, fk) = look.haze();
+        if arena && look.outdoor && fk > 0.0 {
+            let c = fc * 1.6;
+            e.insert(DistanceFog {
+                color: Color::linear_rgb(c.x, c.y, c.z),
+                directional_light_color: if look.time == crate::arena::Tod::Night { Color::NONE } else { Color::linear_rgba(1.0, 0.85, 0.65, 0.4) },
+                directional_light_exponent: 24.0,
+                falloff: FogFalloff::Exponential { density: fk },
+            });
+        }
     }
     commands.insert_resource(DirectionalLightShadowMap { size: if high { 4096 } else { 2048 } });
-    for (e, mut s) in &mut suns {
-        s.shadow_maps_enabled = g != "low";
-        // (with the trusses' lights and the arena's fill, the sun's a key light, half as bright)
-        s.illuminance = if arena { 4500.0 } else { 9000.0 };
-        s.contact_shadows_enabled = false;
+    // (the key light's brightness, color and shadows are the scene's: scene.rs)
+    for e in &suns {
         commands.entity(e).insert(if ultra {
             CascadeShadowConfigBuilder { num_cascades: 3, first_cascade_far_bound: 7.0, maximum_distance: 50.0, ..default() }.build()
         } else if high {
