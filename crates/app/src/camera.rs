@@ -251,7 +251,8 @@ fn graphics(
             .remove::<(DepthPrepass, NormalPrepass, MotionVectorPrepass)>()
             .remove::<(GeneratedEnvironmentMapLight, bevy::light::EnvironmentMapLight, Skybox, Vignette, ColorGrading)>()
             .remove::<bevy::post_process::motion_blur::MotionBlur>()
-            .remove::<(Tonemapping, ChromaticAberration, AutoExposure, VolumetricFog, DistanceFog, Exposure)>();
+            .remove::<(Tonemapping, ChromaticAberration, AutoExposure, VolumetricFog, DistanceFog, Exposure)>()
+            .remove::<bevy::anti_alias::contrast_adaptive_sharpening::ContrastAdaptiveSharpening>();
         dlss.clear(&mut e);
         // (motion blur, as the Motion effects setting asks: half a frame's shutter)
         if blur { e.insert(bevy::post_process::motion_blur::MotionBlur { shutter_angle: 0.5, samples: 3 }); }
@@ -273,7 +274,8 @@ fn graphics(
             ));
         }
         // (a soft vignette; screen-space effects only on Ultra: the time goes to detail instead)
-        if high && arena { e.insert(Vignette { intensity: 0.3, radius: 0.95, smoothness: 3.0, ..default() }); }
+        // (only with the film look: the clear look keeps the corners as bright as the middle)
+        if high && arena && settings.film { e.insert(Vignette { intensity: 0.2, radius: 0.95, smoothness: 3.0, ..default() }); }
         e.insert(ShadowFilteringMethod::Gaussian);
         // NVIDIA DLSS, where it's on and the GPU has it: it anti-aliases (and upscales) in place of
         // MSAA, FXAA and TAA
@@ -304,7 +306,7 @@ fn graphics(
         // the film look: filmic tone mapping and a touch of lens fringing; eyes that adapt (where
         // the image is HDR, High and Ultra), within a stop and a half either way
         if settings.film {
-            e.insert((Tonemapping::AgX, ChromaticAberration { intensity: 0.0035, max_samples: 6, ..default() }));
+            e.insert((Tonemapping::AgX, ChromaticAberration { intensity: 0.0015, max_samples: 4, ..default() }));
             if high {
                 // (the meter reads the image after the camera's exposure: the average the look's
                 // tuned to (2^-2.25 by day, darker at dusk and darker still at night, so night
@@ -328,7 +330,11 @@ fn graphics(
                 e.insert(AutoExposure { range: -10.0..=4.0, speed_brighten: 1.5, speed_darken: 2.0, compensation_curve: curve, ..default() });
             }
         } else {
+            // the clear look: a neutral tone mapping that keeps colors as they are, a steady exposure,
+            // and the anti-aliasing's softness sharpened back (on Medium up: FXAA, TAA and DLSS all
+            // soften a little)
             e.insert(Tonemapping::TonyMcMapface);
+            if g != "low" { e.insert(bevy::anti_alias::contrast_adaptive_sharpening::ContrastAdaptiveSharpening { enabled: true, sharpening_strength: 0.4, denoise: false }); }
         }
         // the haze the lights' beams show in (scene.rs's volume over the field): the steps each
         // pixel's ray takes through it; jittered where temporal anti-aliasing smooths the grain

@@ -195,7 +195,7 @@ fn opt_desc(id: OptId, s: &Settings) -> String {
                 "quality" => "DLSS Quality: draws 67% of the width and height (44% of the pixels) and NVIDIA's AI upscales it: nearly as sharp as full resolution, noticeably faster.",
                 "balanced" => "DLSS Balanced: draws 58% of the width and height (34% of the pixels), then upscales: faster still, a little softer.",
                 "performance" => "DLSS Performance: draws half the width and height (25% of the pixels), then upscales: the most frames, softer in motion.",
-                _ => "Off: every pixel drawn, anti-aliased as the Graphics preset says. NVIDIA DLSS needs an NVIDIA RTX GPU.",
+                _ => "Off (recommended): every pixel drawn, anti-aliased as the Graphics preset says. DLSS here is experimental: it needs an RTX GPU, adds a pass that draws the scene again for its motion vectors (this game is mostly limited by how much it draws, not by pixels, so it may not run faster), and smears on see-through panels and the grass, which have none.",
             };
             let launched = crate::camera::DLSS_LAUNCHED.load(std::sync::atomic::Ordering::Relaxed);
             let ready = crate::camera::DLSS_READY.load(std::sync::atomic::Ordering::Relaxed);
@@ -205,7 +205,7 @@ fn opt_desc(id: OptId, s: &Settings) -> String {
                 else { "" };
             format!("{what}{note}")
         }
-        OptId::Film => "Film look: filmic tone mapping (rich colors, soft highlights), a touch of lens fringing at the edges, fine film grain, and eyes that adapt between bright and dark.".into(),
+        OptId::Film => if s.film { "Film look on: filmic tone mapping (soft highlights), a faint lens fringe and vignette, light film grain, and eyes that adapt between bright and dark." } else { "Film look off (the clear look): colors as they are, a steady exposure, and the edges sharpened." }.into(),
     }
 }
 

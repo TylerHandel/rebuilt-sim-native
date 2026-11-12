@@ -320,7 +320,8 @@ fn show(
         if let Some(b) = w.physics.bodies.get(r.body) { tf.translation = b.translation() + Vec3::Y * 0.3; }
         let cn = c / c.max_element().max(1e-4);
         l.color = Color::linear_rgb(cn.x, cn.y, cn.z);
-        l.intensity = 90_000.0 * n * (lum / 0.2).min(1.0);
+        // (a soft pool, not a floodlight: the LEDs light the carpet round the robot)
+        l.intensity = 30_000.0 * n * (lum / 0.2).min(1.0);
     }
 }
 
@@ -348,7 +349,7 @@ fn spawn_grain(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         .with_children(|p| {
             p.spawn((
                 Node { position_type: PositionType::Absolute, width: Val::Percent(140.0), height: Val::Percent(140.0), ..default() },
-                ImageNode { image, color: Color::srgba(1.0, 1.0, 1.0, 0.028), image_mode: bevy::ui::widget::NodeImageMode::Tiled { tile_x: true, tile_y: true, stretch_value: 1.0 }, ..default() },
+                ImageNode { image, color: Color::srgba(1.0, 1.0, 1.0, 0.012), image_mode: bevy::ui::widget::NodeImageMode::Tiled { tile_x: true, tile_y: true, stretch_value: 1.0 }, ..default() },
                 Pickable::IGNORE,
             ));
         });

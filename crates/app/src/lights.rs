@@ -26,9 +26,11 @@ impl Plugin for LightsPlugin {
 #[derive(Resource, Default)]
 pub struct LedGlow(pub Vec<Vec3>);
 
-/// How bright what glows is drawn: past bloom's threshold where there's bloom, so it glows
+/// How bright what glows is drawn (unlit: not dimmed by the camera's exposure): bright enough to
+/// read in daylight, low enough that the tone mapping keeps its color (much more washes it to
+/// white, and at night the eye's adaptation brightens it further)
 pub fn glow(settings: &Settings) -> f32 {
-    match settings.graphics.as_str() { "ultra" | "high" => 10.0, _ => 2.2 }
+    match settings.graphics.as_str() { "ultra" | "high" => 2.0, _ => 1.6 }
 }
 
 // ------------------------------------------------------------------ the HUBs
@@ -198,7 +200,7 @@ fn push_box(pos: &mut Vec<[f32; 3]>, nrm: &mut Vec<[f32; 3]>, of: &mut Vec<usize
 /// `n`, the backing's: always dark). (js leds.js puts them in a texture; Bevy draws vertex colors
 /// as they change without rebuilding the material.) Unlit, so a color over 1 is a light: it blooms.
 #[derive(Component)]
-struct Leds { robot: usize, key: String, n: usize, mesh: Handle<Mesh>, of: Vec<usize>, rgb: Vec<[u8; 3]>, glow: f32 }
+struct Leds { robot: usize, key: String, n: usize, mesh: Handle<Mesh>, of: Vec<usize>, rgb: Vec<[u8; 3]>, glow: f32, shown: Vec<[f32; 3]> }
 
 #[derive(Component)]
 struct LedsAdded;
@@ -235,7 +237,7 @@ fn add_leds(
         let child = commands.spawn((
             Mesh3d(mesh.clone()), MeshMaterial3d(mat), Transform::default(),
             bevy::light::NotShadowCaster, bevy::light::NotShadowReceiver,
-            Leds { robot: m.robot, key: r.key.clone(), n, mesh, of, rgb: vec![[0; 3]; n], glow: 0.0 },
+            Leds { robot: m.robot, key: r.key.clone(), n, mesh, of, rgb: vec![[0; 3]; n], glow: 0.0, shown: vec![[0.0; 3]; n] },
         )).id();
         commands.entity(e).add_child(child);
     }
@@ -317,6 +319,7 @@ fn leds(game: Res<Game>, time: Res<Time>, settings: Res<Settings>, mut strips: Q
     let w = &game.0;
     let m = &w.match_;
     let t = time.elapsed_secs();
+    let dt = time.delta_secs();
     let k = glow(&settings);
     for mut l in &mut strips {
         let l = &mut *l;
@@ -344,16 +347,28 @@ fn leds(game: Res<Game>, time: Res<Time>, settings: Res<Settings>, mut strips: Q
             let v = c.map(|x| x.round().clamp(0.0, 255.0) as u8);
             if rgb[i] != v { rgb[i] = v; changed = true; }
         }, n, t);
-        // (their average, for the light they cast)
+        // (their average, for the light they cast: eased over a third of a second, so a flashing
+        // pattern doesn't strobe the floor)
         if glow_of.0.len() <= l.robot { glow_of.0.resize(l.robot + 1, Vec3::ZERO); }
         let mut avg = Vec3::ZERO;
         for c in l.rgb.iter() { let q = Color::srgb_u8(c[0], c[1], c[2]).to_linear(); avg += Vec3::new(q.red, q.green, q.blue); }
-        glow_of.0[l.robot] = avg / l.rgb.len().max(1) as f32;
+        let avg = avg / l.rgb.len().max(1) as f32;
+        glow_of.0[l.robot] = glow_of.0[l.robot].lerp(avg, 1.0 - (-dt / 0.35).exp());
+        // (each LED eases to its color over a few frames: the patterns read, without the hard strobe)
+        let ease = 1.0 - (-dt / 0.06).exp();
+        for (i, c) in l.rgb.iter().enumerate() {
+            let q = Color::srgb_u8(c[0], c[1], c[2]).to_linear();
+            let to = [q.red, q.green, q.blue];
+            for j in 0..3 {
+                let d = to[j] - l.shown[i][j];
+                if d.abs() > 1e-3 { l.shown[i][j] += d * ease; changed = true; } else if d != 0.0 { l.shown[i][j] = to[j]; changed = true; }
+            }
+        }
         if !changed { continue }
         l.glow = k;
         let Some(mut mesh) = meshes.get_mut(&l.mesh) else { continue };
-        // (sRGB bytes, as the JS's texture has them, to linear, times how bright lights are drawn)
-        let lin: Vec<[f32; 4]> = l.rgb.iter().map(|c| { let q = Color::srgb_u8(c[0], c[1], c[2]).to_linear(); [q.red * k, q.green * k, q.blue * k, 1.0] }).collect();
+        // (linear, times how bright lights are drawn)
+        let lin: Vec<[f32; 4]> = l.shown.iter().map(|q| [q[0] * k, q[1] * k, q[2] * k, 1.0]).collect();
         let dark = [0.006f32, 0.006, 0.007, 1.0];
         let cols: Vec<[f32; 4]> = l.of.iter().map(|&i| if i < n { lin[i] } else { dark }).collect();
         mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, cols);

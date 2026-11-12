@@ -49,7 +49,7 @@ impl Default for Settings {
         Settings {
             robot: "2910".into(), alliance: "blue".into(), ds: 1, start: "rightTrench".into(), auto: "drive".into(),
             fps: false, graphics: "high".into(), camera: "driver".into(), hp: "auto".into(), motion: "off".into(),
-            venue: "arena".into(), time: "day".into(), weather: "clear".into(), haze: "off".into(), film: true, upscaler: "off".into(),
+            venue: "arena".into(), time: "day".into(), weather: "clear".into(), haze: "off".into(), film: false, upscaler: "off".into(),
         }
     }
 }

@@ -54,7 +54,11 @@ fn main() {
                     }),
                     ..default()
                 })
-                .set(AssetPlugin { file_path: assets.into(), ..default() }),
+                .set(AssetPlugin { file_path: assets.into(), ..default() })
+                // (anisotropic filtering: the carpet's markings and the field's textures stay sharp
+                // looked at low across the field)
+                .set(ImagePlugin { default_sampler: sharp_sampler() })
+                .set(bevy::gltf::GltfPlugin { default_sampler: sharp_sampler(), ..default() }),
         )
         .insert_resource(ClearColor(Color::srgb(0.05, 0.06, 0.08)))
         .insert_resource(settings)
@@ -62,4 +66,10 @@ fn main() {
         .add_plugins((ui::UiPlugin, game::GamePlugin, robot_model::RobotModelPlugin, camera::OrbitCameraPlugin, field::FieldPlugin, draw::DrawPlugin, update::UpdatePlugin, shot::ShotPlugin, lights::LightsPlugin, arena::ArenaPlugin, venue::VenuePlugin, effects::EffectsPlugin, materials::MaterialsPlugin, bevel::BevelPlugin))
         .add_plugins((scene::ScenePlugin, showcase::ShowcasePlugin, loading::LoadingPlugin, nature::NaturePlugin, bevy::post_process::auto_exposure::AutoExposurePlugin))
         .run();
+}
+
+/// Textures sampled with trilinear and 16x anisotropic filtering
+fn sharp_sampler() -> bevy::image::ImageSamplerDescriptor {
+    use bevy::image::{ImageFilterMode, ImageSamplerDescriptor};
+    ImageSamplerDescriptor { mag_filter: ImageFilterMode::Linear, min_filter: ImageFilterMode::Linear, mipmap_filter: ImageFilterMode::Linear, anisotropy_clamp: 16, ..ImageSamplerDescriptor::default() }
 }
