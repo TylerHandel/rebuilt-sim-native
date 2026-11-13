@@ -14,9 +14,11 @@ pub mod human_player;
 pub mod libm_f32;
 pub mod localize;
 pub mod mech;
+pub mod nav;
 pub mod parity;
 pub mod rng;
 pub mod robot;
+pub mod rules;
 pub mod world;
 
 use rapier3d::prelude::*;

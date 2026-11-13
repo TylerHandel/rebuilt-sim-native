@@ -338,6 +338,17 @@ pub struct Shot { pub pass: bool, pub target: [f64; 2], pub reach: bool, /// js 
     pub aim: [f64; 2] }
 
 impl Robot {
+    /// What the rules between robots read of it (rules.rs)
+    pub fn rules_view(&self) -> crate::rules::RobotView {
+        let (f, ic) = (&self.cfg["frame"], &self.cfg["intake"]);
+        crate::rules::RobotView {
+            alliance: self.alliance, x: self.pos[0], z: self.pos[2], yaw: self.yaw, vx: self.vel[0], vz: self.vel[2],
+            half_l: self.half_l, half_w: self.half_w, frame_l: num(f, "length"), frame_w: num(f, "width"),
+            reach: ic["reach"].as_f64().unwrap_or(0.0), intake_w: ic["width"].as_f64().unwrap_or(0.0), intake_deploy: self.intake_deploy,
+            climbing: self.climb_state != ClimbState::None, cmd_vx: self.cmd.vx, cmd_vz: self.cmd.vz,
+        }
+    }
+
     /// js `new Robot(...)`: its body made in the world now (after the FUEL and any robot before it);
     /// under: the world's physics.underArm, which its frame (and any lid) join
     pub fn new(key: &str, cfg: Value, alliance: Alliance, phys: &mut PhysicsWorld, under: &mut Vec<UnderArm>) -> Self {
@@ -574,7 +585,8 @@ impl Robot {
         b.set_body_type(RigidBodyType::Dynamic, true);
         b.set_translation(vf(x, 0.003, z), true);
         let q = [0.0, m::sin(yaw / 2.0), 0.0, m::cos(yaw / 2.0)];
-        b.set_rotation(Rotation::from_xyzw(q[0] as f32, q[1] as f32, q[2] as f32, q[3] as f32), true);
+        // (rapier.js normalizes it, in f32)
+        b.set_rotation(Rotation::from_xyzw(q[0] as f32, q[1] as f32, q[2] as f32, q[3] as f32).normalize(), true);
         b.set_linvel(vf(0.0, 0.0, 0.0), true);
         b.set_angvel(vf(0.0, 0.0, 0.0), true);
         self.yaw = yaw;
@@ -1104,7 +1116,7 @@ impl Robot {
             if want <= 0.0 { return; }
             // (the hooks bite: from here the climber carries the robot)
             let h = self.yaw / 2.0;
-            b.set_rotation(Rotation::from_xyzw(0.0, m::sin(h) as f32, 0.0, m::cos(h) as f32), true);
+            b.set_rotation(Rotation::from_xyzw(0.0, m::sin(h) as f32, 0.0, m::cos(h) as f32).normalize(), true);
             b.set_body_type(RigidBodyType::KinematicPositionBased, true);
             self.climb_base = self.pos;
         }

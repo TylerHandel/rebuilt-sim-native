@@ -1,0 +1,56 @@
+{
+  "name": "rules-pin",
+  "about": "Blue 1678 drives into red 2910, whose side is against the red HUB, and holds it there: PINNING (G418), a MINOR at 3 s and another at 6 s; then blue backs off past 72 in (the count resets) and pins it again (M4).",
+  "seed": 5,
+  "slots": [
+    {
+      "robot": "1678",
+      "alliance": "blue",
+      "pose": [
+        1.2,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "robot": "2910",
+      "alliance": "red",
+      "pose": [
+        2.58,
+        0.0,
+        1.5707963267948966
+      ]
+    }
+  ],
+  "humanPlayers": false,
+  "phase": "teleop",
+  "steps": 1800,
+  "commands": [
+    {
+      "from": 0,
+      "robot": 0,
+      "cmd": {
+        "vx": 2.0
+      }
+    },
+    {
+      "from": 0,
+      "robot": 1,
+      "cmd": {}
+    },
+    {
+      "from": 900,
+      "robot": 0,
+      "cmd": {
+        "vx": -2.0
+      }
+    },
+    {
+      "from": 1080,
+      "robot": 0,
+      "cmd": {
+        "vx": 2.0
+      }
+    }
+  ]
+}

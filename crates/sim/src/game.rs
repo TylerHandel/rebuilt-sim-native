@@ -38,6 +38,8 @@ pub struct World {
     pub steps: u64,
     /// what the driver tells their HUMAN PLAYER this frame (js game.hpControls), cleared by frame
     pub hp_controls: HpControls,
+    /// js game.rules: the rules between robots
+    pub rules: crate::rules::RobotRules,
 }
 
 /// The parts of a step, as the JS game's stepGame names them (its probe): see parity.rs PHASES
@@ -52,7 +54,7 @@ impl World {
         let mut w = World {
             physics, fixed, data, fuel, match_: Match::new(Alliance::Blue),
             hps: [HumanPlayer::new(Alliance::Blue), HumanPlayer::new(Alliance::Red)],
-            rng: Mulberry32::new(s.seed), robots: Vec::new(), under: Vec::new(), steps: 0, hp_controls: HpControls::default(),
+            rng: Mulberry32::new(s.seed), robots: Vec::new(), under: Vec::new(), steps: 0, hp_controls: HpControls::default(), rules: Default::default(),
         };
         let pre_balls = w.fuel.stage(&mut w.physics, s.preload * s.robots.len(), &mut w.rng);
         let all: serde_json::Value = serde_json::from_str(include_str!("../../../assets/robots.json")).unwrap();
@@ -120,7 +122,10 @@ impl World {
             for (rule, desc) in std::mem::take(&mut self.robots[i].fouls) { self.match_.add_foul(a, false, rule, desc); }
         }
         probe(self, "robotsPost");
-        assert!(self.robots.len() < 2, "the rules between robots arrive with M4");
+        if self.robots.len() > 1 {
+            let views: Vec<_> = self.robots.iter().map(|r| r.rules_view()).collect();
+            self.rules.update(dt, &views, &mut self.match_);
+        }
         probe(self, "rules");
         self.steps += 1;
     }

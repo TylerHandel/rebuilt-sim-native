@@ -43,6 +43,7 @@ is ported and proven.
 | `js/hopper.js` (`Hopper`: held FUEL in the robot's frame, the foam's soft contacts and friction, the hopper's walls, floors, funnels, nets, posts and boxes, floor and rotor drives, transits up the feed and out over the intake, a TRENCH arm's push), `js/robot.js` generic paths (`_intake`, `_guideCaptured`, `_settleCaptured`, `_startOuttake`, `_startFeed`, `_fire`, `_feedAt`, `_flywheelStep`, `_spin`, `_stepHopper`, `_armsNear`, `_applyBoxForce`, `_compactorX`, `_capBehind`); `foldTop`; tools/export-native.mjs geoCap | `crates/sim/src/hopper.rs`, `generic.rs`, `robot.rs`, `fuel.rs` (captor), `game.rs` | cd07e1f | ported | `intake-971`, `shoot-971`, `intake-4946`, `shoot-4946`, `intake-3928`, `shoot-3928`, `intake-4930`, `shoot-4930` |
 | `js/robot.js` (the climber worked by hand: `driverClimb toggleClimber _manualClimb climbPose climbLevelFromLift`; the automatic climb, `requestClimb _alignCommand _climbStep`, comes with the AIs) | `crates/sim/src/robot.rs` | f325b3c | ported | `tests/climb.rs` |
 | `js/robot.js` (a folding arm's collider, `_intakePhys`, `_shooter`'s autoShuttle, the turret's travel center, a hood the robot sets) | `crates/sim/src/robot.rs` | 0e2e9d1 | ported | `intake-8793`, `trench-8793` |
+| `js/rules.js` (all: `RobotRules` G403 G415 G418 G420, `holdOffFoes towerProtected`), `js/nav.js` (`OBSTACLES towerRect obstacleAt TRENCH_OPENINGS NavGrid`) | `crates/sim/src/rules.rs`, `nav.rs` | cd07e1f | ported | `rules-pin`, `rules-intake`, `rules-auto` (and the fouls each trace lists) |
 
 ## Scripts
 
@@ -82,3 +83,6 @@ is ported and proven.
 | `shoot-3928` | M3c (3928, generic) | yes, identical |
 | `intake-4930` | M3c (4930, generic) | yes, identical |
 | `shoot-4930` | M3c (4930, generic) | yes, identical |
+| `rules-pin` | M4 (rules) | yes, identical (fouls too) |
+| `rules-intake` | M4 (rules) | yes, identical (fouls too) |
+| `rules-auto` | M4 (rules) | yes, identical (fouls too) |

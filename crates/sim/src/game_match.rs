@@ -15,7 +15,7 @@ impl Phase {
 pub struct Score { pub auto_fuel: f64, pub tele_fuel: f64, pub inactive_fuel: f64, pub auto_tower: f64, pub tele_tower: f64, pub foul_pts: f64, pub fouls: Vec<Foul> }
 
 #[derive(Debug, Clone)]
-pub struct Foul { pub t: f64, pub committed_by: Alliance, pub major: bool, pub rule: &'static str, pub desc: &'static str, pub pts: f64 }
+pub struct Foul { pub t: f64, pub committed_by: Alliance, pub major: bool, pub rule: &'static str, pub desc: String, pub pts: f64 }
 
 /// What the JS game's onEvent hears (the HUD and sounds)
 #[derive(Debug, Clone)]
@@ -220,11 +220,11 @@ impl Match {
     }
 
     /// js `addFoul(committedBy, type, rule, desc)` (major: type 'major')
-    pub fn add_foul(&mut self, committed_by: Alliance, major: bool, rule: &'static str, desc: &'static str) {
+    pub fn add_foul(&mut self, committed_by: Alliance, major: bool, rule: &'static str, desc: impl Into<String>) {
         if self.phase == Phase::Pre || self.phase == Phase::Done { return; }
         let pts = if major { POINTS::majorFoul } else { POINTS::minorFoul };
         self.score[ai(other(committed_by))].foul_pts += pts;
-        let f = Foul { t: self.t, committed_by, major, rule, desc, pts };
+        let f = Foul { t: self.t, committed_by, major, rule, desc: desc.into(), pts };
         self.score[ai(committed_by)].fouls.push(f.clone());
         self.foul_log.push(f.clone());
         self.events.push(Event::Foul(f));

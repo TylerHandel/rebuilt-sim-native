@@ -1,0 +1,56 @@
+{
+  "name": "rules-auto",
+  "about": "AUTO: blue 2910 backs fully across the CENTER LINE into red 2910's side (G403, MAJOR, once a contact episode); blue pulls away, the episode ends, and it backs in again (M4).",
+  "seed": 5,
+  "slots": [
+    {
+      "robot": "2910",
+      "alliance": "blue",
+      "pose": [
+        1.3,
+        1.3,
+        3.141592653589793
+      ]
+    },
+    {
+      "robot": "2910",
+      "alliance": "red",
+      "pose": [
+        2.45,
+        1.3,
+        1.5707963267948966
+      ]
+    }
+  ],
+  "humanPlayers": false,
+  "phase": "auto",
+  "steps": 520,
+  "commands": [
+    {
+      "from": 0,
+      "robot": 0,
+      "cmd": {
+        "vx": 1.5
+      }
+    },
+    {
+      "from": 0,
+      "robot": 1,
+      "cmd": {}
+    },
+    {
+      "from": 160,
+      "robot": 0,
+      "cmd": {
+        "vx": -1.0
+      }
+    },
+    {
+      "from": 320,
+      "robot": 0,
+      "cmd": {
+        "vx": 1.5
+      }
+    }
+  ]
+}

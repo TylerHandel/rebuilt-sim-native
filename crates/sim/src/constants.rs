@@ -8,6 +8,8 @@ include!(concat!(env!("OUT_DIR"), "/constants.rs"));
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Alliance { Blue, Red }
 pub use Alliance::{Blue as BLUE_A, Red as RED_A};
+impl Alliance { /// js: its string
+    pub fn name(self) -> &'static str { if self == Alliance::Blue { "blue" } else { "red" } } }
 
 /// js `other(a)`
 pub fn other(a: Alliance) -> Alliance { if a == Alliance::Blue { Alliance::Red } else { Alliance::Blue } }

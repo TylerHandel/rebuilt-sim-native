@@ -1,0 +1,72 @@
+{
+  "name": "rules-intake",
+  "about": "Blue 1678 drives into red 341's side with its intake out: the intake reaches inside red's FRAME PERIMETER (G415, on the robot that drove in); blue backs off and red drives into blue (M4).",
+  "seed": 5,
+  "slots": [
+    {
+      "robot": "1678",
+      "alliance": "blue",
+      "pose": [
+        -2.0,
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "robot": "341",
+      "alliance": "red",
+      "pose": [
+        -0.6,
+        0.5,
+        1.5707963267948966
+      ]
+    }
+  ],
+  "humanPlayers": false,
+  "phase": "teleop",
+  "steps": 650,
+  "commands": [
+    {
+      "from": 0,
+      "robot": 0,
+      "cmd": {
+        "intake": true
+      }
+    },
+    {
+      "from": 40,
+      "robot": 0,
+      "cmd": {
+        "intake": true,
+        "vx": 1.5
+      }
+    },
+    {
+      "from": 330,
+      "robot": 0,
+      "cmd": {
+        "intake": true,
+        "vx": -1.5
+      }
+    },
+    {
+      "from": 450,
+      "robot": 0,
+      "cmd": {
+        "intake": true
+      }
+    },
+    {
+      "from": 0,
+      "robot": 1,
+      "cmd": {}
+    },
+    {
+      "from": 470,
+      "robot": 1,
+      "cmd": {
+        "vx": -1.5
+      }
+    }
+  ]
+}

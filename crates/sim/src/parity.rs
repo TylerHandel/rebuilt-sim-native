@@ -75,7 +75,9 @@ pub struct Launch { pub step: usize, pub ball: usize, pub pos: [f64; 3], pub vel
 /// "drivers", "robotsPre", "fuelPre", "physics", "fuelPost", "robotsPost", "rules", and "frame"
 /// on odd steps). See tools/native-trace.mjs for what a digest covers.
 #[derive(Debug, Clone, serde::Deserialize)]
-pub struct Trace { pub version: u32, pub script: String, pub steps: Vec<std::collections::BTreeMap<String, String>> }
+pub struct Trace { pub version: u32, pub script: String, pub steps: Vec<std::collections::BTreeMap<String, String>>,
+    /// the fouls called, "<step> <rule> <alliance> <pts>" (traces from before they were kept have none)
+    #[serde(default)] pub fouls: Option<Vec<String>> }
 
 /// The parts of a step, in the order the JS game's stepGame runs them.
 pub const PHASES: [&str; 9] = ["match", "drivers", "robotsPre", "fuelPre", "physics", "fuelPost", "robotsPost", "rules", "frame"];
@@ -123,8 +125,19 @@ pub fn world_digest(w: &crate::game::World) -> String {
     h.hex()
 }
 
+/// native-trace.mjs's --dump: the state after a part of a step, readable
+fn dump(w: &crate::game::World, step: usize, part: &str) {
+    let p = |b: &rapier3d::prelude::RigidBody| { let (t, v, q, a) = (b.translation(), b.linvel(), b.rotation(), b.angvel()); format!("({}, {}, {}) v ({}, {}, {}) q ({}, {}, {}, {}) w ({}, {}, {})", t.x, t.y, t.z, v.x, v.y, v.z, q.x, q.y, q.z, q.w, a.x, a.y, a.z) };
+    eprintln!("--- step {step} {part}: draws {}", w.rng.draws);
+    for (i, b) in w.fuel.balls.iter().enumerate() { let body = &w.physics.bodies[b.body]; if body.is_enabled() { eprintln!("fuel {i} {} {}", b.state.name(), p(body)); } }
+    for (i, r) in w.robots.iter().enumerate() { eprintln!("robot {i} {} yaw {} intake {}", p(&w.physics.bodies[r.body]), r.yaw, r.intake_deploy); }
+}
+
 /// A script played here: the digest after each part of every step, as the trace has them.
-pub fn play(s: &Script) -> Vec<(usize, &'static str, String)> {
+pub fn play(s: &Script) -> Vec<(usize, &'static str, String)> { play_fouls(s).0 }
+
+/// play, and the fouls called (as the trace's fouls)
+pub fn play_fouls(s: &Script) -> (Vec<(usize, &'static str, String)>, Vec<String>) {
     use crate::fuel::LaunchOpts;
     use crate::game::{Settings, World};
     use crate::game_match::{LaunchBy, LaunchInfo, Phase};
@@ -137,7 +150,9 @@ pub fn play(s: &Script) -> Vec<(usize, &'static str, String)> {
     for (i, x) in slots.iter().enumerate() { w.robots[i].spawn(&mut w.physics, x.pose[0], x.pose[1], x.pose[2]); }
     let cmds: Vec<&Command> = { let mut c: Vec<&Command> = s.commands.iter().collect(); c.sort_by_key(|c| c.from); c };
     if let Some(p) = &s.phase { w.jump_to(Phase::parse(p)); }
-    let mut out = Vec::new();
+    let (mut out, mut fouls) = (Vec::new(), Vec::new());
+    // (PARITY_DUMP=<step>: that step's full state, readable, to stderr, as native-trace.mjs --dump)
+    let dump_at: Option<usize> = std::env::var("PARITY_DUMP").ok().and_then(|v| v.parse().ok());
     for step in 0..s.steps {
         for c in cmds.iter().filter(|c| c.from == step) { w.robots[c.robot].cmd = c.cmd; }
         for l in s.launches.iter().filter(|l| l.step == step) {
@@ -148,8 +163,10 @@ pub fn play(s: &Script) -> Vec<(usize, &'static str, String)> {
                 w.physics.bodies[b].set_angvel(crate::Vector::new(sp[0] as f32, sp[1] as f32, sp[2] as f32), true);
             }
         }
-        w.step(&mut |w, part| out.push((step, part, world_digest(w))));
+        w.step(&mut |w, part| { out.push((step, part, world_digest(w))); if dump_at == Some(step) { dump(w, step, part); } });
         if step % 2 == 1 { w.frame(2.0 * crate::constants::PHYSICS_DT); out.push((step, "frame", world_digest(&w))); }
+        let log = &w.match_.foul_log;
+        while fouls.len() < log.len() { let f = &log[fouls.len()]; fouls.push(format!("{step} {} {} {}", f.rule, f.committed_by.name(), f.pts)); }
     }
-    out
+    (out, fouls)
 }
