@@ -333,6 +333,8 @@ impl Phys6328 {
 
     /// js `backOff()`: the AI's driver backing off FUEL caught under the ramp
     pub fn back_off(&self) -> bool { self.now < self.clear_until }
+    /// js `launching`: it's launching its load (6328's AUTO waits on it)
+    pub fn launching(&self) -> bool { self.launching }
     /// js `armTurn()`, `hoodTurn()`, `extNow()`
     pub fn arm_turn(&self) -> f64 { intake_rot(self.arm_deg) }
     pub fn hood_turn(&self) -> f64 { hood_rot(self.hood_deg) }
@@ -340,6 +342,15 @@ impl Phys6328 {
     /// js `exitSpeed()`
     pub fn exit_speed(&self) -> f64 { exit_for(m::abs(self.p.drives.omega(self.t.drum)) * shooter::DRUM_R) }
     /// js `capacity()`
+    /// js `loadTop()`: the top of its load (in its hopper, not up in the shooter)
+    pub fn load_top(&mut self, phys: &PhysicsWorld, fuel: &crate::fuel::Fuel, body: RigidBodyHandle) -> f64 {
+        let mut top: f64 = 0.0;
+        for k in 0..self.p.held.len() {
+            let [x, y, _] = self.p.local(phys, body, fuel.balls[self.p.held[k]].pos);
+            if x > -0.05 { top = m::max(top, y + FUEL::radius); }
+        }
+        top
+    }
     pub fn capacity(&self) -> usize { 70 }
 }
 

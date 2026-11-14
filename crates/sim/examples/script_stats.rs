@@ -9,9 +9,9 @@ fn main() {
     let s: sim::parity::Script = serde_json::from_str(&std::fs::read_to_string(&a[1]).unwrap()).unwrap();
     let mut slots: Vec<_> = s.slots.iter().filter(|x| x.alliance == "blue").collect();
     slots.extend(s.slots.iter().filter(|x| x.alliance == "red"));
-    let robots = slots.iter().map(|x| (x.robot.clone(), if x.alliance == "blue" { Alliance::Blue } else { Alliance::Red }, x.pose)).collect();
-    let mut w = World::new(sim::WorldData::bundled(), &Settings { seed: s.seed, human_players: s.human_players.unwrap_or(true), preload: s.preload, robots, aim_truth: s.aim_truth });
-    for (i, x) in slots.iter().enumerate() { w.robots[i].spawn(&mut w.physics, x.pose[0], x.pose[1], x.pose[2]); }
+    let robots = slots.iter().map(|x| (x.robot.clone(), if x.alliance == "blue" { Alliance::Blue } else { Alliance::Red }, x.pose.unwrap())).collect();
+    let mut w = World::new(sim::WorldData::bundled(), &Settings { seed: s.seed, human_players: s.human_players.unwrap_or(true), preload: s.preload, robots, aim_truth: s.aim_truth, units: Vec::new() });
+    for (i, x) in slots.iter().enumerate() { w.robots[i].spawn(&mut w.physics, x.pose.unwrap()[0], x.pose.unwrap()[1], x.pose.unwrap()[2]); }
     if let Some(p) = &s.phase { w.jump_to(Phase::parse(p)); }
     let mut cmds: Vec<_> = s.commands.iter().collect();
     cmds.sort_by_key(|c| c.from);

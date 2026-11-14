@@ -177,7 +177,7 @@ fn refresh(
     let w = &game.0;
     let m = &w.match_;
     let me = m.player;
-    let Some(r) = w.robots.first() else { return };
+    let Some(r) = w.mine() else { return };
     let info = Roster::get().robot(&r.key);
     let on = m.hub_active(me);
     let nc = if m.phase == Phase::Auto { None } else { m.hub_next_change(me) };
@@ -234,7 +234,7 @@ fn refresh(
                 Some(_) => {
                     use sim::robot::ClimbState as C;
                     let s = match r.climb_state {
-                        C::Climbing => "Climbing", C::Hanging => "Hanging", C::Descending => "Descending",
+                        C::Aligning => "Lining up", C::Climbing => "Climbing", C::Hanging => "Hanging", C::Descending => "Descending",
                         C::None => if r.hooked { "Hooked" } else if r.climber_ext > 0.98 { "Up" } else if r.climber_ext < 0.02 { "Down" } else if r.climber_up { "Raising" } else { "Lowering" },
                     };
                     format!("{s} · target L{}{}", r.climb_target, if r.climb_level > 0 { format!(" · at L{}", r.climb_level) } else { String::new() })

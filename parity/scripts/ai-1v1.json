@@ -1,0 +1,26 @@
+{
+  "name": "ai-1v1",
+  "about": "TELEOP, 1 v 1: blue 2910 an AI scorer (Champs) against red 4414 an AI hybrid (Regional), from their AUTO starts, preloaded: the AIs' decisions, paths and commands as the browser game's, and the fouls between them (M4).",
+  "seed": 11,
+  "slots": [
+    {
+      "robot": "2910",
+      "alliance": "blue",
+      "driver": "scorer",
+      "skill": "champs",
+      "start": "rightTrench"
+    },
+    {
+      "robot": "4414",
+      "alliance": "red",
+      "driver": "hybrid",
+      "skill": "regional",
+      "start": "rightTrench"
+    }
+  ],
+  "humanPlayers": false,
+  "phase": "teleop",
+  "preload": 8,
+  "steps": 3600,
+  "commands": []
+}

@@ -36,7 +36,7 @@ pub const CLIMB_LIFT: [f64; 4] = [0.0, 0.16, 0.74, 1.2];
 
 /// js robot.climbState (no automatic lining up here: a climber is worked by hand)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ClimbState { None, Climbing, Hanging, Descending }
+pub enum ClimbState { None, Aligning, Climbing, Hanging, Descending }
 /// js cfg.climber: { maxLevel, times }
 #[derive(Clone, Debug)]
 pub struct ClimberCfg { pub max_level: usize, pub times: Vec<f64> }
@@ -73,6 +73,9 @@ pub fn ported(cfg: &Value) -> bool {
     if p.is_none() { return cfg["key"].as_str().is_some_and(|k| GENERIC.contains(&k)); }
     p.is_some_and(|p| PORTED.contains(&p)) && (!folds || p.is_some_and(|p| FOLDS.contains(&p)))
 }
+
+/// js robotConfigs `fitsTrench(cfg)`: short enough to drive under a TRENCH arm
+pub fn fits_trench(cfg: &Value) -> bool { num(cfg, "height") <= TRENCH::clearHeight - 0.005 }
 
 /// js robotConfigs `frameShape(cfg)`
 pub fn frame_shape(cfg: &Value) -> Vec<[f64; 2]> {
@@ -250,6 +253,16 @@ pub struct Robot {
     pub side_plates: [ColliderHandle; 2],
     /// the fouls it committed this step (rule, description), for the match (js match.addFoul)
     pub fouls: Vec<(&'static str, &'static str)>,
+    /// js forceDeploy: a latched intake comes down as AUTO starts, whatever it's told (game.rs)
+    pub force_deploy: bool,
+    /// js noiseScale: an AI driver's extra shot scatter (its skill)
+    pub noise_scale: f64,
+    /// js climbClaim: an AI has picked this robot to climb for its alliance
+    pub climb_claim: bool,
+    /// js passTarget: where an AI wants its passes to land (x, z)
+    pub ai_pass: Option<[f64; 2]>,
+    /// js loadTop, loadHighT, topStowed of a physical robot (a generic robot's are its own)
+    pub phys_top: [f64; 3],
 }
 
 /// js tws[i]: one of twin turrets' own shooter: its flywheel's exit speed and hood (deg), the
@@ -367,7 +380,7 @@ impl Robot {
             key: key.into(), cfg, alliance, body: RigidBodyHandle::invalid(), bumper: ColliderHandle::invalid(), frame: ColliderHandle::invalid(),
             hopper: None, hopper_y: 0.0, arm_collider: ColliderHandle::invalid(), arm_wall: None, intake_block: None, slide_back: None, lid: None,
             wheel_pts: Vec::new(), half_l, half_w, height, swerve,
-            max_speed: 0.0, max_omega: 0.0, phys: None, cmd: Cmd::default(), enabled: false, intake_deploy: 0.0, intake_want: false, human_driven: false, climber: None, climb_state: ClimbState::None, climb_lift: 0.0, climb_level: 0, climb_target: 0,
+            max_speed: 0.0, max_omega: 0.0, phys: None, force_deploy: false, noise_scale: 1.0, climb_claim: false, ai_pass: None, phys_top: [0.0; 3], cmd: Cmd::default(), enabled: false, intake_deploy: 0.0, intake_want: false, human_driven: false, climber: None, climb_state: ClimbState::None, climb_lift: 0.0, climb_level: 0, climb_target: 0,
             climber_up: false, climber_ext: 0.0, hooked: false, manual: false, climb_base: [0.0; 3], teleop: false, is_auto: false, phase_time: 0.0, arm_groups: 0, arm_groups_rigid: 0, hopper_deploy: 0.0,
             last_t: 0.0, pos: [0.0; 3], quat: [0.0, 0.0, 0.0, 1.0], yaw: 0.0, vel: [0.0; 3], omega: 0.0, traction: 0.0,
             aim_vel: [0.0; 2], stored: Vec::new(), stats: Stats::default(), full: false, last_in_zone: false, want_shoot: false, shot_setpoint: 0.0,
@@ -562,6 +575,8 @@ impl Robot {
         self.climb_target = self.climber.as_ref().map_or(0, |c| c.max_level);
         self.climb_level = 0;
         self.climber_up = false; self.climber_ext = 0.0; self.hooked = false; self.manual = false;
+        self.climb_claim = false;
+        self.ai_pass = None;
         self.enabled = false;
         self.cmd = Cmd::default();
         self.stored.clear();
@@ -718,6 +733,8 @@ impl Robot {
             Some(Phys::R6328(_)) => (true, self.aim_pt(Phys6328::pass_target(self.alliance, self.pos)), in_zone),
             Some(Phys::R604(_)) => (true, self.aim_pt(Phys604::pass_target(self.alliance, self.pos)), in_zone),
             Some(Phys::R581(_)) => (true, self.aim_pt(Phys581::feed_point(self.alliance, self.pos)), in_zone),
+            // (an AI can pick where its passes land, feeding its own zone)
+            _ if self.ai_pass.is_some() => (true, self.aim_pt(self.ai_pass.unwrap()), in_zone),
             _ => {
                 let s = if self.alliance == Alliance::Blue { 1.0 } else { -1.0 };
                 let x = s * (-HALF_L + 1.7);
@@ -829,7 +846,7 @@ impl Robot {
         let mut status: &str = if has { "Holding FUEL" } else { "Empty" };
         let (pass, tgt, in_zone) = self.target();
         self.last_in_zone = in_zone;
-        let prespin = on && has && in_zone;
+        let prespin = on && has && (in_zone || self.cmd.prespin);
         let mut out_of_range = false;
         let fixed = self.cfg["shooter"]["type"].as_str() == Some("fixed");
         let mut twin_status: Option<String> = None;
@@ -1037,13 +1054,19 @@ impl Robot {
         }
         // (a climber a person works: their button raises it and lowers it, and its hooks do the climb)
         if self.driver_climb() { self.manual_climb(phys, dt); } else { self.manual = false; }
-        if self.climb_state != ClimbState::None { return; }
+        if matches!(self.climb_state, ClimbState::Climbing | ClimbState::Hanging | ClimbState::Descending) {
+            if !self.driver_climb() { self.climb_step(phys, dt); }
+            return;
+        }
         let (mut tvx, mut tvz, mut tw) = (0.0, 0.0, 0.0);
         if self.enabled {
             tvx = self.cmd.vx; tvz = self.cmd.vz; tw = self.cmd.omega;
             let w = self.along_walls(phys, tvx, tvz);
             tvx = w[0]; tvz = w[1];
-            if let Some(a) = self.aim_override { tw = a; }
+            if self.climb_state == ClimbState::Aligning {
+                let a = self.align_command(phys);
+                tvx = a[0]; tvz = a[1]; tw = a[2];
+            } else if let Some(a) = self.aim_override { tw = a; }
         }
         let sp = m::hypot2(tvx, tvz);
         if sp > self.max_speed { tvx *= self.max_speed / sp; tvz *= self.max_speed / sp; }
@@ -1077,6 +1100,85 @@ impl Robot {
         let z = HALF_W - TOWER::fy;
         [s * x, s * z, if self.alliance == Alliance::Blue { 0.0 } else { m::PI }]
     }
+    /// js `canStartClimb()`
+    pub fn can_start_climb(&self) -> bool {
+        if self.climber.is_none() || self.climb_state != ClimbState::None { return false; }
+        let p = self.climb_pose();
+        m::hypot2(self.pos[0] - p[0], self.pos[2] - p[2]) < 1.4
+    }
+    /// js `requestClimb()` (an AI's and an AUTO's: lining up at its TOWER, then the climb on its own)
+    pub fn request_climb(&mut self) -> Option<&'static str> {
+        if self.climber.is_none() { return Some("No climber installed"); }
+        if self.driver_climb() { return Some(self.toggle_climber()); }
+        match self.climb_state {
+            ClimbState::None => { if !self.can_start_climb() { return Some("Drive to the front of your TOWER to climb"); } self.climb_state = ClimbState::Aligning; }
+            ClimbState::Aligning => self.climb_state = ClimbState::None,
+            ClimbState::Hanging if self.climb_target > self.climb_level as usize => self.climb_state = ClimbState::Climbing,
+            _ => self.climb_state = ClimbState::Descending,
+        }
+        None
+    }
+    /// js `_alignCommand()`: (vx, vz, omega) toward the climb pose; there and still, the climb starts
+    fn align_command(&mut self, phys: &mut PhysicsWorld) -> [f64; 3] {
+        let p = self.climb_pose();
+        let (ex, ez) = (p[0] - self.pos[0], p[2] - self.pos[2]);
+        let eyaw = wrap_angle(p[2] - self.yaw);
+        let dist = m::hypot2(ex, ez);
+        if dist < 0.03 && m::abs(eyaw) < 2.0 * DEG && m::hypot3(self.vel[0], self.vel[1], self.vel[2]) < 0.12 {
+            self.climb_state = ClimbState::Climbing;
+            let h = self.yaw / 2.0;
+            let b = &mut phys.bodies[self.body];
+            b.set_rotation(Rotation::from_xyzw(0.0, m::sin(h) as f32, 0.0, m::cos(h) as f32).normalize(), true);
+            b.set_body_type(RigidBodyType::KinematicPositionBased, true);
+            self.climb_base = self.pos;
+            return [0.0; 3];
+        }
+        let sp = m::min(2.2, dist * 3.0);
+        let d = if dist == 0.0 { 1.0 } else { dist };
+        [(ex / d) * sp, (ez / d) * sp, crate::fuel::clamp(eyaw * 6.0, -4.0, 4.0)]
+    }
+    /// js `_climbStep(dt)`: the automatic climb, by time between LEVELS
+    fn climb_step(&mut self, phys: &mut PhysicsWorld, dt: f64) {
+        let c = self.climber.clone().unwrap();
+        let target = CLIMB_LIFT[self.climb_target];
+        if self.climb_state == ClimbState::Climbing {
+            let lvl = climb_level_from_lift(self.climb_lift) as usize;
+            let next = self.climb_target.min(lvl + 1);
+            let tn = c.times.get(next).copied().unwrap_or(2.0);
+            let tp = if next == 0 { 0.0 } else { c.times.get(next - 1).copied().unwrap_or(0.0) };
+            let seg_t = m::max(0.3, tn - tp);
+            let seg_h = CLIMB_LIFT[next] - CLIMB_LIFT[next.saturating_sub(1)];
+            self.climb_lift = m::min(target, self.climb_lift + (seg_h / seg_t) * dt);
+            if self.climb_lift >= target - 1e-4 { self.climb_state = ClimbState::Hanging; }
+        } else if self.climb_state == ClimbState::Descending {
+            self.climb_lift = m::max(0.0, self.climb_lift - 0.45 * dt);
+            if self.climb_lift <= 0.0 {
+                self.climb_state = ClimbState::None;
+                let b = &mut phys.bodies[self.body];
+                b.set_body_type(RigidBodyType::Dynamic, true);
+                b.set_linvel(vf(0.0, 0.0, 0.0), true);
+            }
+        }
+        self.climb_level = if matches!(self.climb_state, ClimbState::Hanging | ClimbState::Climbing | ClimbState::Descending) { climb_level_from_lift(self.climb_lift) } else { 0 };
+        if self.climb_state != ClimbState::None {
+            let cb = self.climb_base;
+            phys.bodies[self.body].set_next_kinematic_translation(vf(cb[0], cb[1] + self.climb_lift, cb[2]));
+        }
+    }
+    /// js `maxCapacity()`: a physical robot's rating, a generic robot's hopper extended
+    pub fn max_capacity(&self) -> f64 {
+        if self.phys.is_some() { self.capacity() as f64 } else { self.max_capacity_generic() }
+    }
+    /// js `fitsTrenchLowered()`: under a TRENCH arm with its intake (and what rides with it) in
+    pub fn fits_trench_lowered(&self) -> bool { fits_trench(&self.cfg) && self.top_stowed() <= TRENCH::clearHeight - 0.005 }
+    /// js `loadNearTrench()`: its load has been up near the TRENCH arm's height a moment
+    pub fn load_near_trench(&self) -> bool { self.load_high_t() > 0.3 }
+    /// js `deployRaisesTop`: its intake out raises its top (1678's lid; not a physical robot's)
+    pub fn deploy_raises_top(&self) -> bool { self.cfg["bay"]["lift"].is_object() && self.phys.is_none() }
+    pub fn top_stowed(&self) -> f64 { self.generic.as_ref().map_or(self.phys_top[2], |g| g.top_stowed) }
+    pub fn load_high_t(&self) -> f64 { self.generic.as_ref().map_or(self.phys_top[1], |g| g.load_high_t) }
+    pub fn load_top(&self) -> f64 { self.generic.as_ref().map_or(self.phys_top[0], |g| g.load_top) }
+
     /// js `driverClimb`: a person drives it and it has a climber, in TELEOP: the climber is theirs
     pub fn driver_climb(&self) -> bool { self.human_driven && self.climber.is_some() && self.teleop }
     /// js `toggleClimber()` (the driver's button): what it says
@@ -1213,6 +1315,7 @@ impl Robot {
         self.shooter_step(on, rng);
         // (a generic robot: its held FUEL, and the top colliders with them)
         if self.generic.is_some() { self.step_hopper_generic(phys, fuel, dt, rng); return; }
+        self.step_phys_top(phys, fuel, dt);
         self.step_top_colliders(phys);
         let lv = phys.bodies[self.body].linvel();
         let est_vel = self.loc.vel(self.yaw).unwrap_or([lv.x as f64, lv.z as f64]);
@@ -1325,7 +1428,7 @@ impl Robot {
             Some(Phys::R6328(p)) => {
                 let pin6 = crate::mech::phys6328::PostIn {
                     on, feeding: self.want_shoot, outtake: on && self.cmd.outtake, pass: pin.pass, legal: self.last_in_zone, intake: self.cmd.intake,
-                    auto: self.is_auto, human: self.human_driven, prespin: false, stow: false,
+                    auto: self.is_auto, human: self.human_driven, prespin: self.cmd.prespin, stow: self.cmd.stow,
                     has_shot: self.shot.is_some(), shot_aim: self.shot.map_or([0.0; 2], |s| s.aim),
                     aim_pass: self.loc.aim_pt(Phys6328::pass_target(self.alliance, self.pos), self.pos, self.yaw), aim_hub: pin.aim_hub,
                     pos: self.pos, yaw: self.yaw, quat: { let q = c.phys.bodies[self.body].rotation(); [q.x as f64, q.y as f64, q.z as f64, q.w as f64] },
@@ -1340,7 +1443,7 @@ impl Robot {
             Some(Phys::R1114(p)) => {
                 let pin4 = crate::mech::phys1114::PostIn {
                     on, feeding: self.want_shoot, outtake: on && self.cmd.outtake, setpoint: self.shot_setpoint, pass: pin.pass, legal: self.last_in_zone,
-                    intake: self.cmd.intake, auto: self.is_auto, spin: None, lineup: false, has_shot: self.shot.is_some(),
+                    intake: self.cmd.intake, auto: self.is_auto, spin: self.cmd.spin, lineup: self.cmd.lineup, has_shot: self.shot.is_some(),
                     aim_pass: self.loc.aim_pt(Phys1114::pass_target(self.alliance, self.pos), self.pos, self.yaw), aim_hub: pin.aim_hub, pos: self.pos, aim_err: self.aim_err,
                 };
                 self.stored = p.post_step(&mut c, dt, t, &pin4, &mut self.stats, &mut self.out);
@@ -1413,8 +1516,9 @@ impl Robot {
     /// the game wants it down. It stays down while FUEL is up on it.
     fn intake_phys(&mut self, _phys: &PhysicsWorld, fuel: &Fuel, on: bool) {
         let ic = &self.cfg["intake"];
-        let mut want = on && (self.cmd.intake || self.cmd.outtake);
+        let mut want = on && (self.cmd.intake || self.cmd.lower || self.cmd.outtake);
         if ic["latched"].as_bool() == Some(true) && self.intake_deploy >= 1.0 { want = true; }
+        if self.force_deploy { want = true; }
         let fl = num(&self.cfg["frame"], "length");
         let (c, s) = (m::cos(self.yaw), m::sin(self.yaw));
         if self.stored.iter().any(|&b| { let p = fuel.balls[b].pos; let (dx, dz) = (p[0] - self.pos[0], p[2] - self.pos[2]); dx * c - dz * s > fl / 2.0 }) { want = true; }
@@ -1444,6 +1548,31 @@ impl Robot {
         let is_out = self.hopper_deploy > 0.05;
         phys.colliders[col].set_collision_groups(grp(if is_out { groups(GROUP::ROBOT, ball | GROUP::ROBOT | GROUP::INTAKE) } else { 0 }));
         phys.colliders[wall].set_collision_groups(grp(if is_out { groups(GROUP::ROBOT, GROUP::ROBOT_BARRIER | GROUP::STATIC) } else { 0 }));
+    }
+
+    /// js `_stepHopper(dt)` for a physical robot: its load's top (its mechanisms' FUEL), how long it's
+    /// been up near a TRENCH arm, and its top with the intake in (what has to fit under the arm)
+    fn step_phys_top(&mut self, phys: &PhysicsWorld, fuel: &Fuel, dt: f64) {
+        let body = self.body;
+        let load_top = match &mut self.phys {
+            Some(Phys::R1678(p)) => p.load_top(phys, fuel, body), Some(Phys::R4414(p)) => p.load_top(phys, fuel, body),
+            Some(Phys::R1690(p)) => p.load_top(phys, fuel, body), Some(Phys::R2056(p)) => p.load_top(phys, fuel, body),
+            Some(Phys::R1706(p)) => p.load_top(phys, fuel, body), Some(Phys::R6328(p)) => p.load_top(phys, fuel, body),
+            Some(Phys::R7769(p)) => p.load_top(phys, fuel, body), _ => 0.0,
+        };
+        let bay = &self.cfg["bay"];
+        let dome = bay.get("dome").is_some_and(|x| x.is_object());
+        let lift = bay.get("lift").filter(|x| x.is_object()).map(|l| num(l, "h"));
+        let grow_top = match lift {
+            Some(h) => {
+                let scale = match &self.phys { Some(Phys::R1678(p)) => p.lift_now(h), _ => m::max(self.intake_deploy, crate::fuel::clamp((load_top - 0.01 - num(bay, "top")) / h, 0.0, 1.0)) };
+                num(bay, "top") + h * scale + 0.01
+            }
+            None => if dome { load_top + 0.005 } else { 0.0 },
+        };
+        let high = if (dome || lift.is_some()) && load_top > TRENCH::clearHeight - 0.035 { self.phys_top[1] + dt } else { 0.0 };
+        let held = match lift { Some(h) => num(bay, "top") + h * crate::fuel::clamp((load_top - 0.01 - num(bay, "top")) / h, 0.0, 1.0) + 0.01, None => grow_top };
+        self.phys_top = [load_top, high, m::max(self.height, held)];
     }
 
     /// js `_stepTopColliders()` (an intake block; lids and folding or sliding intakes later)

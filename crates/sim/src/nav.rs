@@ -108,6 +108,7 @@ pub struct P { pub x: f64, pub z: f64 }
 pub struct Circle { pub x: f64, pub z: f64, pub r: f64 }
 
 /// js `NavGrid`
+#[derive(Clone, Debug)]
 pub struct NavGrid {
     r: f64,
     nx: usize,

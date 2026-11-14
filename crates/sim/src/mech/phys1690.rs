@@ -370,6 +370,17 @@ impl Phys1690 {
     /// js `extNow()`: how far the U-frame is out past the frame (m)
     pub fn ext_now(&self) -> f64 { m::max(0.0, self.front() - HALF_L) }
     /// js `capacity()`
+    /// js `loadTop()`: the top of its load (under the top plate, as far as it presses it down)
+    pub fn load_top(&mut self, phys: &PhysicsWorld, fuel: &crate::fuel::Fuel, body: RigidBodyHandle) -> f64 {
+        let locals: Vec<[f64; 3]> = (0..self.p.held.len()).map(|k| { let b = self.p.held[k]; self.p.local(phys, body, fuel.balls[b].pos) }).collect();
+        let pl = self.p.surfaces[S_NET].plate_ref().unwrap();
+        let mut top = 0.0;
+        for [x, y, z] in locals {
+            let t = y + FUEL::radius - (if pl.bow > 0.0 && x > pl.x0 && m::abs(z) < pl.hw { m::min(crate::mech::r1690::plate::PRESS, pl.bow * pl.bow_shape(m::min(x, HALF_L), z)) } else { 0.0 });
+            if t > top { top = t; }
+        }
+        top
+    }
     pub fn capacity(&self) -> usize { 50 }
     /// the top plate's bow (m), for drawing it
     pub fn bow(&self) -> f64 { self.p.surfaces[S_NET].plate_ref().unwrap().bow }

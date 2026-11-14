@@ -10,9 +10,9 @@ fn main() {
     let at: Vec<usize> = a[2..].iter().map(|x| x.parse().unwrap()).collect();
     let mut slots: Vec<_> = s.slots.iter().filter(|x| x.alliance == "blue").collect();
     slots.extend(s.slots.iter().filter(|x| x.alliance == "red"));
-    let robots = slots.iter().map(|x| (x.robot.clone(), if x.alliance == "blue" { sim::constants::Alliance::Blue } else { sim::constants::Alliance::Red }, x.pose)).collect();
-    let mut w = World::new(sim::WorldData::bundled(), &Settings { seed: s.seed, human_players: s.human_players.unwrap_or(true), preload: s.preload, robots, aim_truth: s.aim_truth });
-    for (i, x) in slots.iter().enumerate() { w.robots[i].spawn(&mut w.physics, x.pose[0], x.pose[1], x.pose[2]); }
+    let robots = slots.iter().map(|x| (x.robot.clone(), if x.alliance == "blue" { sim::constants::Alliance::Blue } else { sim::constants::Alliance::Red }, x.pose.unwrap())).collect();
+    let mut w = World::new(sim::WorldData::bundled(), &Settings { seed: s.seed, human_players: s.human_players.unwrap_or(true), preload: s.preload, robots, aim_truth: s.aim_truth, units: Vec::new() });
+    for (i, x) in slots.iter().enumerate() { w.robots[i].spawn(&mut w.physics, x.pose.unwrap()[0], x.pose.unwrap()[1], x.pose.unwrap()[2]); }
     if let Some(p) = &s.phase { w.jump_to(Phase::parse(p)); }
     let hop = |w: &World, tag: &str| { if let Some(g) = &w.robots[0].generic { for e in &g.hopper.list { eprintln!("hop {tag} {} {} {} {}", e.b, e.p[0], e.p[1], e.p[2]); } } };
     hop(&w, "pre");

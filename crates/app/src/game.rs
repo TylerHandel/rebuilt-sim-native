@@ -38,23 +38,70 @@ pub struct Driver(pub Cmd, pub bool);
 /// What the match being played was started with
 #[derive(Resource, Clone)]
 pub struct MatchSetup {
-    pub robot: String,
+    /// the robots in the match (js matchEntries: its robot, alliance, the AUTO start it asks for, who
+    /// drives it), in the order the match makes them
+    pub entries: Vec<(String, Alliance, String, sim::game::UnitSpec)>,
+    /// which of them you drive (none: you watch the AIs)
+    pub you: Option<usize>,
+    /// your side (the camera's and the HUD's; with nobody yours, blue)
     pub alliance: Alliance,
-    pub start: String,
     pub skip_auto: bool,
-    /// AUTO with the robot standing still (settings auto "none"); otherwise in AUTO you drive it
+    /// AUTO with your robot standing still (settings auto "none")
     pub still_auto: bool,
     /// your HUMAN PLAYER throws by itself (settings hp "auto")
     pub hp_auto: bool,
+}
+
+impl MatchSetup {
+    /// js matchEntries(settings): the robots in the match the settings ask for
+    pub fn from_settings(s: &Settings) -> Self {
+        let unit = |driver: &str, auto: &str, start: &str, skill: &str| sim::game::UnitSpec { driver: driver.into(), auto: auto.into(), start: start.into(), skill: skill.into() };
+        // (you: your AUTO runs as its routine unless you drive it yourself or it stands still)
+        let mine = |s: &Settings, start: &str| unit(if s.auto == "best" { "you" } else { "external" }, "best", start, "champs");
+        let mut entries = Vec::new();
+        let mut you = None;
+        let mut alliance = s.alliance();
+        match s.mode.as_str() {
+            "3v3" => {
+                alliance = Alliance::Blue;
+                for (i, sl) in s.slots.iter().enumerate() {
+                    if sl.driver == "empty" { continue; }
+                    let a = if i < 3 { Alliance::Blue } else { Alliance::Red };
+                    if sl.driver == "you" { you = Some(entries.len()); alliance = a; entries.push((sl.robot.clone(), a, sl.start.clone(), mine(s, &sl.start))); }
+                    else { entries.push((sl.robot.clone(), a, sl.start.clone(), unit(&sl.driver, "best", &sl.start, &sl.skill))); }
+                }
+            }
+            mode => {
+                you = Some(0);
+                entries.push((s.robot.clone(), s.alliance(), s.start.clone(), mine(s, &s.start)));
+                if mode == "1v1" {
+                    let (routine, start) = sim::ai::opponent_auto(&s.opponent);
+                    entries.push((s.opp_robot.clone(), sim::constants::other(s.alliance()), start.into(), unit(&s.opponent, routine, start, &s.opp_skill)));
+                }
+            }
+        }
+        MatchSetup { entries, you, alliance, skip_auto: s.auto == "skip", still_auto: s.auto == "none", hp_auto: s.hp == "auto" }
+    }
 }
 
 /// What the screens ask of the game (js ui.js handlers: onStart, onRestart, onResume, onMenu)
 #[derive(Message, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum GameCmd { Start, Restart, Resume, Pause, ToMenu }
 
-/// The field and its FUEL, and the robot of `setup` (none behind the menus)
+/// The field and its FUEL, and the robots of `setup` (none behind the menus)
 pub fn new_world(setup: Option<&MatchSetup>) -> World {
-    let robots = setup.map(|m| vec![(m.robot.clone(), m.alliance, start_pose(&m.robot, &m.start, m.alliance))]).unwrap_or_default();
+    let (robots, units) = match setup {
+        Some(m) => {
+            // (a team's own AUTO or a plan starts where its AUTO says: js startPose; you, driving your
+            // AUTO yourself or standing still, where you picked)
+            let robots = m.entries.iter().enumerate().map(|(i, (key, a, start, u))| {
+                let pose = if Some(i) == m.you && u.driver == "external" { start_pose(key, start, *a) } else { [f64::NAN; 3] };
+                (key.clone(), *a, pose)
+            }).collect();
+            (robots, m.entries.iter().map(|e| e.3.clone()).collect())
+        }
+        None => (Vec::new(), Vec::new()),
+    };
     let settings = SimSettings {
         seed: rand_seed(),
         // (both throw at their HUBS while active; yours as the hp setting says, below)
@@ -62,14 +109,17 @@ pub fn new_world(setup: Option<&MatchSetup>) -> World {
         preload: if setup.is_some() { 8 } else { 0 },
         robots,
         aim_truth: false,
+        units,
     };
     let mut w = World::new(sim::WorldData::bundled(), &settings);
     if let Some(m) = setup {
         w.match_.player = m.alliance;
+        w.you = m.you;
         // (js createGame humanDriven: you drive it; its climber is yours to work, in TELEOP)
-        if let Some(r) = w.robots.first_mut() { r.human_driven = true; }
-        // (js createGame: your HUMAN PLAYER throws by itself unless you've set it to manual)
-        w.hps[sim::game_match::ai(m.alliance)].auto = m.hp_auto;
+        if let Some(r) = w.mine_mut() { r.human_driven = true; }
+        // (js createGame: your HUMAN PLAYER throws by itself unless you've set it to manual, or
+        // nobody on your ALLIANCE is driving)
+        w.hps[sim::game_match::ai(m.alliance)].auto = m.hp_auto || m.you.is_none();
     }
     w
 }
@@ -96,13 +146,13 @@ impl Plugin for GamePlugin {
 fn step(mut game: ResMut<Game>, driver: Res<Driver>, setup: Option<Res<MatchSetup>>, mut st: ResMut<StepTime>) {
     let t = Instant::now();
     let w = &mut game.0;
-    // (in AUTO, practice: you drive it yourself, unless it's to stand still)
+    // (your command; in AUTO your routine's, unless you drive AUTO yourself or stand still)
     let still = setup.as_ref().is_some_and(|s| s.still_auto) && w.match_.phase == Phase::Auto;
-    if let Some(r) = w.robots.first_mut() { r.cmd = if still { Cmd::default() } else { driver.0 }; }
+    if let Some(r) = w.mine_mut() { r.cmd = if still { Cmd::default() } else { driver.0 }; }
     w.step(&mut |_, _| {});
     // (frameGame runs every second step, as the headless game and the parity traces run it)
     if w.steps % 2 == 0 { w.frame(2.0 * PHYSICS_DT); }
-    // no AUTO routines yet: "skip" goes from AUTO straight to where TELEOP is decided
+    // "skip" goes from AUTO straight to where TELEOP is decided
     if setup.is_some_and(|s| s.skip_auto) && w.match_.phase == Phase::Auto {
         w.match_.go(Phase::AutoGap);
         w.match_.phase_time = TIMING::autoGap;
@@ -157,7 +207,7 @@ fn drive(
     rb |= k(&[KeyCode::KeyR]);
     lb |= k(&[KeyCode::KeyF]);
 
-    let Some(r) = game.0.robots.first() else { return };
+    let Some(r) = game.0.mine() else { return };
     let (max_speed, max_omega) = (r.max_speed, r.max_omega);
     let (mut up, mut right) = (-ly as f64, lx as f64);
     let mag = up.hypot(right).min(1.0);
@@ -176,6 +226,7 @@ fn drive(
         shoot: rt > 0.3,
         pass: rb,
         outtake: lb,
+        ..Default::default()
     }, slow);
 }
 
@@ -188,7 +239,7 @@ fn keys(keys: Res<ButtonInput<KeyCode>>, pads: Query<&Gamepad>, screen: Res<Stat
     hp.throw_held = keys.pressed(KeyCode::KeyH) || pads.iter().any(|p| p.pressed(GamepadButton::North));
     // your robot's climber (js main.js: C or A raises it or lowers it, in TELEOP; 1678's lid with it)
     if (keys.just_pressed(KeyCode::KeyC) || pads.iter().any(|p| p.just_pressed(GamepadButton::South))) && game.0.match_.is_teleop() {
-        if let Some(r) = game.0.robots.first_mut() { if r.climber.is_some() { r.toggle_climber(); } }
+        if let Some(r) = game.0.mine_mut() { if r.climber.is_some() { r.toggle_climber(); } }
     }
     if keys.just_pressed(KeyCode::Escape) || pads.iter().any(|p| p.just_pressed(GamepadButton::Start)) { cmds.write(GameCmd::Pause); }
     if keys.just_pressed(KeyCode::Backspace) || pads.iter().any(|p| p.just_pressed(GamepadButton::Select)) { cmds.write(GameCmd::Restart); }
@@ -210,7 +261,7 @@ fn commands(
             GameCmd::Start | GameCmd::Restart => {
                 let m = match (&setup, c) {
                     (Some(s), GameCmd::Restart) => (**s).clone(),
-                    _ => MatchSetup { robot: settings.robot.clone(), alliance: settings.alliance(), start: settings.start.clone(), skip_auto: settings.auto == "skip", still_auto: settings.auto == "none", hp_auto: settings.hp == "auto" },
+                    _ => MatchSetup::from_settings(&settings),
                 };
                 game.0 = new_world(Some(&m));
                 commands.insert_resource(m);

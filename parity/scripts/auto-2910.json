@@ -1,0 +1,18 @@
+{
+  "name": "auto-2910",
+  "about": "2910 runs its team's own AUTO (js/teamAutos.js, their drive-to-points) from where it starts, preloaded: the AUTO runner's steps as the browser game's (M4).",
+  "seed": 7,
+  "slots": [
+    {
+      "robot": "2910",
+      "alliance": "blue",
+      "driver": "scorer",
+      "start": "rightTrench"
+    }
+  ],
+  "humanPlayers": false,
+  "phase": "auto",
+  "preload": 8,
+  "steps": 2400,
+  "commands": []
+}

@@ -306,6 +306,15 @@ impl Phys1706 {
     /// js `armTurn()`: the arm's turn from its CAD pose (rad), for drawing it
     pub fn arm_turn(&self) -> f64 { arm_rot(self.arm_deg) }
     /// js `capacity()`
+    /// js `loadTop()`: the top of its load
+    pub fn load_top(&mut self, phys: &PhysicsWorld, fuel: &crate::fuel::Fuel, body: RigidBodyHandle) -> f64 {
+        let mut top: f64 = 0.0;
+        for k in 0..self.p.held.len() {
+            let [x, y, _] = self.p.local(phys, body, fuel.balls[self.p.held[k]].pos);
+            if y + FUEL::radius > top { top = y + FUEL::radius; } let _ = x;
+        }
+        top
+    }
     pub fn capacity(&self) -> usize { 64 }
     /// js `mechPose()`: the spindexers' turns, the hoods' swings (rad), the accelerators' speeds
     pub fn mech_pose(&self) -> [(&'static str, f64); 6] {

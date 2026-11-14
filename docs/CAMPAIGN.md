@@ -87,8 +87,8 @@ the higher), times the difficulty's. It's what the season recap ranks you by.
 ## What it needs, in order
 
 1. **1v1 and 3v3 in the native game:** the rules between robots, the AI drivers (navigation,
-   their strategies and skill levels, the trained network), and the teams' autos, each ported
-   identical to the browser game. *(In progress.)*
+   their strategies and skill levels), and the teams' autos, each ported identical to the
+   browser game. *(Done; the trained network driver is still to come.)*
 2. **Robot ratings:** the round robin, run headless, saved as a table.
 3. **The event engine:** schedules, ranking points, decided matches, alliance selection, the
    double-elimination bracket, district points, save and resume. Pure logic, tested headless.

@@ -44,6 +44,9 @@ is ported and proven.
 | `js/robot.js` (the climber worked by hand: `driverClimb toggleClimber _manualClimb climbPose climbLevelFromLift`; the automatic climb, `requestClimb _alignCommand _climbStep`, comes with the AIs) | `crates/sim/src/robot.rs` | f325b3c | ported | `tests/climb.rs` |
 | `js/robot.js` (a folding arm's collider, `_intakePhys`, `_shooter`'s autoShuttle, the turret's travel center, a hood the robot sets) | `crates/sim/src/robot.rs` | 0e2e9d1 | ported | `intake-8793`, `trench-8793` |
 | `js/rules.js` (all: `RobotRules` G403 G415 G418 G420, `holdOffFoes towerProtected`), `js/nav.js` (`OBSTACLES towerRect obstacleAt TRENCH_OPENINGS NavGrid`) | `crates/sim/src/rules.rs`, `nav.rs` | cd07e1f | ported | `rules-pin`, `rules-intake`, `rules-auto` (and the fouls each trace lists) |
+| `js/auto.js` (all: `START_POSITIONS startPose teamAutoFor BEST_AUTOS mirrorPlan assignStarts AutoRunner`), `js/customAutos.js` (`customSteps waitTime`), `js/auto6328.js` (all), `js/teamAutos.js` (as data, `robots.json` teamAutos) | `crates/sim/src/auto.rs`, `auto6328.rs` | cd07e1f | ported | `auto-*` (one per robot) |
+| `js/opponent.js` (`OpponentAI` and its skills and brains; not the NN driver), `js/trainedBrain.js` | `crates/sim/src/ai.rs` | cd07e1f | ported | `ai-1v1`, `ai-defense`, `ai-3v3` |
+| `js/game.js` (`createGame`'s units, starts and AIs; `stepGame`'s drivers, a latched intake's forceDeploy), `js/robot.js` (`requestClimb _alignCommand _climbStep`, cmd `lower prespin stow lineup spin`, `noiseScale passTarget climbClaim`, a physical robot's `loadTop loadHighT topStowed`, `fitsTrenchLowered loadNearTrench deployRaisesTop maxCapacity`) | `crates/sim/src/game.rs`, `robot.rs`, `generic.rs` | cd07e1f | ported | `auto-*`, `ai-*` |
 
 ## Scripts
 
@@ -86,3 +89,23 @@ is ported and proven.
 | `rules-pin` | M4 (rules) | yes, identical (fouls too) |
 | `rules-intake` | M4 (rules) | yes, identical (fouls too) |
 | `rules-auto` | M4 (rules) | yes, identical (fouls too) |
+| `auto-2910` | M4 (AUTO) | yes, identical |
+| `auto-341` | M4 (AUTO) | yes, identical |
+| `auto-581` | M4 (AUTO) | yes, identical |
+| `auto-604` | M4 (AUTO) | yes, identical |
+| `auto-971` | M4 (AUTO) | yes, identical |
+| `auto-1114` | M4 (AUTO) | yes, identical |
+| `auto-1678` | M4 (AUTO) | yes, identical |
+| `auto-1690` | M4 (AUTO) | yes, identical |
+| `auto-1706` | M4 (AUTO) | yes, identical |
+| `auto-2056` | M4 (AUTO) | yes, identical |
+| `auto-3928` | M4 (AUTO) | yes, identical |
+| `auto-4414` | M4 (AUTO) | yes, identical |
+| `auto-4930` | M4 (AUTO) | yes, identical |
+| `auto-4946` | M4 (AUTO) | yes, identical |
+| `auto-6328` | M4 (AUTO) | yes, identical |
+| `auto-7769` | M4 (AUTO) | yes, identical |
+| `auto-8793` | M4 (AUTO) | yes, identical |
+| `ai-1v1` | M4 (AI drivers) | yes, identical (fouls too) |
+| `ai-defense` | M4 (AI drivers) | yes, identical (fouls too) |
+| `ai-3v3` | M4 (AI drivers) | yes, identical (fouls too) |

@@ -57,7 +57,12 @@ pub struct Script {
 fn one() -> u32 { 1 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
-pub struct Slot { pub robot: String, pub alliance: String, pub pose: [f64; 3] }
+pub struct Slot { pub robot: String, pub alliance: String,
+    /// where it's placed (none: where its AUTO starts it)
+    pub pose: Option<[f64; 3]>,
+    /// who drives it: "external" (the script's commands; the default) or an AI ("scorer", "defense",
+    /// "hybrid"), its AUTO routine ("best"), the start it asks for ("hub"), its skill ("champs")
+    pub driver: Option<String>, pub auto: Option<String>, pub start: Option<String>, pub skill: Option<String> }
 
 /// A robot's command from step `from` on (fields left out are zero / false)
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -65,7 +70,11 @@ pub struct Command { pub from: usize, pub robot: usize, pub cmd: Cmd }
 
 #[derive(Debug, Clone, Copy, Default, serde::Deserialize)]
 #[serde(default)]
-pub struct Cmd { pub vx: f64, pub vz: f64, pub omega: f64, pub intake: bool, pub shoot: bool, pub pass: bool, pub outtake: bool }
+pub struct Cmd { pub vx: f64, pub vz: f64, pub omega: f64, pub intake: bool, pub shoot: bool, pub pass: bool, pub outtake: bool,
+    /// the AUTO runner's and the AIs': an intake down without running (to get under a TRENCH), the
+    /// shooter spun up ahead of a shot, an intake stowed, lining up a shot (1114's flywheel), and a
+    /// team AUTO's flywheel up or down where its code has it (1114's, 6328's)
+    pub lower: bool, pub prespin: bool, pub stow: bool, pub lineup: bool, pub spin: Option<bool> }
 
 /// Before step `step`, FUEL `ball` (fuel.balls index) put at `pos` moving at `vel`, spinning at `spin`
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -144,10 +153,15 @@ pub fn play_fouls(s: &Script) -> (Vec<(usize, &'static str, String)>, Vec<String
     // (blue's robots first, as createGame makes them)
     let mut slots: Vec<&Slot> = s.slots.iter().filter(|x| x.alliance == "blue").collect();
     slots.extend(s.slots.iter().filter(|x| x.alliance == "red"));
-    let robots = slots.iter().map(|x| (x.robot.clone(), if x.alliance == "blue" { crate::constants::Alliance::Blue } else { crate::constants::Alliance::Red }, x.pose)).collect();
-    let mut w = World::new(crate::WorldData::bundled(), &Settings { seed: s.seed, human_players: s.human_players.unwrap_or(true), preload: s.preload, robots, aim_truth: s.aim_truth });
-    // (native-trace places them after createGame, which resets their pose estimates there)
-    for (i, x) in slots.iter().enumerate() { w.robots[i].spawn(&mut w.physics, x.pose[0], x.pose[1], x.pose[2]); }
+    let robots = slots.iter().map(|x| (x.robot.clone(), if x.alliance == "blue" { crate::constants::Alliance::Blue } else { crate::constants::Alliance::Red }, x.pose.unwrap_or([f64::NAN; 3]))).collect();
+    let units = slots.iter().map(|x| crate::game::UnitSpec { driver: x.driver.clone().unwrap_or("external".into()), auto: x.auto.clone().unwrap_or("best".into()), start: x.start.clone().unwrap_or("hub".into()), skill: x.skill.clone().unwrap_or("champs".into()) }).collect();
+    let mut w = World::new(crate::WorldData::bundled(), &Settings { seed: s.seed, human_players: s.human_players.unwrap_or(true), preload: s.preload, robots, aim_truth: s.aim_truth, units });
+    // (native-trace places them after createGame, which resets their pose estimates there: where
+    // the script says, or where createGame put them)
+    for (i, x) in slots.iter().enumerate() {
+        let p = x.pose.unwrap_or([w.robots[i].pos[0], w.robots[i].pos[2], w.robots[i].yaw]);
+        w.robots[i].spawn(&mut w.physics, p[0], p[1], p[2]);
+    }
     let cmds: Vec<&Command> = { let mut c: Vec<&Command> = s.commands.iter().collect(); c.sort_by_key(|c| c.from); c };
     if let Some(p) = &s.phase { w.jump_to(Phase::parse(p)); }
     let (mut out, mut fouls) = (Vec::new(), Vec::new());

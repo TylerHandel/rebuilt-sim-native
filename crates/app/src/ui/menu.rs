@@ -2,7 +2,7 @@
 //! Practice page (the robot picker and the match options) and Settings. Each page is a list of
 //! items, rebuilt whenever anything changes; the keyboard, a controller (D-pad or stick to move,
 //! left / right to change, A to choose, B to go back) and the mouse (hover focuses, click acts)
-//! all work it. 1 v 1 and 3 v 3 need the AI drivers, which this version doesn't have yet.
+//! all work it. 1 v 1 pits you against an AI robot; 3 v 3 fills two alliances with AIs and you.
 
 use bevy::prelude::*;
 use bevy::ui::ComputedNode;
@@ -13,7 +13,7 @@ use crate::settings::{Roster, Settings};
 use crate::update::UpdateStatus;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Page { Home, Practice, Settings }
+pub enum Page { Home, Practice, OneVOne, ThreeVThree, Settings }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Mode { Practice, OneVOne, ThreeVThree }
@@ -26,15 +26,16 @@ impl Mode {
     fn desc(self) -> &'static str {
         match self {
             Mode::Practice => "Drive, collect and shoot with the field to yourself: learn a robot, try autos, work on your cycles.",
-            Mode::OneVOne => "You against one AI-driven robot on the other ALLIANCE. Not in this version yet: it needs the AI drivers, which come over after the robots' mechanisms.",
-            Mode::ThreeVThree => "Two full ALLIANCES of three. Not in this version yet: it needs the AI drivers and the rules between robots, which come over after the robots' mechanisms.",
+            Mode::OneVOne => "You against one AI-driven robot on the other ALLIANCE. Pick its robot, strategy and skill.",
+            Mode::ThreeVThree => "Two full ALLIANCES of three. Choose each robot and who drives it; drive one of them or watch the AIs play.",
         }
     }
-    fn ready(self) -> bool { self == Mode::Practice }
+    fn page(self) -> Page { match self { Mode::Practice => Page::Practice, Mode::OneVOne => Page::OneVOne, Mode::ThreeVThree => Page::ThreeVThree } }
+    fn key(self) -> &'static str { match self { Mode::Practice => "practice", Mode::OneVOne => "1v1", Mode::ThreeVThree => "3v3" } }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum OptId { Auto, Start, Alliance, Ds, Hp, Camera, Graphics, Motion, Fps, Venue, Time, Weather, Haze, Film, Upscaler }
+pub enum OptId { Auto, Start, Alliance, Ds, Hp, Camera, Graphics, Motion, Fps, Venue, Time, Weather, Haze, Film, Upscaler, OppRobot, Opponent, OppSkill, SlotDriver(u8), SlotRobot(u8), SlotStart(u8), SlotSkill(u8) }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Item {
@@ -63,8 +64,9 @@ impl Default for Menu { fn default() -> Self { Menu { page: Page::Home, focus: 0
 #[derive(Resource, Default)]
 pub struct ControlsOpen(pub bool);
 
-fn items(page: Page) -> Vec<Item> {
+fn items(page: Page, s: &Settings) -> Vec<Item> {
     let btn = |label, act, secondary, half, foot| Item::Btn { label, act, secondary, half, foot };
+    let start_back = || [btn("START MATCH", Act::Start, false, false, true), btn("BACK", Act::Open(Page::Home), true, false, true)];
     match page {
         Page::Home => vec![
             Item::Tiles,
@@ -72,13 +74,39 @@ fn items(page: Page) -> Vec<Item> {
             btn("SETTINGS", Act::Open(Page::Settings), true, true, false),
             btn("QUIT", Act::Quit, true, false, false),
         ],
-        Page::Practice => vec![
-            Item::Section("Robot"), Item::Robot,
-            Item::Section("Match"), Item::Opt(OptId::Auto), Item::Opt(OptId::Start), Item::Opt(OptId::Alliance), Item::Opt(OptId::Ds),
-            Item::Section("Your robot"), Item::Opt(OptId::Hp),
-            btn("START MATCH", Act::Start, false, false, true),
-            btn("BACK", Act::Open(Page::Home), true, false, true),
-        ],
+        Page::Practice => {
+            let mut v = vec![
+                Item::Section("Robot"), Item::Robot,
+                Item::Section("Match"), Item::Opt(OptId::Auto), Item::Opt(OptId::Start), Item::Opt(OptId::Alliance), Item::Opt(OptId::Ds),
+                Item::Section("Your robot"), Item::Opt(OptId::Hp),
+            ];
+            v.extend(start_back());
+            v
+        }
+        Page::OneVOne => {
+            let mut v = vec![
+                Item::Section("Your robot"), Item::Robot, Item::Opt(OptId::Auto), Item::Opt(OptId::Start), Item::Opt(OptId::Alliance), Item::Opt(OptId::Hp),
+                Item::Section("AI opponent"), Item::Opt(OptId::OppRobot), Item::Opt(OptId::Opponent), Item::Opt(OptId::OppSkill),
+            ];
+            v.extend(start_back());
+            v
+        }
+        Page::ThreeVThree => {
+            let mut v = Vec::new();
+            for i in 0..6u8 {
+                if i == 0 { v.push(Item::Section("Blue alliance")); }
+                if i == 3 { v.push(Item::Section("Red alliance")); }
+                v.push(Item::Opt(OptId::SlotDriver(i)));
+                if s.slots[i as usize].driver != "empty" {
+                    v.push(Item::Opt(OptId::SlotRobot(i)));
+                    v.push(Item::Opt(OptId::SlotStart(i)));
+                    if s.slots[i as usize].driver != "you" { v.push(Item::Opt(OptId::SlotSkill(i))); }
+                }
+            }
+            if s.slots.iter().any(|x| x.driver == "you") { v.extend([Item::Section("You"), Item::Opt(OptId::Auto), Item::Opt(OptId::Hp)]); }
+            v.extend(start_back());
+            v
+        }
         Page::Settings => {
             let mut v = vec![Item::Section("View"), Item::Opt(OptId::Camera), Item::Section("Graphics"), Item::Opt(OptId::Graphics)];
             // (NVIDIA DLSS: in builds that have it)
@@ -93,21 +121,39 @@ fn items(page: Page) -> Vec<Item> {
     }
 }
 
-fn focusables(page: Page) -> Vec<Item> { items(page).into_iter().filter(|i| !matches!(i, Item::Section(_))).collect() }
+fn focusables(page: Page, s: &Settings) -> Vec<Item> { items(page, s).into_iter().filter(|i| !matches!(i, Item::Section(_))).collect() }
+
+fn slot_name(i: u8) -> String { format!("{} {}", if i < 3 { "Blue" } else { "Red" }, i % 3 + 1) }
+fn robot_values() -> Vec<(String, String)> { Roster::get().robots.iter().map(|r| (r.key.clone(), r.short())).collect() }
+fn skill_values() -> Vec<(String, String)> { sim::ai::SKILL_ORDER.iter().map(|k| (k.to_string(), sim::ai::skill(k).name.to_string())).collect() }
 
 // ------------------------------------------------------------------ options (js ui.js OPT)
-fn opt_label(id: OptId) -> &'static str {
+fn opt_label(id: OptId) -> String {
+    match id {
+        OptId::OppRobot => "Robot".into(), OptId::Opponent => "Strategy".into(), OptId::OppSkill => "Skill".into(),
+        OptId::SlotDriver(i) => format!("{} · driven by", slot_name(i)), OptId::SlotRobot(i) => format!("{} · robot", slot_name(i)),
+        OptId::SlotStart(i) => format!("{} · starts at", slot_name(i)), OptId::SlotSkill(i) => format!("{} · AI skill", slot_name(i)),
+        _ => opt_label_static(id).into(),
+    }
+}
+fn opt_label_static(id: OptId) -> &'static str {
     match id {
         OptId::Auto => "Auto routine", OptId::Start => "Starting position", OptId::Alliance => "Alliance", OptId::Ds => "Driver station", OptId::Hp => "Your human player",
         OptId::Camera => "Starting camera", OptId::Graphics => "Graphics", OptId::Motion => "Motion effects", OptId::Fps => "Show FPS",
         OptId::Venue => "Venue", OptId::Time => "Time of day", OptId::Weather => "Weather", OptId::Haze => "Volumetric fog", OptId::Film => "Film look", OptId::Upscaler => "NVIDIA DLSS",
+        _ => "",
     }
 }
 
 fn opt_values(id: OptId) -> Vec<(String, String)> {
     let v = |a: &str, b: &str| (a.to_string(), b.to_string());
     match id {
-        OptId::Auto => vec![v("drive", "Drive AUTO yourself"), v("skip", "Skip AUTO"), v("none", "Stand still in AUTO")],
+        OptId::Auto => vec![v("best", "Its own AUTO"), v("drive", "Drive AUTO yourself"), v("skip", "Skip AUTO"), v("none", "Stand still in AUTO")],
+        OptId::OppRobot | OptId::SlotRobot(_) => robot_values(),
+        OptId::Opponent => sim::ai::STRATEGIES.iter().map(|k| v(k, sim::ai::strategy_name(k))).collect(),
+        OptId::OppSkill | OptId::SlotSkill(_) => skill_values(),
+        OptId::SlotDriver(_) => vec![v("you", "You"), v("scorer", "AI Scorer"), v("defense", "AI Defense"), v("hybrid", "AI Hybrid"), v("empty", "Empty")],
+        OptId::SlotStart(_) => Roster::get().starts.iter().map(|(k, n, _)| (k.clone(), n.clone())).collect(),
         OptId::Start => Roster::get().starts.iter().map(|(k, n, _)| (k.clone(), n.clone())).collect(),
         OptId::Alliance => vec![v("blue", "Blue"), v("red", "Red")],
         OptId::Ds => vec![v("0", "Left (DS1)"), v("1", "Center (DS2)"), v("2", "Right (DS3)")],
@@ -133,6 +179,9 @@ fn opt_get(id: OptId, s: &Settings) -> String {
         OptId::Venue => s.venue.clone(), OptId::Time => s.time.clone(), OptId::Weather => s.weather.clone(), OptId::Haze => s.haze.clone(),
         OptId::Film => if s.film { "on".into() } else { "off".into() },
         OptId::Upscaler => s.upscaler.clone(),
+        OptId::OppRobot => s.opp_robot.clone(), OptId::Opponent => s.opponent.clone(), OptId::OppSkill => s.opp_skill.clone(),
+        OptId::SlotDriver(i) => s.slots[i as usize].driver.clone(), OptId::SlotRobot(i) => s.slots[i as usize].robot.clone(),
+        OptId::SlotStart(i) => s.slots[i as usize].start.clone(), OptId::SlotSkill(i) => s.slots[i as usize].skill.clone(),
     }
 }
 
@@ -144,15 +193,39 @@ fn opt_set(id: OptId, s: &mut Settings, v: &str) {
         OptId::Venue => s.venue = v.into(), OptId::Time => s.time = v.into(), OptId::Weather => s.weather = v.into(), OptId::Haze => s.haze = v.into(),
         OptId::Film => s.film = v == "on",
         OptId::Upscaler => s.upscaler = v.into(),
+        OptId::OppRobot => s.opp_robot = v.into(), OptId::Opponent => s.opponent = v.into(), OptId::OppSkill => s.opp_skill = v.into(),
+        OptId::SlotDriver(i) => {
+            // (one slot at most is you: the one that was becomes an AI scorer)
+            if v == "you" { for sl in &mut s.slots { if sl.driver == "you" { sl.driver = "scorer".into(); } } }
+            s.slots[i as usize].driver = v.into();
+        }
+        OptId::SlotRobot(i) => s.slots[i as usize].robot = v.into(),
+        OptId::SlotStart(i) => s.slots[i as usize].start = v.into(),
+        OptId::SlotSkill(i) => s.slots[i as usize].skill = v.into(),
     }
 }
 
 fn opt_desc(id: OptId, s: &Settings) -> String {
+    let robot_line = |k: &str| { let r = Roster::get().robot(k); format!("{} — {}. {}", r.short(), r.long_name(), r.blurb) };
     match id {
+        OptId::OppRobot => format!("The AI can drive any of the robots. {}", robot_line(&s.opp_robot)),
+        OptId::Opponent => sim::ai::strategy_desc(&s.opponent).into(),
+        OptId::OppSkill => sim::ai::skill(&s.opp_skill).desc.into(),
+        OptId::SlotDriver(i) => match s.slots[i as usize].driver.as_str() {
+            "you" => "You drive this robot. Only one slot can be you; pick none to watch the AIs play.".into(),
+            "empty" => "No robot in this slot.".into(),
+            "defense" => "Blocks the other ALLIANCE's best-loaded robot on its way to its HUB and pushes it while it shoots. Backs off before a 3 s PIN (G418).".into(),
+            "hybrid" => "Shift-aware: defends while only the other ALLIANCE's HUB is active and scores whenever its own is.".into(),
+            _ => sim::ai::strategy_desc("scorer").into(),
+        },
+        OptId::SlotRobot(i) => robot_line(&s.slots[i as usize].robot),
+        OptId::SlotStart(_) => "Where its AUTO starts (its team's own AUTO starts where theirs does). If two robots on an ALLIANCE want the same spot, the later one moves to the nearest free one.".into(),
+        OptId::SlotSkill(i) => sim::ai::skill(&s.slots[i as usize].skill).desc.into(),
         OptId::Auto => match s.auto.as_str() {
+            "best" => "Its own AUTO: the robot runs its team's own AUTO where their code is public, or else the best plan found for it, from the start it picks (drivers can't control the robot in AUTO, G402).".into(),
             "drive" => "Drive AUTO yourself: the 20 s AUTO runs with you at the controls, as practice for writing one (in a real match drivers can't control the robot in AUTO, G402). FUEL scored counts as AUTO's.".into(),
-            "skip" => "Skip: GET READY, then straight to TELEOP (who goes inactive first is decided as after an AUTO with no FUEL scored). The teams' own AUTOs and the built-in routines aren't in this version yet.".into(),
-            _ => "Stand still: the 20 s AUTO runs with the robot waiting (drivers can't control the robot in AUTO, G402). The teams' own AUTOs and the built-in routines aren't in this version yet.".into(),
+            "skip" => "Skip: GET READY, then straight to TELEOP (who goes inactive first is decided as after an AUTO with no FUEL scored).".into(),
+            _ => "Stand still: the 20 s AUTO runs with the robot waiting (drivers can't control the robot in AUTO, G402).".into(),
         },
         OptId::Start => "BUMPERS overlap the ROBOT STARTING LINE without touching a BUMP (G303).".into(),
         OptId::Alliance => "Which ALLIANCE you drive for: you start on its side of the field.".into(),
@@ -271,7 +344,7 @@ fn input(
     let nav = read_nav(&keys, &pads, &mut rep, time.delta_secs());
     // (and not on the press that closed the Controls, nor under the loading screen)
     if controls.0 || controls.is_changed() || loading.is_some() { return }
-    let f = focusables(menu.page);
+    let f = focusables(menu.page, &settings);
     let n = f.len();
     if nav.up && menu.focus > 0 { menu.focus -= 1; menu.dirty = true; }
     if nav.down && menu.focus + 1 < n { menu.focus += 1; menu.dirty = true; }
@@ -301,7 +374,7 @@ fn input(
     if nav.back && menu.page != Page::Home {
         let from = menu.page;
         open(&mut menu, Page::Home);
-        if from == Page::Practice { menu.tile = Mode::Practice; menu.focus = 0; }
+        if let Some(m) = MODES.iter().find(|m| m.page() == from) { menu.tile = *m; menu.focus = 0; }
     }
 }
 
@@ -326,7 +399,9 @@ fn apply_acts(
             Act::Open(p) => open(&mut menu, p),
             Act::Tile(m) => {
                 menu.tile = m;
-                if m.ready() { open(&mut menu, Page::Practice); } else { menu.dirty = true; }
+                settings.mode = m.key().into();
+                settings.save();
+                open(&mut menu, m.page());
             }
             Act::Start => {
                 if roster.robot(&settings.robot).ported { cmds.write(GameCmd::Start); }
@@ -371,10 +446,14 @@ fn describe(item: Option<Item>, menu: &Menu, s: &Settings) -> String {
         Some(Item::Tiles) => format!("{} ←/→ choose · Enter open", menu.tile.desc()),
         Some(Item::Robot) => "Your robot. ←/→ or the arrows step through them; click any team to jump to it. ● marks robots simulated part by part.".into(),
         Some(Item::Opt(id)) => opt_desc(id, s),
-        Some(Item::Btn { act: Act::Start, .. }) => if r.ported {
-            format!("{} on the {} ALLIANCE, field to yourself.", r.short(), s.alliance.to_uppercase())
-        } else {
-            format!("{} can't play in this version yet: its mechanisms are still being ported. Pick 2910 to drive.", r.short())
+        Some(Item::Btn { act: Act::Start, .. }) => match menu.page {
+            Page::OneVOne => format!("{} (you) on the {} ALLIANCE vs {} ({}, {}).", r.short(), s.alliance.to_uppercase(), Roster::get().robot(&s.opp_robot).short(), sim::ai::strategy_name(&s.opponent), sim::ai::skill(&s.opp_skill).name),
+            Page::ThreeVThree => {
+                let side = |a: std::ops::Range<usize>| { let v: Vec<String> = a.filter(|&i| s.slots[i].driver != "empty").map(|i| format!("{}{}", Roster::get().robot(&s.slots[i].robot).team, if s.slots[i].driver == "you" { " (you)" } else { "" })).collect(); if v.is_empty() { "nobody".into() } else { v.join(", ") } };
+                let who = if s.slots.iter().any(|x| x.driver == "you") { "" } else { " Nobody is set to You, so you'll watch the AIs play." };
+                format!("Blue: {} vs Red: {}.{who}", side(0..3), side(3..6))
+            }
+            _ => format!("{} on the {} ALLIANCE, field to yourself.", r.short(), s.alliance.to_uppercase()),
         },
         Some(Item::Btn { act: Act::Quit, .. }) => "Close the game. A downloaded update installs as it closes.".into(),
         _ => String::new(),
@@ -394,11 +473,11 @@ fn rebuild(
     menu.dirty = false;
     for e in &roots { commands.entity(e).despawn(); }
     let page = menu.page;
-    let all = items(page);
+    let all = items(page, &settings);
     let n = all.iter().filter(|i| !matches!(i, Item::Section(_))).count();
     menu.focus = menu.focus.min(n.saturating_sub(1));
     let focus = menu.focus;
-    let cur = focusables(page).get(focus).copied();
+    let cur = focusables(page, &settings).get(focus).copied();
     let desc = describe(cur, &menu, &settings);
     let f = fonts.clone();
 
@@ -431,7 +510,7 @@ fn rebuild(
                 b.spawn(Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(14.0), margin: UiRect::bottom(Val::Px(12.0)), ..default() })
                     .with_children(|t| {
                         t.spawn((f.text("‹ Menu", Face::Inter(700), 15.0, color::MUTED), Click(Act::Open(Page::Home)))).observe(on_click);
-                        t.spawn(f.text(match page { Page::Practice => "Practice", Page::Settings => "Settings", Page::Home => "" }, Face::Barlow(800), 34.0, color::TEXT));
+                        t.spawn(f.text(match page { Page::Practice => "Practice", Page::OneVOne => "1 v 1", Page::ThreeVThree => "3 v 3", Page::Settings => "Settings", Page::Home => "" }, Face::Barlow(800), 34.0, color::TEXT));
                     });
             }
             // the page (css #options: a two-column grid)
@@ -508,8 +587,8 @@ fn tiles(g: &mut ChildSpawnerCommands, f: &Fonts, sel: Mode, focused: bool, idx:
                 if on && focused { e.insert(Outline::new(Val::Px(3.0), Val::Px(1.0), color::over(47, 111, 240, 0.55))); }
                 e.observe(on_click).with_children(|c| {
                     icon(c, m);
-                    c.spawn(f.text(m.name(), Face::Barlow(800), 34.0, if m.ready() { color::TEXT } else { color::MUTED }));
-                    c.spawn(f.text(if m.ready() { m.line() } else { "Not in this version yet" }, Face::Inter(400), 13.0, color::MUTED));
+                    c.spawn(f.text(m.name(), Face::Barlow(800), 34.0, color::TEXT));
+                    c.spawn(f.text(m.line(), Face::Inter(400), 13.0, color::MUTED));
                 });
             }
         });

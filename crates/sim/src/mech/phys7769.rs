@@ -238,6 +238,15 @@ impl Phys7769 {
     /// js `exitSpeed()`: about how fast a FUEL leaves at the wheels' speed now (m/s)
     pub fn exit_speed(&self) -> f64 { EXIT_PER_WHEEL_SURFACE * m::abs(self.p.drives.omega(self.t.wheels)) * shooter::wheel()[0] }
     /// js `capacity()`
+    /// js `loadTop()`: the top of its load (in its hopper, not up in the shooter)
+    pub fn load_top(&mut self, phys: &PhysicsWorld, fuel: &crate::fuel::Fuel, body: RigidBodyHandle) -> f64 {
+        let mut top: f64 = 0.0;
+        for k in 0..self.p.held.len() {
+            let [x, y, _] = self.p.local(phys, body, fuel.balls[self.p.held[k]].pos);
+            if x > -0.05 { top = m::max(top, y + FUEL::radius); }
+        }
+        top
+    }
     pub fn capacity(&self) -> usize { 60 }
     /// js `extNow()`: how far out the intake is (m)
     pub fn ext_now(&self) -> f64 { self.ext }

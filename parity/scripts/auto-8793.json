@@ -1,0 +1,18 @@
+{
+  "name": "auto-8793",
+  "about": "8793 runs its AUTO (its team's own where its code is in, else its best plan) from the start it asks for, preloaded, on the red side: the AUTO runner's steps as the browser game's (M4).",
+  "seed": 7,
+  "slots": [
+    {
+      "robot": "8793",
+      "alliance": "red",
+      "driver": "scorer",
+      "start": "leftTrench"
+    }
+  ],
+  "humanPlayers": false,
+  "phase": "auto",
+  "preload": 8,
+  "steps": 2400,
+  "commands": []
+}

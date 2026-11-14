@@ -15,9 +15,17 @@ pub struct Settings {
     pub ds: usize,
     /// js START_POSITIONS key
     pub start: String,
-    /// "drive": you drive it through AUTO (practice); "skip": straight to TELEOP; "none": AUTO with
-    /// the robot standing still (no routines yet)
+    /// "best": its AUTO runs (its team's own, or its best plan); "drive": you drive it through AUTO
+    /// (practice); "skip": straight to TELEOP; "none": AUTO with the robot standing still
     pub auto: String,
+    /// "practice", "1v1" or "3v3" (js matchMode)
+    pub mode: String,
+    /// 1 v 1: the AI opponent's robot, strategy ("scorer", "defense", "hybrid") and skill
+    pub opp_robot: String,
+    pub opponent: String,
+    pub opp_skill: String,
+    /// 3 v 3: the six slots, blue 1-3 then red 1-3 (js slots)
+    pub slots: Vec<Slot>,
     pub fps: bool,
     /// "high", "medium" or "low"
     pub graphics: String,
@@ -44,10 +52,23 @@ pub struct Settings {
     pub upscaler: String,
 }
 
+/// One 3 v 3 slot (js DEFAULT_SLOTS[i]): its robot, who drives it ("you", "scorer", "defense",
+/// "hybrid", "empty"), the start its AUTO asks for, and an AI's skill
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Slot { pub robot: String, pub driver: String, pub start: String, pub skill: String }
+impl Default for Slot { fn default() -> Self { Slot { robot: "2910".into(), driver: "scorer".into(), start: "hub".into(), skill: "champs".into() } } }
+/// js DEFAULT_SLOTS
+pub fn default_slots() -> Vec<Slot> {
+    let s = |robot: &str, driver: &str, start: &str| Slot { robot: robot.into(), driver: driver.into(), start: start.into(), skill: "champs".into() };
+    vec![s("2910", "you", "leftTrench"), s("4414", "scorer", "hub"), s("8793", "defense", "rightBump"), s("1678", "scorer", "leftTrench"), s("971", "scorer", "hub"), s("1690", "hybrid", "rightBump")]
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Settings {
-            robot: "2910".into(), alliance: "blue".into(), ds: 1, start: "rightTrench".into(), auto: "drive".into(),
+            robot: "2910".into(), alliance: "blue".into(), ds: 1, start: "rightTrench".into(), auto: "best".into(),
+            mode: "practice".into(), opp_robot: "4414".into(), opponent: "scorer".into(), opp_skill: "regional".into(), slots: default_slots(),
             fps: false, graphics: "high".into(), camera: "driver".into(), hp: "auto".into(), motion: "off".into(),
             venue: "arena".into(), time: "day".into(), weather: "clear".into(), haze: "off".into(), film: false, upscaler: "off".into(),
         }
@@ -77,7 +98,21 @@ impl Settings {
         if self.alliance != "blue" && self.alliance != "red" { self.alliance = d.alliance.clone(); }
         if self.ds > 2 { self.ds = d.ds; }
         if !r.starts.iter().any(|(k, _, _)| *k == self.start) { self.start = d.start.clone(); }
-        if !["drive", "skip", "none"].contains(&self.auto.as_str()) { self.auto = d.auto.clone(); }
+        if !["best", "drive", "skip", "none"].contains(&self.auto.as_str()) { self.auto = d.auto.clone(); }
+        if !["practice", "1v1", "3v3"].contains(&self.mode.as_str()) { self.mode = d.mode.clone(); }
+        if !r.robots.iter().any(|x| x.key == self.opp_robot) { self.opp_robot = d.opp_robot.clone(); }
+        if !sim::ai::STRATEGIES.contains(&self.opponent.as_str()) { self.opponent = d.opponent.clone(); }
+        if !sim::ai::SKILL_ORDER.contains(&self.opp_skill.as_str()) { self.opp_skill = d.opp_skill.clone(); }
+        if self.slots.len() != 6 { self.slots = d.slots.clone(); }
+        for (sl, ds) in self.slots.iter_mut().zip(d.slots.iter()) {
+            if !r.robots.iter().any(|x| x.key == sl.robot) { sl.robot = ds.robot.clone(); }
+            if !["you", "scorer", "defense", "hybrid", "empty"].contains(&sl.driver.as_str()) { sl.driver = ds.driver.clone(); }
+            if !r.starts.iter().any(|(k, _, _)| *k == sl.start) { sl.start = ds.start.clone(); }
+            if !sim::ai::SKILL_ORDER.contains(&sl.skill.as_str()) { sl.skill = ds.skill.clone(); }
+        }
+        // (one slot at most is you)
+        let mut you = false;
+        for sl in &mut self.slots { if sl.driver == "you" { if you { sl.driver = "scorer".into(); } you = true; } }
         if !["ultra", "high", "medium", "low"].contains(&self.graphics.as_str()) { self.graphics = d.graphics; }
         if !["off", "trails", "blur", "both"].contains(&self.motion.as_str()) { self.motion = d.motion.clone(); }
         if self.hp != "auto" && self.hp != "manual" { self.hp = d.hp.clone(); }

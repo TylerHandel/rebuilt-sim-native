@@ -1,0 +1,54 @@
+{
+  "name": "ai-3v3",
+  "about": "A 3 v 3 match from AUTO into TELEOP: six AIs (scorers, a defender, a hybrid; all four skills), their AUTOs from the spots assignStarts gives them, then their TELEOP: the whole match as the browser game plays it (M4).",
+  "seed": 11,
+  "slots": [
+    {
+      "robot": "2910",
+      "alliance": "blue",
+      "driver": "scorer",
+      "skill": "champs",
+      "start": "leftTrench"
+    },
+    {
+      "robot": "4414",
+      "alliance": "blue",
+      "driver": "scorer",
+      "skill": "regional",
+      "start": "hub"
+    },
+    {
+      "robot": "8793",
+      "alliance": "blue",
+      "driver": "defense",
+      "skill": "champs",
+      "start": "rightBump"
+    },
+    {
+      "robot": "1678",
+      "alliance": "red",
+      "driver": "scorer",
+      "skill": "trained",
+      "start": "leftTrench"
+    },
+    {
+      "robot": "971",
+      "alliance": "red",
+      "driver": "scorer",
+      "skill": "rookie",
+      "start": "hub"
+    },
+    {
+      "robot": "1690",
+      "alliance": "red",
+      "driver": "hybrid",
+      "skill": "champs",
+      "start": "rightBump"
+    }
+  ],
+  "humanPlayers": false,
+  "phase": "auto",
+  "preload": 8,
+  "steps": 3600,
+  "commands": []
+}

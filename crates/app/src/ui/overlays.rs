@@ -191,7 +191,7 @@ fn draw_results(mut commands: Commands, mut c: ResMut<Choice>, fonts: Res<Fonts>
                 }
             });
         // every robot's match (css .restable)
-        if let Some(r) = game.0.robots.first() {
+        if let Some(r) = game.0.mine() {
             let info = Roster::get().robot(&r.key);
             b.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(12.0), padding: UiRect::vertical(Val::Px(4.0)), border: UiRect::vertical(Val::Px(1.0)), ..default() })
                 .insert(BorderColor::all(color::LINE))

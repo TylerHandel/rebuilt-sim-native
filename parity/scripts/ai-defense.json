@@ -1,0 +1,26 @@
+{
+  "name": "ai-defense",
+  "about": "TELEOP: blue 1678 an AI scorer (Trained) against red 8793 an AI defender (Rookie, its pin held longer), from their AUTO starts: the defender's guarding, ramming and backing off a PIN as the browser game's (M4).",
+  "seed": 11,
+  "slots": [
+    {
+      "robot": "1678",
+      "alliance": "blue",
+      "driver": "scorer",
+      "skill": "trained",
+      "start": "leftTrench"
+    },
+    {
+      "robot": "8793",
+      "alliance": "red",
+      "driver": "defense",
+      "skill": "rookie",
+      "start": "rightBump"
+    }
+  ],
+  "humanPlayers": false,
+  "phase": "teleop",
+  "preload": 8,
+  "steps": 3600,
+  "commands": []
+}

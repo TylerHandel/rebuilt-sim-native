@@ -150,7 +150,7 @@ fn new_match(mut rig: ResMut<CameraRig>, game: Res<Game>, settings: Res<Settings
     rig.mode = CamMode::from_key(&settings.camera);
     // (screenshots: REBUILT_SHOT_CAMERA=<mode> starts in that one)
     if let Ok(m) = std::env::var("REBUILT_SHOT_CAMERA") { rig.mode = CamMode::from_key(&m); }
-    rig.alliance = game.0.robots.first().map(|r| r.alliance).unwrap_or(Alliance::Blue);
+    rig.alliance = game.0.mine().map(|r| r.alliance).unwrap_or(game.0.match_.player);
     rig.ds = settings.ds;
     rig.flip = false;
     rig.snap = true;
@@ -184,7 +184,7 @@ fn place(
         rig.snap = true;
         55.0
     } else {
-        let robot = game.0.robots.first().and_then(|r| {
+        let robot = game.0.mine().or(game.0.robots.first()).and_then(|r| {
             let b = game.0.physics.bodies.get(r.body)?;
             let f = *b.rotation() * Vec3::X;
             Some((b.translation(), Vec2::new(f.x, f.z).normalize_or(Vec2::X)))

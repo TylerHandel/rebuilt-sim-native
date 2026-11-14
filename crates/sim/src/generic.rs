@@ -66,7 +66,6 @@ pub struct Generic {
     pub prev_omega: f64,
     pub pivot_load: f64,
     pub pivot_moving: bool,
-    pub force_deploy: bool,
     pub spin_hold: f64,
     pub spin_hold_t: f64,
     pub top_y: f64,
@@ -91,7 +90,7 @@ impl Generic {
             load_balls: Vec::new(),
             intake_tokens: 0.0, stalled: false, stall_t: 0.0, roller_speed: 1.0, wall_push: 0.0, outtake_timer: 0.0,
             feed_timer: 0.0, next_period: 0.0, lane: 0, lane_last: Vec::new(), feeding: false, intake_speed: 0.0,
-            prev_vel: None, prev_omega: 0.0, pivot_load: 0.0, pivot_moving: false, force_deploy: false, spin_hold: 0.0, spin_hold_t: 0.0,
+            prev_vel: None, prev_omega: 0.0, pivot_load: 0.0, pivot_moving: false, spin_hold: 0.0, spin_hold_t: 0.0,
             top_y: height, top_load: height, top_stowed: height, grow_top: 0.0, load_top: 0.0, load_high_t: 0.0,
         }
     }
@@ -137,7 +136,8 @@ impl Robot {
     }
     fn world_to_local3(&self, p: [f64; 3]) -> V { let l = self.world_to_local(p[0], p[2]); [l[0], p[1] - self.pos[1], l[1]] }
     fn world_to_local_vec(&self, x: f64, z: f64) -> [f64; 2] { let (c, s) = (m::cos(self.yaw), m::sin(self.yaw)); [x * c - z * s, x * s + z * c] }
-    fn forward(&self) -> [f64; 2] { [m::cos(self.yaw), -m::sin(self.yaw)] }
+    /// js `forward()`: the way it faces (x, z)
+    pub fn forward(&self) -> [f64; 2] { [m::cos(self.yaw), -m::sin(self.yaw)] }
 
     /// js `bayFront()`: the hopper's front now (an extending hopper moves it forward)
     pub fn bay_front(&self) -> f64 { num(&self.cfg["bay"], "x1") + opt(&self.cfg["storage"], "extLen").unwrap_or(0.0) * self.hopper_deploy }
@@ -146,7 +146,7 @@ impl Robot {
         let g = self.g().geo;
         m::floor(g.retracted + (g.extended - g.retracted) * self.hopper_deploy + 1e-6) as usize
     }
-    fn max_capacity_generic(&self) -> f64 { self.g().geo.extended }
+    pub(crate) fn max_capacity_generic(&self) -> f64 { self.g().geo.extended }
 
     /// js `_compactorX(dep)`
     fn compactor_x(&self, dep: f64) -> f64 {
@@ -263,7 +263,8 @@ impl Robot {
         let compacts = ic["compacts"].as_bool() == Some(true);
         let mut want = on && self.cmd.intake;
         if ic["latched"].as_bool() == Some(true) && self.intake_deploy >= 1.0 { want = true; }
-        if self.g().force_deploy { want = true; }
+        if self.force_deploy { want = true; }
+        if on && self.cmd.lower { want = true; } // down without running (to get under the TRENCH)
         if compacts && on && (self.cmd.shoot || self.cmd.pass) && !self.cmd.intake { want = false; }
         if on && self.cmd.outtake { want = true; }
         let fold = ic.get("fold").is_some_and(|x| x.is_object());
@@ -555,9 +556,11 @@ impl Robot {
         let twin = !self.tws.is_empty();
         let fixed = sh["type"].as_str() == Some("fixed");
         let mut psi = if fixed { self.yaw + self.aim_offset } else { self.yaw + self.turret_yaws[ti] };
-        psi += crate::human_player::gauss(rng) * num(&sh, "yawSigma") * DEG;
-        let th = (if twin { self.tws[ti].hood } else { self.hood_deg }) * DEG + crate::human_player::gauss(rng) * num(&sh, "angleSigma") * DEG;
-        let v = (if twin { self.tws[ti].fly } else { self.flywheel }) * (1.0 + crate::human_player::gauss(rng) * num(&sh, "speedSigma"));
+        // (k: an AI driver's extra scatter, its skill)
+        let k = self.noise_scale;
+        psi += crate::human_player::gauss(rng) * num(&sh, "yawSigma") * k * DEG;
+        let th = (if twin { self.tws[ti].hood } else { self.hood_deg }) * DEG + crate::human_player::gauss(rng) * num(&sh, "angleSigma") * k * DEG;
+        let v = (if twin { self.tws[ti].fly } else { self.flywheel }) * (1.0 + crate::human_player::gauss(rng) * num(&sh, "speedSigma") * k);
         let lv = self.velocity_at(exit);
         let vel = [m::cos(psi) * m::cos(th) * v + lv[0], m::sin(th) * v, -m::sin(psi) * m::cos(th) * v + lv[1]];
         let info = LaunchInfo { by: LaunchBy::Robot, alliance: Some(self.alliance), legal: self.last_in_zone, t: Some(self.last_t) };

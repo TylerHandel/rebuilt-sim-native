@@ -7,7 +7,7 @@ use sim::game_match::Phase;
 use sim::robot::ClimbState;
 
 fn world() -> World {
-    let s = Settings { seed: 3, human_players: false, preload: 0, robots: vec![("1678".into(), Alliance::Blue, [0.0, 0.0, 0.0])], aim_truth: false };
+    let s = Settings { seed: 3, human_players: false, preload: 0, robots: vec![("1678".into(), Alliance::Blue, [0.0, 0.0, 0.0])], aim_truth: false, units: Vec::new() };
     let mut w = World::new(sim::WorldData::bundled(), &s);
     w.robots[0].human_driven = true;
     w.jump_to(Phase::Teleop);
