@@ -13,6 +13,7 @@ pub mod game;
 pub mod game_match;
 pub mod generic;
 pub mod hopper;
+pub mod headless;
 pub mod human_player;
 pub mod libm_f32;
 pub mod localize;
