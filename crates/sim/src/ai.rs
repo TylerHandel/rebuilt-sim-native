@@ -251,7 +251,7 @@ impl OpponentAI {
             let holding = !r.stored.is_empty();
             let let_go = match &mut r.phys { Some(Phys::R341(p)) => p.let_go(holding, &mut r.stats), _ => false };
             if let_go { r.cmd.shoot = false; r.cmd.pass = false; }
-            if matches!(r.phys, Some(Phys::R1706(_))) && FOLD_TO_SHOOT && r.cmd.shoot { r.cmd.intake = false; }
+            if matches!(r.phys, Some(Phys::R1706(_))) && FOLD_TO_SHOOT && r.cmd.shoot && self.state != St::Collect { r.cmd.intake = false; }
         }
         // stuck detection (pushing against another robot isn't being stuck)
         let (want, have) = { let r = &robots[i]; (m::hypot2(r.cmd.vx, r.cmd.vz), m::hypot2(r.vel[0], r.vel[2])) };

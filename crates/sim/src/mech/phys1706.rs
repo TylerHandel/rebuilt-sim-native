@@ -3,8 +3,9 @@
 //! way their 2025 code runs its mechanisms (Motion Magic on the arm, velocity loops on the rollers).
 //! The arm out while it intakes, folding in to feed the bowls while it shoots; each turret aims
 //! itself (the robot's twin-turret model turns it to the heading this gives) and its spindexer and
-//! kicker feed once it's on the shot. (The pump and the rock are off by default in the browser
-//! game, and so not here.)
+//! kicker feed once it's on the shot; when the intake's fold stalls on FUEL wedged in front while it
+//! shoots, it rocks the intake out and folds it again (ROCK). (The pump is off by default in the
+//! browser game, and so not here.)
 use crate::ballistics::{solve_moving_shot, ShotTable};
 use crate::constants::*;
 use crate::mech::drives::{Drives, VelLoop};
@@ -77,6 +78,8 @@ pub struct PostIn<'a> {
     /// its shot's target (None: no shot), and where it aims at the HUB
     pub target: Option<[f64; 2]>, pub aim_hub: [f64; 2],
     pub table: &'a ShotTable, pub est_vel: [f64; 2], pub est_omega: f64, pub yaw: f64, pub turret_yaws: [f64; 2],
+    /// the step's (js postStep's dt)
+    pub dt: f64,
 }
 /// What its postStep says back: the robot's (as phys2910's), and each turret's own (js r.tws[i]:
 /// fly, hood, ok)
@@ -96,10 +99,18 @@ pub struct Phys1706 {
     pub phi: [f64; 2],
     /// js aimPsis: where each turret wants to point (None: no shot)
     pub aim_psis: [Option<f64>; 2],
-    ready_t: [bool; 2],
+    pub ready_t: [bool; 2],
     pub ext: f64,
     last_deploy: Option<f64>,
+    /// js stallT, rock ({t, out}), rockEnd: the rock (ROCK)
+    stall_t: f64,
+    rock: Option<(f64, bool)>,
+    rock_end: f64,
 }
+
+/// js ROCK: shooting, not intaking, the fold stalled (stall s) with FUEL still out front, the intake
+/// swung back out to deg and folded in again, each swing given up after max s, at most every gap s
+mod rock { pub const DEG: f64 = 70.0; pub const STALL: f64 = 0.3; pub const GAP: f64 = 0.5; pub const MAX: f64 = 0.6; }
 
 impl Phys1706 {
     /// js `new Physical1706(robot)`
@@ -123,6 +134,7 @@ impl Phys1706 {
         let mut me = Phys1706 {
             p, t, intake_home: w.intake_home, arm_deg: 0.0, arm_set: [0.0; 2], arm_goal: 0.0, hood: [0.0; 2], hood_set: [[0.0; 2]; 2], hood_goal: [0.0; 2],
             phi: [0.0; 2], aim_psis: [None; 2], ready_t: [false; 2], ext: 0.0, last_deploy: None,
+            stall_t: 0.0, rock: None, rock_end: f64::NEG_INFINITY,
         };
         me.reset();
         me
@@ -251,9 +263,20 @@ impl Phys1706 {
         let intaking = on && i.intake;
         let unjam = on && i.outtake;
         let shooting = on && i.feeding && i.target.is_some() && !unjam;
-        self.arm_goal = if intaking || unjam { intake::OUT } else { 0.0 };
+        // (and shooting, not intaking: the fold stalled short of in against FUEL wedged in front, it
+        // swings the intake back out to rock::DEG and folds it in again, its rollers running)
+        let pomega = self.p.drives.omega(self.t.pivot);
+        self.stall_t = if shooting && !intaking && self.rock.is_none() && self.arm_deg > 8.0 && m::abs(pomega) < 0.5 { self.stall_t + i.dt } else { 0.0 };
+        if let Some((rt, rout)) = self.rock {
+            if !shooting || intaking || (rout && self.arm_deg > rock::DEG - 3.0) || t - rt > rock::MAX {
+                if rout && shooting && !intaking { self.rock = Some((t, false)); } else { self.rock = None; self.rock_end = t; }
+            }
+        }
+        if matches!(self.rock, Some((_, false))) && self.arm_deg < 31.0 { self.rock = None; self.rock_end = t; }
+        if self.rock.is_none() && self.stall_t > rock::STALL && t - self.rock_end > rock::GAP && self.front_count(c) > 0 { self.rock = Some((t, true)); self.stall_t = 0.0; }
+        self.arm_goal = if matches!(self.rock, Some((_, true))) { rock::DEG } else if intaking || unjam { intake::OUT } else { 0.0 };
         let arm_ready = m::abs(self.arm_deg - intake::OUT) < intake::TOL;
-        let sweep = shooting && !intaking && self.arm_deg > 30.0;
+        let sweep = shooting && !intaking && (self.arm_deg > 30.0 || self.rock.is_some());
         let tt = self.t.intake;
         self.p.drives.trains[tt].cmd = if !on { Some(0.0) } else if unjam { Some(-0.5) } else if (intaking && arm_ready) || sweep { Some(1.0) } else { None };
         // ---- the turrets: aiming and spinning up while the robot has a shot
@@ -301,6 +324,12 @@ impl Phys1706 {
         (stored, tws)
     }
 
+    /// js `_frontCount()`: how many it holds out front of the bowls: on the shelf or in the box
+    fn front_count(&mut self, c: &mut Ctx) -> usize {
+        let mut n = 0;
+        for k in 0..self.p.held.len() { if self.p.local(c.phys, c.body, c.fuel.balls[self.p.held[k]].pos)[0] > 0.24 { n += 1; } }
+        n
+    }
     /// js `extNow()`: how far the hopper box is out (m)
     pub fn ext_now(&self) -> f64 { self.ext }
     /// js `armTurn()`: the arm's turn from its CAD pose (rad), for drawing it

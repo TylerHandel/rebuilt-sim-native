@@ -971,6 +971,7 @@ impl Robot {
         let (er, ey, rate) = (num(sh, "exitRadius"), num(sh, "exitY"), num(sh, "turretRate"));
         let dt = self.step_dt;
         let mut need = f64::INFINITY;
+        let mut keep: f64 = 0.0;
         let mut show: Option<usize> = None;
         let (mut any_reach, mut any_sol, mut spun, mut aimed) = (false, false, false, false);
         let on = self.enabled && self.climb_state == ClimbState::None;
@@ -999,6 +1000,13 @@ impl Robot {
             self.turret_yaws[i] = mid + approach(cur, goal, rate * DEG * dt);
             let o = if over != 0.0 { over } else { rel - crate::fuel::clamp(rel, margin - lim, lim - margin) };
             if m::abs(o) < m::abs(need) { need = o; }
+            // (shooting: how far past its travel, less the margin, the target is the way round it's
+            // turned now: the most of any turret's, for the chassis to take up)
+            if want_shoot {
+                let b = cur + wrap_angle(rel - cur);
+                let k = b - crate::fuel::clamp(b, margin - lim, lim - margin);
+                if m::abs(k) > m::abs(keep) { keep = k; }
+            }
             if !reach { break 'aim; }
             any_reach = true;
             setpoint = sol.v;
@@ -1027,6 +1035,12 @@ impl Robot {
             let (max_omega, max_alpha) = (num(&self.cfg["drive"], "maxOmega"), num(&self.cfg["drive"], "maxAlpha"));
             let a = m::abs(need);
             self.aim_override = Some(m::sign(need) * m::min(m::min(max_omega, m::sqrt(2.0 * 0.7 * max_alpha * a)), AIM_GAIN * a));
+        } else if active && want_shoot && any_reach && keep != 0.0 {
+            // (one turret can shoot but another's at or past its stop: the chassis turns just
+            // enough to keep the target in every turret's travel)
+            let (max_omega, max_alpha) = (num(&self.cfg["drive"], "maxOmega"), num(&self.cfg["drive"], "maxAlpha"));
+            let a = m::abs(keep);
+            self.aim_override = Some(m::sign(keep) * m::min(m::min(max_omega, m::sqrt(2.0 * 0.7 * max_alpha * a)), AIM_GAIN * a));
         }
         // (what the HUD, the preview and the drawing show: the turret that's firing, or about to)
         let k = show.unwrap_or(0);
@@ -1369,7 +1383,7 @@ impl Robot {
                 let pin7 = crate::mech::phys1706::PostIn {
                     on, feeding: self.want_shoot, outtake: on && self.cmd.outtake, pass: pin.pass, legal: self.last_in_zone, intake: self.cmd.intake,
                     target: pin.target, aim_hub: pin.aim_hub, table: if self.shot.is_some_and(|s| s.pass) { &self.tables.pass } else { &self.tables.hub },
-                    est_vel: pin.est_vel, est_omega, yaw: self.yaw, turret_yaws: [self.turret_yaws[0], self.turret_yaws[1]],
+                    est_vel: pin.est_vel, est_omega, yaw: self.yaw, turret_yaws: [self.turret_yaws[0], self.turret_yaws[1]], dt,
                 };
                 let (stored, tws) = p.post_step(&mut c, t, &pin7, &mut self.stats, &mut self.out);
                 self.stored = stored;
