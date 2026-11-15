@@ -120,7 +120,9 @@ pub fn new_world(setup: Option<&MatchSetup>) -> World {
         w.match_.player = m.alliance;
         w.you = m.you;
         // (js createGame humanDriven: you drive it; its climber is yours to work, in TELEOP)
-        if let Some(r) = w.mine_mut() { r.human_driven = true; }
+        // (and through AUTO too when you drive it yourself, its unit external: 1678's lid yours then)
+        let drive_auto = m.you.is_some_and(|i| m.entries[i].3.driver == "external");
+        if let Some(r) = w.mine_mut() { r.human_driven = true; r.human_auto = drive_auto; }
         // (js createGame: your HUMAN PLAYER throws by itself unless you've set it to manual, or
         // nobody on your ALLIANCE is driving)
         w.hps[sim::game_match::ai(m.alliance)].auto = m.hp_auto || m.you.is_none();
@@ -241,9 +243,11 @@ fn keys(keys: Res<ButtonInput<KeyCode>>, pads: Query<&Gamepad>, screen: Res<Stat
     let hp = &mut game.0.hp_controls;
     hp.toggle_door |= keys.just_pressed(KeyCode::KeyG) || pads.iter().any(|p| p.just_pressed(GamepadButton::West));
     hp.throw_held = keys.pressed(KeyCode::KeyH) || pads.iter().any(|p| p.pressed(GamepadButton::North));
-    // your robot's climber (js main.js: C or A raises it or lowers it, in TELEOP; 1678's lid with it)
-    if (keys.just_pressed(KeyCode::KeyC) || pads.iter().any(|p| p.just_pressed(GamepadButton::South))) && game.0.match_.is_teleop() {
-        if let Some(r) = game.0.mine_mut() { if r.climber.is_some() { r.toggle_climber(); } }
+    // your robot's climber (js main.js: C or A raises it or lowers it, in TELEOP, and in AUTO when
+    // you drive that yourself; 1678's lid with it)
+    if keys.just_pressed(KeyCode::KeyC) || pads.iter().any(|p| p.just_pressed(GamepadButton::South)) {
+        let (teleop, auto) = (game.0.match_.is_teleop(), game.0.match_.is_auto());
+        if let Some(r) = game.0.mine_mut() { if r.climber.is_some() && (teleop || (auto && r.human_auto)) { r.toggle_climber(); } }
     }
     if keys.just_pressed(KeyCode::Escape) || pads.iter().any(|p| p.just_pressed(GamepadButton::Start)) { cmds.write(GameCmd::Pause); }
     if keys.just_pressed(KeyCode::Backspace) || pads.iter().any(|p| p.just_pressed(GamepadButton::Select)) { cmds.write(GameCmd::Restart); }

@@ -160,7 +160,7 @@ pub struct RobotModelPlugin;
 
 impl Plugin for RobotModelPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(PostUpdate, (animate, drape_nets).chain().before(TransformSystems::Propagate));
+        app.add_systems(PostUpdate, (animate, drape_nets, find_plates, bow_plates).chain().before(TransformSystems::Propagate));
     }
 }
 
@@ -385,5 +385,64 @@ pub fn pose_demo(m: &mut RobotModel, t: f32, dt: f32, parts: &mut Query<&mut Tra
             let p = rest.rest;
             if let Ok(mut tr) = parts.get_mut(e) { tr.rotation = euler(&rest.order, p[3], y, p[5]); }
         }
+    }
+}
+
+/// A lattice top plate the load bows up (1690's: js robotModels.js bowPlate): its mesh (this
+/// robot's own copy), its vertices as the CAD has them (robot frame: the plate hangs on the model's
+/// root unmoved), and the bow it was last drawn at
+#[derive(Component)]
+struct BowPlate { robot: usize, base: Vec<[f32; 3]>, last: f32 }
+/// a model whose plates have been looked for
+#[derive(Component)]
+struct PlatesFound;
+
+/// Once a 1690's model is in: its top plate's meshes (thin, flat, ~0.52-0.55 m up, spanning the
+/// hopper), each given its own copy of its mesh to bend
+fn find_plates(
+    models: Query<(Entity, &RobotModel), Without<PlatesFound>>,
+    children: Query<&Children>,
+    meshes_q: Query<&Mesh3d>,
+    game: Res<Game>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut commands: Commands,
+) {
+    use bevy::mesh::VertexAttributeValues;
+    for (root, m) in &models {
+        if !m.ready { continue }
+        commands.entity(root).insert(PlatesFound);
+        let Some(r) = game.0.robots.get(m.robot) else { continue };
+        if !matches!(r.phys, Some(sim::robot::Phys::R1690(_))) { continue }
+        for e in children.iter_descendants(root) {
+            let Ok(h) = meshes_q.get(e) else { continue };
+            let Some(mesh) = meshes.get(&h.0) else { continue };
+            let Some(VertexAttributeValues::Float32x3(p)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else { continue };
+            let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
+            for v in p { for k in 0..3 { lo[k] = lo[k].min(v[k]); hi[k] = hi[k].max(v[k]); } }
+            if !(hi[1] - lo[1] < 0.045 && lo[1] > 0.48 && hi[0] - lo[0] > 0.4 && hi[2] - lo[2] > 0.4) { continue }
+            let base = p.clone();
+            let mesh = mesh.clone();
+            let copy = meshes.add(mesh);
+            info!("robot {} top plate: {} vertices to bow", m.robot, base.len());
+            commands.entity(e).insert((Mesh3d(copy), BowPlate { robot: m.robot, base, last: 0.0 }));
+        }
+    }
+}
+
+/// Each frame: the plate bent as far as the load bows it (js r1690.js bowShape: most at its free
+/// front edge's middle, nothing at its supports)
+fn bow_plates(mut plates: Query<(&mut BowPlate, &Mesh3d)>, game: Res<Game>, mut meshes: ResMut<Assets<Mesh>>) {
+    use bevy::mesh::VertexAttributeValues;
+    for (mut bp, h) in &mut plates {
+        let Some(r) = game.0.robots.get(bp.robot) else { continue };
+        let Some(sim::robot::Phys::R1690(p)) = &r.phys else { continue };
+        // (REBUILT_SHOT_BOW=m: a bow to see it by, for the screenshot harness: shot.rs)
+        let bow = std::env::var("REBUILT_SHOT_BOW").ok().and_then(|v| v.parse().ok()).unwrap_or(p.bow() as f32);
+        if (bow - bp.last).abs() < 0.0005 { continue }
+        bp.last = bow;
+        let Some(mut mesh) = meshes.get_mut(&h.0) else { continue };
+        let pos: Vec<[f32; 3]> = bp.base.iter().map(|v| [v[0], v[1] + bow * p.bow_shape(v[0] as f64, v[2] as f64) as f32, v[2]]).collect();
+        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, VertexAttributeValues::Float32x3(pos));
+        if mesh.indices().is_some() { mesh.compute_smooth_normals(); } else { mesh.compute_flat_normals(); }
     }
 }

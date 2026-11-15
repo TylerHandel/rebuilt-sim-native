@@ -108,8 +108,10 @@ pub mod intake {
     pub const KICK_MASS: f64 = 0.44;
     pub const KICK_COM: f64 = 0.173;
     pub const KICK_J: f64 = 0.015;
-    pub const TUBING_PRELOAD: f64 = 1.4;
-    pub const TUBING_RATE: f64 = 1.2;
+    /// js INTAKE.kick.tubing: banded latex tubing, stretched hard (estimates: firm enough that FUEL
+    /// driven into in a clump don't lift the bar and slip under it)
+    pub const TUBING_PRELOAD: f64 = 8.4;
+    pub const TUBING_RATE: f64 = 7.2;
 }
 /// js SLIDE: the carriage's drive
 pub mod slide {

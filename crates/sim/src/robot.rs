@@ -58,6 +58,8 @@ pub fn apply_quat(v: [f64; 3], q: [f64; 4]) -> [f64; 3] {
 
 /// The robots whose mechanisms are ported (a robot.json config's "physical"): the others' Robot::new
 /// panics until theirs are
+/// js robot.js LID_RAISE: how long 1678's climber takes to raise or lower its lid by hand (s)
+pub const LID_RAISE: f64 = 0.75;
 pub const PORTED: &[&str] = &["2910", "4414", "8793", "1678", "1690", "7769", "341", "1114", "6328", "604", "581", "2056", "1706"];
 /// The generic robots (not built of physical mechanisms) that are ported: generic.rs, hopper.rs
 pub const GENERIC: &[&str] = &["971", "4946", "3928", "4930"];
@@ -179,6 +181,8 @@ pub struct Robot {
     pub intake_want: bool,
     /// js humanDriven: a person drives it (its climber is theirs to work, in TELEOP)
     pub human_driven: bool,
+    /// a person drives it through AUTO too (the game's "drive AUTO yourself"), not its AUTO routine
+    pub human_auto: bool,
     /// js climberCfg, and the climb (climbState, climbLift, climbLevel, climbTarget; a climber worked
     /// by hand: climberUp, climberExt, hooked, _manual; climbBase)
     pub climber: Option<ClimberCfg>,
@@ -380,7 +384,7 @@ impl Robot {
             key: key.into(), cfg, alliance, body: RigidBodyHandle::invalid(), bumper: ColliderHandle::invalid(), frame: ColliderHandle::invalid(),
             hopper: None, hopper_y: 0.0, arm_collider: ColliderHandle::invalid(), arm_wall: None, intake_block: None, slide_back: None, lid: None,
             wheel_pts: Vec::new(), half_l, half_w, height, swerve,
-            max_speed: 0.0, max_omega: 0.0, phys: None, force_deploy: false, noise_scale: 1.0, climb_claim: false, ai_pass: None, phys_top: [0.0; 3], cmd: Cmd::default(), enabled: false, intake_deploy: 0.0, intake_want: false, human_driven: false, climber: None, climb_state: ClimbState::None, climb_lift: 0.0, climb_level: 0, climb_target: 0,
+            max_speed: 0.0, max_omega: 0.0, phys: None, force_deploy: false, noise_scale: 1.0, climb_claim: false, ai_pass: None, phys_top: [0.0; 3], cmd: Cmd::default(), enabled: false, intake_deploy: 0.0, intake_want: false, human_driven: false, human_auto: false, climber: None, climb_state: ClimbState::None, climb_lift: 0.0, climb_level: 0, climb_target: 0,
             climber_up: false, climber_ext: 0.0, hooked: false, manual: false, climb_base: [0.0; 3], teleop: false, is_auto: false, phase_time: 0.0, arm_groups: 0, arm_groups_rigid: 0, hopper_deploy: 0.0,
             last_t: 0.0, pos: [0.0; 3], quat: [0.0, 0.0, 0.0, 1.0], yaw: 0.0, vel: [0.0; 3], omega: 0.0, traction: 0.0,
             aim_vel: [0.0; 2], stored: Vec::new(), stats: Stats::default(), full: false, last_in_zone: false, want_shoot: false, shot_setpoint: 0.0,
@@ -1193,8 +1197,9 @@ impl Robot {
     pub fn load_high_t(&self) -> f64 { self.generic.as_ref().map_or(self.phys_top[1], |g| g.load_high_t) }
     pub fn load_top(&self) -> f64 { self.generic.as_ref().map_or(self.phys_top[0], |g| g.load_top) }
 
-    /// js `driverClimb`: a person drives it and it has a climber, in TELEOP: the climber is theirs
-    pub fn driver_climb(&self) -> bool { self.human_driven && self.climber.is_some() && self.teleop }
+    /// js `driverClimb`: a person drives it and it has a climber, in TELEOP (and in AUTO when they
+    /// drive that too, human_auto): the climber is theirs, and 1678's lid with it
+    pub fn driver_climb(&self) -> bool { self.human_driven && self.climber.is_some() && (self.teleop || self.human_auto) }
     /// js `toggleClimber()` (the driver's button): what it says
     pub fn toggle_climber(&mut self) -> &'static str {
         if self.climber.is_none() { return "No climber installed"; }
@@ -1215,7 +1220,9 @@ impl Robot {
         }
         let lvl = self.climb_target.max(1);
         let lift = CLIMB_LIFT[lvl];
-        let t_up = m::max(0.3, c.times.get(1).copied().unwrap_or(1.6));
+        // (raising or lowering it free: 1678's climber carries only its lid, its X60 at its free
+        // speed, the lid as fast as it goes: up in ~0.7 s, phys1678 LID_UP; js robot.js LID_RAISE)
+        let t_up = if matches!(self.phys, Some(Phys::R1678(_))) && !self.hooked { LID_RAISE } else { m::max(0.3, c.times.get(1).copied().unwrap_or(1.6)) };
         let t_climb = m::max(0.3, c.times.get(lvl).copied().unwrap_or(2.0));
         if self.climb_state == ClimbState::None {
             let p = self.climb_pose();

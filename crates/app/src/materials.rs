@@ -1,7 +1,8 @@
 //! The robots' and field's materials, as the arena's light shows them. The GLBs carry their CAD's
 //! materials (js robotModels.js's aluminum and kinds, the bumpers' fabric, the polycarbonate);
 //! here, by what each material is:
-//!   - polycarbonate (clear blended sheets): a weak reflection, so the arena's light doesn't ring
+//!   - polycarbonate (clear blended sheets, 40% of the CAD's opacity, glossy: clear, not hazy): a
+//!     modest reflection, so the arena's light doesn't ring
 //!     each panel's edges (Bevy's grazing-angle reflectance follows the head-on one); not drawn as
 //!     refracting glass (specular transmission tinted what's behind it gray and darkened hoppers);
 //!   - aluminum (metallic): brushed (assets/shaders/brushed.wesl: js robotModels.js's grain, in
@@ -56,6 +57,9 @@ impl Plugin for MaterialsPlugin {
 }
 
 /// what a material is, for its look
+/// how much of its CAD opacity a robot's polycarbonate keeps (js robotModels.js applyPoly's 0.4)
+const CLEAR_OPACITY: f32 = 0.4;
+
 #[derive(Clone, Copy, PartialEq)]
 enum Kind { Clear, Metal, Fabric, Dark, Painted, Other }
 
@@ -114,7 +118,16 @@ fn tune(
         let mut p = m.clone();
         let c = match k {
             // (reflectance 0.2: F0 0.0064, the grazing reflectance 0.32 where 0.5 reached 1)
-            Kind::Clear => { p.reflectance = 0.2; Copy::Std(mats.add(p)) }
+            // (clear sheet, as the browser game's from Low up, js robotModels.js applyPoly: 40% of
+            // the CAD's opacity, glossy; the user: clear, not hazy)
+            Kind::Clear => {
+                let mut c = p.base_color.to_linear();
+                c.alpha *= CLEAR_OPACITY;
+                p.base_color = Color::LinearRgba(c);
+                p.perceptual_roughness = p.perceptual_roughness.min(0.08);
+                p.reflectance = 0.3;
+                Copy::Std(mats.add(p))
+            }
             // (raw aluminum, light: all the grain; anodized, dark: its dyed oxide mutes it)
             Kind::Metal => {
                 p.perceptual_roughness = p.perceptual_roughness.min(0.36);

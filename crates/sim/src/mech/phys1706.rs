@@ -100,6 +100,8 @@ pub struct Phys1706 {
     /// js aimPsis: where each turret wants to point (None: no shot)
     pub aim_psis: [Option<f64>; 2],
     pub ready_t: [bool; 2],
+    /// what held each turret back last step (a diagnostic: 1 aim, 2 hood, 4 exit speed, 8 no shot)
+    pub why: [u8; 2],
     pub ext: f64,
     last_deploy: Option<f64>,
     /// js stallT, rock ({t, out}), rockEnd: the rock (ROCK)
@@ -133,7 +135,7 @@ impl Phys1706 {
         let p = Physical::new(d, surfaces, path, Some(shooter), preload(), Some((0.12, 10)));
         let mut me = Phys1706 {
             p, t, intake_home: w.intake_home, arm_deg: 0.0, arm_set: [0.0; 2], arm_goal: 0.0, hood: [0.0; 2], hood_set: [[0.0; 2]; 2], hood_goal: [0.0; 2],
-            phi: [0.0; 2], aim_psis: [None; 2], ready_t: [false; 2], ext: 0.0, last_deploy: None,
+            phi: [0.0; 2], aim_psis: [None; 2], ready_t: [false; 2], why: [0; 2], ext: 0.0, last_deploy: None,
             stall_t: 0.0, rock: None, rock_end: f64::NEG_INFINITY,
         };
         me.reset();
@@ -297,6 +299,8 @@ impl Phys1706 {
                 speed_loop(d, Drv::T(sh.train), None, 0.2);
             }
             let yaw_err = match sol { Some(s) => m::abs(crate::robot::wrap_angle(s.0 - (i.yaw + i.turret_yaws[k]))), None => f64::INFINITY };
+            // (what holds each turret back, for diagnosing: 1 aim, 2 hood, 4 exit speed, 8 no shot)
+            self.why[k] = match sol { Some(s) => (yaw_err >= shooter::TOL_YAW * DEG) as u8 | ((m::abs(self.hood[k] - self.hood_goal[k]) >= shooter::TOL_HOOD) as u8) << 1 | ((m::abs(exit_at(d.omega(sh.accel)) - s.2) >= shooter::TOL_V) as u8) << 2, None => 8 };
             let ready = match sol {
                 Some(s) => yaw_err < shooter::TOL_YAW * DEG && m::abs(self.hood[k] - self.hood_goal[k]) < shooter::TOL_HOOD && m::abs(exit_at(d.omega(sh.accel)) - s.2) < shooter::TOL_V,
                 None => false,

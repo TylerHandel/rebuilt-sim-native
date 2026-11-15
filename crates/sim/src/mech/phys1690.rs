@@ -384,6 +384,8 @@ impl Phys1690 {
     pub fn capacity(&self) -> usize { 50 }
     /// the top plate's bow (m), for drawing it
     pub fn bow(&self) -> f64 { self.p.surfaces[S_NET].plate_ref().unwrap().bow }
+    /// js r1690.js `bowShape(x, z)`: how much of the bow a point of the plate (robot frame) takes
+    pub fn bow_shape(&self, x: f64, z: f64) -> f64 { self.p.surfaces[S_NET].plate_ref().unwrap().bow_shape(x, z) }
     /// js `turretStep(cur, goal, dt, t)`: the turret on its motor
     pub fn turret_step(&mut self, cur: f64, goal: f64, dt: f64, t: f64) -> f64 {
         self.turret.get_or_insert_with(drive1690).step(cur, goal, dt, Some(t))
