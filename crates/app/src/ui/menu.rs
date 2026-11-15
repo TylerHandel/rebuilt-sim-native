@@ -35,7 +35,7 @@ impl Mode {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum OptId { Auto, Start, Alliance, Ds, Hp, Camera, Graphics, Motion, Fps, Venue, Time, Weather, Haze, Film, Upscaler, OppRobot, Opponent, OppSkill, SlotDriver(u8), SlotRobot(u8), SlotStart(u8), SlotSkill(u8), CampDifficulty, CampName }
+pub enum OptId { Auto, Start, Alliance, Ds, Hp, Camera, Graphics, Motion, Fps, Venue, Time, Weather, Haze, Film, Upscaler, OppRobot, Opponent, OppSkill, SlotDriver(u8), SlotRobot(u8), SlotStart(u8), SlotSkill(u8), CampDifficulty, CampName, CampLength, CampLite }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Item {
@@ -111,7 +111,7 @@ fn items(page: Page, s: &Settings) -> Vec<Item> {
         Page::Campaign => {
             let mut v = vec![
                 Item::Section("Your robot, all season"), Item::Robot,
-                Item::Section("Season"), Item::Opt(OptId::CampName), Item::Opt(OptId::CampDifficulty), Item::Opt(OptId::Auto), Item::Opt(OptId::Hp),
+                Item::Section("Season"), Item::Opt(OptId::CampName), Item::Opt(OptId::CampDifficulty), Item::Opt(OptId::CampLength), Item::Opt(OptId::CampLite), Item::Opt(OptId::Auto), Item::Opt(OptId::Hp),
             ];
             if crate::campaign::has_save() { v.push(btn("CONTINUE SEASON", Act::ContinueSeason, false, false, true)); }
             v.push(btn("NEW SEASON", Act::NewSeason, crate::campaign::has_save(), false, true));
@@ -141,7 +141,7 @@ fn skill_values() -> Vec<(String, String)> { sim::ai::SKILL_ORDER.iter().map(|k|
 // ------------------------------------------------------------------ options (js ui.js OPT)
 fn opt_label(id: OptId) -> String {
     match id {
-        OptId::CampDifficulty => "Difficulty".into(), OptId::CampName => "Your team".into(),
+        OptId::CampDifficulty => "Difficulty".into(), OptId::CampName => "Your team".into(), OptId::CampLength => "Season".into(), OptId::CampLite => "Your matches".into(),
         OptId::OppRobot => "Robot".into(), OptId::Opponent => "Strategy".into(), OptId::OppSkill => "Skill".into(),
         OptId::SlotDriver(i) => format!("{} · driven by", slot_name(i)), OptId::SlotRobot(i) => format!("{} · robot", slot_name(i)),
         OptId::SlotStart(i) => format!("{} · starts at", slot_name(i)), OptId::SlotSkill(i) => format!("{} · AI skill", slot_name(i)),
@@ -164,6 +164,8 @@ fn opt_values(id: OptId) -> Vec<(String, String)> {
         OptId::OppRobot | OptId::SlotRobot(_) => robot_values(),
         OptId::CampDifficulty => vec![v("casual", "Casual"), v("standard", "Standard"), v("hof", "Hall of Fame")],
         OptId::CampName => crate::settings::TEAM_NAMES.iter().map(|n| v(n, n)).collect(),
+        OptId::CampLength => vec![v("full", "Full season"), v("short", "Short season")],
+        OptId::CampLite => vec![v("off", "3 v 3"), v("on", "1 v 1 (lighter)")],
         OptId::Opponent => sim::ai::STRATEGIES.iter().map(|k| v(k, sim::ai::strategy_name(k))).collect(),
         OptId::OppSkill | OptId::SlotSkill(_) => skill_values(),
         OptId::SlotDriver(_) => vec![v("you", "You"), v("scorer", "AI Scorer"), v("defense", "AI Defense"), v("hybrid", "AI Hybrid"), v("empty", "Empty")],
@@ -194,6 +196,7 @@ fn opt_get(id: OptId, s: &Settings) -> String {
         OptId::Film => if s.film { "on".into() } else { "off".into() },
         OptId::Upscaler => s.upscaler.clone(),
         OptId::CampDifficulty => s.camp_difficulty.clone(), OptId::CampName => s.camp_name.clone(),
+        OptId::CampLength => s.camp_length.clone(), OptId::CampLite => if s.camp_lite { "on".into() } else { "off".into() },
         OptId::OppRobot => s.opp_robot.clone(), OptId::Opponent => s.opponent.clone(), OptId::OppSkill => s.opp_skill.clone(),
         OptId::SlotDriver(i) => s.slots[i as usize].driver.clone(), OptId::SlotRobot(i) => s.slots[i as usize].robot.clone(),
         OptId::SlotStart(i) => s.slots[i as usize].start.clone(), OptId::SlotSkill(i) => s.slots[i as usize].skill.clone(),
@@ -209,6 +212,7 @@ fn opt_set(id: OptId, s: &mut Settings, v: &str) {
         OptId::Film => s.film = v == "on",
         OptId::Upscaler => s.upscaler = v.into(),
         OptId::CampDifficulty => s.camp_difficulty = v.into(), OptId::CampName => s.camp_name = v.into(),
+        OptId::CampLength => s.camp_length = v.into(), OptId::CampLite => s.camp_lite = v == "on",
         OptId::OppRobot => s.opp_robot = v.into(), OptId::Opponent => s.opponent = v.into(), OptId::OppSkill => s.opp_skill = v.into(),
         OptId::SlotDriver(i) => {
             // (one slot at most is you: the one that was becomes an AI scorer)
@@ -230,6 +234,8 @@ fn opt_desc(id: OptId, s: &Settings) -> String {
             _ => "Standard: rookies and regional drivers at the district events, Champs-level drivers at the Championship. With a mid-pack robot you'll win about two in three at districts, one in three on Einstein.",
         }.into(),
         OptId::CampName => "Your team's name, as the rankings and the announcer have it.".into(),
+        OptId::CampLength => if s.camp_length == "short" { "Short: one district event, then straight to the Championship if you win it or finish among its best in district points. A new season only." } else { "Full: two district events, the District Championship, then the Championship and Einstein if you get there. A new season only." }.into(),
+        OptId::CampLite => if s.camp_lite { "1 v 1: you against the other alliance's best robot; your partners' and the rest of its points are decided from their ratings. Two robots on the field: much lighter on a slow PC." } else { "3 v 3: every match you play has all six robots on the field." }.into(),
         OptId::OppRobot => format!("The AI can drive any of the robots. {}", robot_line(&s.opp_robot)),
         OptId::Opponent => sim::ai::strategy_desc(&s.opponent).into(),
         OptId::OppSkill => sim::ai::skill(&s.opp_skill).desc.into(),
@@ -433,11 +439,12 @@ fn apply_acts(
             }
             Act::NewSeason | Act::ContinueSeason => {
                 let c = match a {
-                    Act::ContinueSeason => crate::campaign::saved().map(|season| crate::campaign::Campaign { season, playing: None }),
+                    Act::ContinueSeason => crate::campaign::saved().map(|season| crate::campaign::Campaign::resume(season)),
                     _ => {
                         let d = match settings.camp_difficulty.as_str() { "casual" => campaign::season::Difficulty::Casual, "hof" => campaign::season::Difficulty::HallOfFame, _ => campaign::season::Difficulty::Standard };
                         let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as u32 ^ d.subsec_nanos()).unwrap_or(1);
-                        let c = crate::campaign::Campaign::new(seed, d, &settings.camp_name, &settings.robot);
+                        let len = if settings.camp_length == "short" { campaign::season::Length::Short } else { campaign::season::Length::Full };
+                        let c = crate::campaign::Campaign::new(seed, d, len, &settings.camp_name, &settings.robot);
                         c.save();
                         Some(c)
                     }
@@ -496,7 +503,7 @@ fn describe(item: Option<Item>, menu: &Menu, s: &Settings) -> String {
             Some(season) => format!("Back to {} with {} ({}), {} difficulty.", season.event().name, season.your_name, Roster::get().robot(&season.your_robot).short(), season.difficulty.name()),
             None => String::new(),
         },
-        Some(Item::Btn { act: Act::NewSeason, .. }) => format!("A new season: {} driving {} all season. Two district events, then the District Championship, the Championship and Einstein, if you get there.{}", s.camp_name, r.short(), if crate::campaign::has_save() { " This replaces your saved season." } else { "" }),
+        Some(Item::Btn { act: Act::NewSeason, .. }) => format!("A new season: {} driving {} all season. {}{}", s.camp_name, r.short(), if s.camp_length == "short" { "One district event, then the Championship and Einstein, if you get there." } else { "Two district events, then the District Championship, the Championship and Einstein, if you get there." }, if crate::campaign::has_save() { " This replaces your saved season." } else { "" }),
         Some(Item::Btn { act: Act::Quit, .. }) => "Close the game. A downloaded update installs as it closes.".into(),
         _ => String::new(),
     }

@@ -4,7 +4,9 @@
 //! keys down the whole time (Bevy's KeyCode names), to see the robot driven.
 //! REBUILT_SHOT_WAIT=<frames> waits that long after them (90 if unset). REBUILT_SHOT_FLOW
 //! walks the screens first, in order: "practice" (open the Practice page), "settings", "start" (start
-//! a match), "pause", "controls", "results" (end the match).
+//! a match), "pause", "controls", "results" (end the match); Road to Einstein's "season" (its page),
+//! "newseason" (a new season, into the pits), "pitsgo" (the pits' first button), "tab<n>" (a pits
+//! tab), "simquals" / "simevent" (the event's qualification matches decided, or all of it), "topits".
 //! REBUILT_BENCH=1 prints the mean frame time over the last half of the wait (what a change costs).
 //! REBUILT_OFF=crowd,venue,truss,shadows,env,nature turns those off, to see what each costs.
 //! REBUILT_SHOT_SIZE=<w>x<h> sizes the window (what a lower render resolution saves: DLSS's case).
@@ -79,6 +81,7 @@ fn shoot(
     time: Res<Time<Real>>,
     mut next_screen: ResMut<NextState<crate::ui::Screen>>,
     mut pits: ResMut<crate::ui::campaign::Pits>,
+    mut camp: Option<ResMut<crate::campaign::Campaign>>,
 ) {
     if shot.taken || !assets.is_loaded_with_dependencies(&field.0) {
         return;
@@ -104,10 +107,14 @@ fn shoot(
                 "season" => { menu.page = Page::Campaign; menu.focus = 0; menu.dirty = true; }
                 // (a new Road to Einstein season, into the pits; then its first action: play)
                 "newseason" => {
-                    commands.insert_resource(crate::campaign::Campaign::new(7, campaign::season::Difficulty::Standard, "The Rebuilders", &std::env::var("ROBOT").unwrap_or("2910".into())));
+                    commands.insert_resource(crate::campaign::Campaign::new(7, campaign::season::Difficulty::Standard, if std::env::var("SHORT").is_ok() { campaign::season::Length::Short } else { campaign::season::Length::Full }, "The Rebuilders", &std::env::var("ROBOT").unwrap_or("2910".into())));
                     next_screen.set(crate::ui::Screen::Pits);
                 }
                 "pitsgo" => { pits.clicked = Some(0); }
+                // (the pits' tabs; the event's qualification matches all decided, or the whole event)
+                t if t.starts_with("tab") => { pits.show_tab(t[3..].parse().unwrap_or(0)); }
+                "simquals" => if let Some(c) = camp.as_mut() { let e = c.season.event_mut(); let q = e.quals.len(); e.decide_quals_until(q, crate::campaign::ratings()); pits.refresh(); },
+                "simevent" => if let Some(c) = camp.as_mut() { campaign::season::decide_all(c.season.event_mut(), crate::campaign::ratings()); pits.refresh(); },
                 "topits" => { cmds.write(GameCmd::ToPits); }
                 "settings" => { menu.page = Page::Settings; menu.focus = 0; menu.dirty = true; }
                 "start" => { cmds.write(GameCmd::Start); }

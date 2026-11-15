@@ -86,7 +86,7 @@ pub struct Rank {
 impl Rank {
     /// ranking score: RP per match
     pub fn rs(&self) -> f64 { if self.played == 0 { 0.0 } else { self.rp / self.played as f64 } }
-    fn avg(&self, v: f64) -> f64 { if self.played == 0 { 0.0 } else { v / self.played as f64 } }
+    pub fn avg(&self, v: f64) -> f64 { if self.played == 0 { 0.0 } else { v / self.played as f64 } }
 }
 
 /// Where alliance selection is
@@ -214,6 +214,28 @@ impl Event {
             let u = rng.next();
             side.fouls = if u < 0.18 { 5.0 } else if u < 0.24 { 15.0 } else if u < 0.27 { 10.0 } else { 0.0 };
         }
+        self.rng = rng;
+        (r, b)
+    }
+
+    /// Some of two alliances' teams' part of a match (the rest played it): theirs decided as
+    /// `decide` would, the luck scaled to how many of the three they are, and no fouls
+    pub fn decide_part(&mut self, red: &[usize], blue: &[usize], ratings: &Ratings) -> (Line, Line) {
+        let mut rng = self.rng.clone();
+        let mut line = |ids: &[usize]| {
+            let (mut fuel, mut tower, mut auto) = (0.0, 0.0, 0.0);
+            for &id in ids {
+                let e = self.teams.iter().find(|t| t.id == id).unwrap().expect(ratings);
+                fuel += e.fuel; tower += e.tower; auto += e.auto;
+            }
+            if ids.is_empty() { return Line::default(); }
+            let sd = ratings.residual_sd * (ids.len() as f64 / 3.0).sqrt();
+            let fuel = (fuel + rng.gauss() * sd * 0.9).max(0.0).round();
+            let tower = ((tower + rng.gauss() * sd * 0.15) / 10.0).round().max(0.0) * 10.0;
+            let auto = (auto * (1.0 + rng.gauss() * 0.15)).max(0.0).round().min(fuel + tower);
+            Line { fuel, auto, tower, fouls: 0.0 }
+        };
+        let (r, b) = (line(red), line(blue));
         self.rng = rng;
         (r, b)
     }

@@ -2,7 +2,7 @@
 //! match, what happens between your matches (decided as the pits screen asks: ui/campaign.rs), and
 //! your matches set up and played in the game, their results recorded.
 use bevy::prelude::*;
-use campaign::season::{Difficulty, Season, Stage};
+use campaign::season::{Difficulty, Length, Season, Stage};
 use campaign::{Line, Ratings};
 use sim::constants::Alliance;
 use sim::game::{UnitSpec, World};
@@ -47,7 +47,17 @@ pub struct Campaign {
     pub season: Season,
     /// the match you're in (a qualification match's index, or a bout's) while it's played
     pub playing: Option<Next>,
+    /// what you've told your partners to play in your next match (team id: scorer, defense or
+    /// hybrid); a partner you haven't plays its own way (strategy)
+    pub roles: std::collections::HashMap<usize, &'static str>,
+    /// what your coach said after your last match (shown in the pits until the next)
+    pub after: Option<String>,
+    /// the match being played is 1 v 1 (settings.camp_lite when it started): who's on the field
+    pub lite: bool,
 }
+
+/// the roles a partner can play
+pub const ROLES: [&str; 3] = ["scorer", "defense", "hybrid"];
 
 /// An AI team's strategy: most score; some, by their number, defend or play hybrid
 pub fn strategy(id: usize, skill: campaign::Skill) -> &'static str {
@@ -56,9 +66,11 @@ pub fn strategy(id: usize, skill: campaign::Skill) -> &'static str {
 }
 
 impl Campaign {
-    pub fn new(seed: u32, d: Difficulty, name: &str, robot: &str) -> Self {
-        Campaign { season: Season::new(seed, d, name, robot, ratings()), playing: None }
+    pub fn new(seed: u32, d: Difficulty, length: Length, name: &str, robot: &str) -> Self {
+        Self::resume(Season::new_with(seed, d, length, name, robot, ratings()))
     }
+    /// a saved season, or the next one
+    pub fn resume(season: Season) -> Self { Campaign { season, playing: None, roles: Default::default(), after: None, lite: false } }
 
     pub fn save(&self) {
         let Some(p) = save_path() else { return };
@@ -112,7 +124,7 @@ impl Campaign {
     /// Your match as the game plays it: you on your side, the AI teams with their robots, skills
     /// and strategies
     pub fn setup(&self, n: &Next, s: &crate::settings::Settings) -> MatchSetup {
-        let (red, blue) = self.sides(n);
+        let (red, blue) = self.on_field(n, s.camp_lite);
         let e = self.season.event();
         let mut entries = Vec::new();
         let mut you = None;
@@ -126,7 +138,7 @@ impl Campaign {
                     let driver = if s.auto == "best" { "you" } else { "external" };
                     entries.push((tm.robot.clone(), a, "hub".to_string(), UnitSpec { driver: driver.into(), auto: "best".into(), start: "hub".into(), skill: "champs".into() }));
                 } else {
-                    let st = strategy(t, tm.skill);
+                    let st = self.role(t);
                     let (auto, start) = sim::ai::opponent_auto(st);
                     entries.push((tm.robot.clone(), a, start.into(), UnitSpec { driver: st.into(), auto: auto.into(), start: start.into(), skill: tm.skill.key().into() }));
                 }
@@ -135,15 +147,39 @@ impl Campaign {
         MatchSetup { entries, you, alliance, skip_auto: s.auto == "skip", still_auto: s.auto == "none", hp_auto: s.hp == "auto" }
     }
 
+    /// Who's on the field for a match: everyone, or (1 v 1) you and the other alliance's best
+    pub fn on_field(&self, n: &Next, lite: bool) -> (Vec<usize>, Vec<usize>) {
+        let (red, blue) = self.sides(n);
+        if !lite { return (red, blue); }
+        let e = self.season.event();
+        let best = |ids: &[usize]| ids.iter().copied().max_by(|a, b| e.team(*a).strength(ratings()).partial_cmp(&e.team(*b).strength(ratings())).unwrap()).into_iter().collect::<Vec<_>>();
+        if red.contains(&0) { (vec![0], best(&blue)) } else { (best(&red), vec![0]) }
+    }
+
+    /// the role a team plays in your next match: what you told it, or its own way
+    pub fn role(&self, t: usize) -> &'static str { self.roles.get(&t).copied().unwrap_or_else(|| strategy(t, self.season.event().team(t).skill)) }
+
     /// The match you just played: its result into the event and the season, saved
     pub fn record(&mut self, w: &World) {
-        let Some(n) = self.playing.take() else { return };
+        let Some(n) = self.playing.clone() else { return };
+        self.playing = None;
+        self.roles.clear();
         let line = |a: Alliance| {
             let s = &w.match_.score[ai(a)];
             Line { fuel: s.auto_fuel + s.tele_fuel, auto: s.auto_fuel + s.auto_tower, tower: s.auto_tower + s.tele_tower, fouls: s.foul_pts }
         };
-        let (red, blue) = (line(Alliance::Red), line(Alliance::Blue));
-        let (r_ids, _) = self.sides(&n);
+        let (mut red, mut blue) = (line(Alliance::Red), line(Alliance::Blue));
+        let (r_ids, b_ids) = self.sides(&n);
+        if self.lite {
+            // (1 v 1: the four who weren't on the field, their points decided, added to their alliances')
+            let (fr, fb) = self.on_field(&n, true);
+            let off = |all: &[usize], on: &[usize]| all.iter().copied().filter(|t| !on.contains(t)).collect::<Vec<_>>();
+            let (or, ob) = (off(&r_ids, &fr), off(&b_ids, &fb));
+            let (dr, db) = self.season.event_mut().decide_part(&or, &ob, ratings());
+            let add = |a: &mut Line, d: Line| { a.fuel += d.fuel; a.auto += d.auto; a.tower += d.tower; };
+            add(&mut red, dr);
+            add(&mut blue, db);
+        }
         let you_red = r_ids.contains(&0);
         let e = self.season.event_mut();
         let (id, rp_before) = match n {
@@ -158,6 +194,8 @@ impl Campaign {
         }
         let rp = e.ranks.iter().find(|x| x.team == 0).map_or(0.0, |x| x.rp) - rp_before;
         self.season.note_match(&id, you_red, red, blue, rp);
+        let (us, them) = if you_red { (red, blue) } else { (blue, red) };
+        self.after = Some(campaign::story::after_match(&self.season, us.total(), them.total(), rp, them.fouls));
         self.save();
     }
 }

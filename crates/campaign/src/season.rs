@@ -18,6 +18,20 @@ impl Difficulty {
 }
 
 /// Where the season is
+/// How long a season is: two district events and the District Championship before the
+/// Championship, or one district event straight to it (if you qualify there)
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum Length { #[default] Full, Short }
+impl Length {
+    pub fn name(self) -> &'static str { match self { Length::Full => "Full season", Length::Short => "Short season" } }
+}
+
+/// A season played before this one (its year, its score, how far it went)
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Past { pub year: u32, pub score: f64, pub reached: String, pub robot: String }
+
+fn first_year() -> u32 { 1 }
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Stage { District1, District2, DistrictChampionship, Division, Einstein, Over }
 
@@ -58,7 +72,18 @@ pub struct Season {
     pub awards: Vec<Award>,
     pub beats: Vec<Beat>,
     pub rng: Rng,
+    #[serde(default)]
+    pub length: Length,
+    /// which season this is (1 the first), and the ones before it
+    #[serde(default = "first_year")]
+    pub year: u32,
+    #[serde(default)]
+    pub history: Vec<Past>,
 }
+
+/// how many of a district event's teams go straight on to the Championship in a short season
+/// (the event's winners apart): its share of the district's TO_CHAMPS
+pub const SHORT_TO_CHAMPS: usize = TO_CHAMPS * DISTRICT_TEAMS / 2 / DISTRICT_TEAMS;
 
 pub const DISTRICT_TEAMS: usize = 48;
 pub const DCMP_TEAMS: usize = 32;
@@ -87,6 +112,11 @@ impl Season {
     /// A new season: you (your team's name, the robot you drive all season) and a district of
     /// AI teams fielding the other designs (any of them, more of the strong ones the higher it goes)
     pub fn new(seed: u32, difficulty: Difficulty, your_name: &str, your_robot: &str, ratings: &Ratings) -> Self {
+        Self::new_with(seed, difficulty, Length::Full, your_name, your_robot, ratings)
+    }
+
+    /// A new season of a length
+    pub fn new_with(seed: u32, difficulty: Difficulty, length: Length, your_name: &str, your_robot: &str, ratings: &Ratings) -> Self {
         let mut rng = Rng::new(seed);
         let names = team_names(DISTRICT_TEAMS + DIVISION_TEAMS, &mut rng);
         let robots = ratings.order();
@@ -111,7 +141,7 @@ impl Season {
             if others.iter().enumerate().all(|(k, _)| slots[2 * k] != slots[2 * k + 1]) { break; }
         }
         for (k, &t) in others.iter().enumerate() { let (a, b) = (slots[2 * k], slots[2 * k + 1]); district_events[t] = [a.min(b), a.max(b)]; }
-        let mut s = Season { seed, difficulty, your_name: your_name.into(), your_robot: your_robot.into(), teams, rival, district_events, events: Vec::new(), current: 0, stage: Stage::District1, awards: Vec::new(), beats: Vec::new(), rng };
+        let mut s = Season { seed, difficulty, your_name: your_name.into(), your_robot: your_robot.into(), teams, rival, district_events, events: Vec::new(), current: 0, stage: Stage::District1, awards: Vec::new(), beats: Vec::new(), rng, length, year: 1, history: Vec::new() };
         // week 1: the first district event, yours
         s.open_district(0, ratings);
         s
@@ -190,6 +220,17 @@ impl Season {
         let place = e.alliance_of(0).and_then(|a| e.finish(a));
         self.beats.push(Beat::Finished { event: e.name.clone(), place });
         match self.stage {
+            Stage::District1 if self.length == Length::Short => {
+                // straight on to the Championship: the event's winners and its best in district
+                // points (SHORT_TO_CHAMPS), the rival too if it's there
+                let winners: Vec<usize> = e.bracket.last().unwrap().winner.map(|w| e.selection.alliances[w].clone()).unwrap_or_default();
+                let mut here: Vec<(usize, f64)> = e.teams.iter().map(|t| (t.id, e.district_points(t.id))).collect();
+                here.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+                let mut go = winners.clone();
+                for &(t, _) in &here { if go.len() >= winners.len() + SHORT_TO_CHAMPS { break; } if !go.contains(&t) { go.push(t); } }
+                if !go.contains(&0) { self.end(Stage::Division); return; }
+                self.open_division(go, ratings);
+            }
             Stage::District1 => {
                 // week 2 (decided), then week 3, yours
                 self.open_district(1, ratings);
@@ -221,28 +262,7 @@ impl Season {
                 let mut go: Vec<usize> = winners.clone();
                 for &(t, _) in &st { if go.len() >= TO_CHAMPS.max(winners.len()) { break; } if !go.contains(&t) { go.push(t); } }
                 if !go.contains(&0) { self.end(Stage::Division); return; }
-                if !go.contains(&self.rival) { go.push(self.rival); }
-                // the division: the district's and strong teams from elsewhere
-                let robots = ratings.order();
-                let mut teams: Vec<Team> = go.iter().map(|&t| self.teams[t].clone()).collect();
-                let mut k = DISTRICT_TEAMS;
-                while teams.len() < DIVISION_TEAMS {
-                    if self.teams.len() <= k {
-                        let names = team_names(DISTRICT_TEAMS + DIVISION_TEAMS, &mut Rng::new(self.seed));
-                        let skill = pick_skill(Stage::Division, self.difficulty, &mut self.rng);
-                        // (the stronger designs more often: one of the top half most of the time)
-                        let pool = if self.rng.next() < 0.7 { robots.len().div_ceil(2) } else { robots.len() };
-                        self.teams.push(Team { id: k, name: names[k].clone(), robot: robots[self.rng.below(pool)].clone(), skill, you: false });
-                    }
-                    teams.push(self.teams[k].clone());
-                    k += 1;
-                }
-                for t in teams.iter_mut() { if !t.you && t.id != self.rival { t.skill = better(t.skill, pick_skill(Stage::Division, self.difficulty, &mut self.rng)); } }
-                let seed = self.seed.wrapping_mul(31).wrapping_add(21);
-                self.events.push(Event::new("Championship Division", Level::Division, teams, seed));
-                self.current = self.events.len() - 1;
-                self.stage = Stage::Division;
-                self.beats.push(Beat::Advanced { to: self.stage });
+                self.open_division(go, ratings);
             }
             Stage::Division => {
                 if place != Some(1) { self.end(Stage::Einstein); return; }
@@ -271,6 +291,32 @@ impl Season {
         }
     }
 
+    /// The Championship division: `go` (yours among them), the rival, and strong teams from elsewhere
+    fn open_division(&mut self, mut go: Vec<usize>, ratings: &Ratings) {
+        if !go.contains(&self.rival) { go.push(self.rival); }
+        // the division: the district's and strong teams from elsewhere
+        let robots = ratings.order();
+        let mut teams: Vec<Team> = go.iter().map(|&t| self.teams[t].clone()).collect();
+        let mut k = DISTRICT_TEAMS;
+        while teams.len() < DIVISION_TEAMS {
+            if self.teams.len() <= k {
+                let names = team_names(DISTRICT_TEAMS + DIVISION_TEAMS, &mut Rng::new(self.seed));
+                let skill = pick_skill(Stage::Division, self.difficulty, &mut self.rng);
+                // (the stronger designs more often: one of the top half most of the time)
+                let pool = if self.rng.next() < 0.7 { robots.len().div_ceil(2) } else { robots.len() };
+                self.teams.push(Team { id: k, name: names[k].clone(), robot: robots[self.rng.below(pool)].clone(), skill, you: false });
+            }
+            teams.push(self.teams[k].clone());
+            k += 1;
+        }
+        for t in teams.iter_mut() { if !t.you && t.id != self.rival { t.skill = better(t.skill, pick_skill(Stage::Division, self.difficulty, &mut self.rng)); } }
+        let seed = self.seed.wrapping_mul(31).wrapping_add(21);
+        self.events.push(Event::new("Championship Division", Level::Division, teams, seed));
+        self.current = self.events.len() - 1;
+        self.stage = Stage::Division;
+        self.beats.push(Beat::Advanced { to: self.stage });
+    }
+
     fn end(&mut self, at: Stage) {
         self.beats.push(Beat::Eliminated { at });
         self.stage = Stage::Over;
@@ -295,6 +341,17 @@ impl Season {
         let best = ratings.robots.iter().map(|r| r.opr).fold(f64::MIN, f64::max);
         let mine = ratings.get(&self.your_robot).opr.max(1.0);
         (best / mine).clamp(1.0, 2.0)
+    }
+
+    /// The season after this one (once it's over): the same team, robot, difficulty and length,
+    /// a new district; this season into the history
+    pub fn next_season(&self, ratings: &Ratings) -> Season {
+        let mut s = Season::new_with(self.seed.wrapping_mul(2654435761).wrapping_add(self.year), self.difficulty, self.length, &self.your_name, &self.your_robot, ratings);
+        s.year = self.year + 1;
+        s.history = self.history.clone();
+        let reached = self.events.iter().rev().find(|e| e.you().is_some()).map_or(String::new(), |e| e.name.clone());
+        s.history.push(Past { year: self.year, score: self.score(ratings), reached, robot: self.your_robot.clone() });
+        s
     }
 
     pub fn save(&self) -> String { serde_json::to_string(self).unwrap() }

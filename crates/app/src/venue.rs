@@ -3,7 +3,8 @@
 //! the field-reset crew, the referees, the drive teams behind their driver stations, the lighting
 //! trusses, the pipe and drape with its team banners, the gym's walls and the screens. Drawn only:
 //! nothing here touches the simulation, and nothing casts a shadow. The screens show the live score
-//! and match time (a UI drawn into a texture, as venue.js draws its canvas); the drive teams aren't
+//! and match time (a UI drawn into a texture, as venue.js draws its canvas; in Road to Einstein, the
+//! event, the match and its teams by name); the drive teams aren't
 //! drawn at the Driver Station view, where they'd stand in the way; and at Low there's no venue.
 
 use bevy::camera::RenderTarget;
@@ -35,7 +36,7 @@ struct DriveTeams;
 #[derive(Resource)]
 struct Screens { image: Handle<Image>, cam: Entity, ui: bool, t: f32 }
 #[derive(Component, Clone, Copy)]
-enum ScreenText { Blue, Red, BlueTeams, RedTeams, Clock, Phase }
+enum ScreenText { Blue, Red, BlueTeams, RedTeams, Clock, Phase, Title, Event }
 
 fn spawn(mut commands: Commands, assets: Res<AssetServer>, mut images: ResMut<Assets<Image>>) {
     let scene = assets.load(GltfAssetLabel::Scene(0).from_asset("models/venue.glb"));
@@ -157,7 +158,7 @@ fn scoreboard_ui(mut screens: ResMut<Screens>, fonts: Option<Res<Fonts>>, mut co
             .spawn((Node { width: Val::Px(180.0), height: Val::Px(190.0), flex_direction: FlexDirection::Column, align_items: AlignItems::Center, justify_content: JustifyContent::Center, row_gap: Val::Px(6.0), ..default() }, BackgroundColor(c)))
             .with_children(|p| {
                 p.spawn((fonts.text("0", Face::Barlow(800), 96.0, white), score));
-                p.spawn((fonts.text("", Face::Barlow(700), 22.0, white), teams));
+                p.spawn((fonts.text("", Face::Barlow(700), 18.0, white), TextLayout::justify(Justify::Center), teams));
             });
     };
     commands
@@ -168,7 +169,8 @@ fn scoreboard_ui(mut screens: ResMut<Screens>, fonts: Option<Res<Fonts>>, mut co
         .with_children(|p| {
             panel(Color::srgb_u8(0x1d, 0x4e, 0xd8), ScreenText::Blue, ScreenText::BlueTeams, p);
             p.spawn(Node { flex_direction: FlexDirection::Column, align_items: AlignItems::Center, row_gap: Val::Px(10.0), ..default() }).with_children(|c| {
-                c.spawn(fonts.text("MATCH", Face::Barlow(700), 30.0, Color::srgb_u8(0xe5, 0xe7, 0xeb)));
+                c.spawn((fonts.text("", Face::Barlow(600), 16.0, Color::srgb_u8(0x9a, 0xa3, 0xb2)), ScreenText::Event));
+                c.spawn((fonts.text("MATCH", Face::Barlow(700), 30.0, Color::srgb_u8(0xe5, 0xe7, 0xeb)), ScreenText::Title));
                 c.spawn((fonts.text("", Face::Barlow(800), 64.0, white), ScreenText::Clock));
                 c.spawn((fonts.text("", Face::Barlow(700), 22.0, Color::srgb_u8(0xfb, 0xbf, 0x24)), ScreenText::Phase));
             });
@@ -177,19 +179,40 @@ fn scoreboard_ui(mut screens: ResMut<Screens>, fonts: Option<Res<Fonts>>, mut co
 }
 
 /// The screens, a few times a second
-fn scoreboard(time: Res<Time>, mut screens: ResMut<Screens>, game: Res<Game>, mut texts: Query<(&ScreenText, &mut Text)>) {
+fn scoreboard(time: Res<Time>, mut screens: ResMut<Screens>, game: Res<Game>, camp: Option<Res<crate::campaign::Campaign>>, mut texts: Query<(&ScreenText, &mut Text)>) {
     screens.t -= time.delta_secs();
     if screens.t > 0.0 { return }
     screens.t = 0.25;
     let w = &game.0;
     let m = &w.match_;
-    let teams = |a: Alliance| w.robots.iter().filter(|r| r.alliance == a).map(|r| r.key.clone()).collect::<Vec<_>>().join("  ");
+    // (Road to Einstein: the event's match, its teams by name; otherwise the robots' teams)
+    let event = camp.as_ref().and_then(|c| c.playing.as_ref().map(|n| (c, n)));
+    let (title, ev, names) = match event {
+        Some((c, n)) => {
+            let e = c.season.event();
+            let title = match *n {
+                crate::campaign::Next::Qual(i) => format!("QUAL {}", e.quals[i].id.trim_start_matches('Q')),
+                crate::campaign::Next::Bout(i) => { let b = &e.bracket[i]; if b.id == "F" { format!("FINAL {}", b.games.len() + 1) } else { format!("MATCH {}", b.id.trim_start_matches('M')) } }
+                _ => "MATCH".into(),
+            };
+            let (r, b) = c.sides(n);
+            let name = |t: usize| { let tm = e.team(t); let s = if tm.you { c.season.your_name.clone() } else { tm.name.clone() }; if s.chars().count() > 15 { format!("{}…", s.chars().take(14).collect::<String>()) } else { s } };
+            (title, e.name.to_uppercase(), Some((r.iter().map(|&t| name(t)).collect::<Vec<_>>().join("\n"), b.iter().map(|&t| name(t)).collect::<Vec<_>>().join("\n"))))
+        }
+        None => ("MATCH".to_string(), String::new(), None),
+    };
+    let teams = |a: Alliance| match &names {
+        Some((r, b)) => if a == Alliance::Red { r.clone() } else { b.clone() },
+        None => w.robots.iter().filter(|r| r.alliance == a).map(|r| r.key.clone()).collect::<Vec<_>>().join("  "),
+    };
     for (k, mut t) in &mut texts {
         let s = match k {
             ScreenText::Blue => format!("{}", m.total(Alliance::Blue)),
             ScreenText::Red => format!("{}", m.total(Alliance::Red)),
             ScreenText::BlueTeams => teams(Alliance::Blue),
             ScreenText::RedTeams => teams(Alliance::Red),
+            ScreenText::Title => title.clone(),
+            ScreenText::Event => ev.clone(),
             ScreenText::Clock => m.clock_text(),
             ScreenText::Phase => m.phase_label().chars().take(13).collect(),
         };

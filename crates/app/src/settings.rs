@@ -29,6 +29,10 @@ pub struct Settings {
     /// Road to Einstein: a new season's difficulty ("casual", "standard", "hof") and your team's name
     pub camp_difficulty: String,
     pub camp_name: String,
+    /// a new season's length ("full", "short"), and whether your matches are played 1 v 1 (you and
+    /// the other alliance's best robot; the rest decided: lighter on a slow PC)
+    pub camp_length: String,
+    pub camp_lite: bool,
     pub fps: bool,
     /// "high", "medium" or "low"
     pub graphics: String,
@@ -74,7 +78,7 @@ impl Default for Settings {
     fn default() -> Self {
         Settings {
             robot: "2910".into(), alliance: "blue".into(), ds: 1, start: "rightTrench".into(), auto: "best".into(),
-            mode: "practice".into(), opp_robot: "4414".into(), opponent: "scorer".into(), opp_skill: "regional".into(), slots: default_slots(), camp_difficulty: "standard".into(), camp_name: TEAM_NAMES[0].into(),
+            mode: "practice".into(), opp_robot: "4414".into(), opponent: "scorer".into(), opp_skill: "regional".into(), slots: default_slots(), camp_difficulty: "standard".into(), camp_name: TEAM_NAMES[0].into(), camp_length: "full".into(), camp_lite: false,
             fps: false, graphics: "high".into(), camera: "driver".into(), hp: "auto".into(), motion: "off".into(),
             venue: "arena".into(), time: "day".into(), weather: "clear".into(), haze: "off".into(), film: false, upscaler: "off".into(),
         }

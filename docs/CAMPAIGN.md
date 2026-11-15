@@ -100,12 +100,22 @@ the higher), times the difficulty's. It's what the season recap ranks you by.
    round robin and finals, district points, awards, save and resume. *Done.*
 4. **The screens:** the season page on the menu, the pits (your next match, both alliances, the
    coach, the rankings, your results), alliance selection, the playoffs, the event's end, the
-   recap. *First version done*; still to come: a schedule and bracket view of their own, scouting,
-   the arena's screens showing the event, a strategy picker for your alliance.
+   recap. The pits have tabs: Next (with your partners' roles for the match, each changeable:
+   scorer, defense or hybrid), Schedule (your matches in full, then every match), Rankings (all of
+   them), Playoffs (the alliances and every bout) and Scouting (each team's robot, its rating, its
+   drivers, how it plays and its average here). The arena's screens show the event, the match
+   (Q12, M5, F2) and the teams by name. *Done.*
 5. **The season:** a district of 48 fictional teams fielding the robot designs over four district
    events (you at two, the rival at both), the District Championship (top 32), the Championship
    (the district's top 10 and the DCMP winners, in a division of 36), Einstein (four division
-   winners). *Done.*
+   winners). A short season is one district event, then straight to the Championship for its
+   winners and its five best in district points. When a season ends, the next one starts with
+   the same team, robot and difficulty in a new district, the seasons before it in its recap.
+   *Done.*
+6. **1 v 1 matches (for slow PCs):** your matches with just you and the other alliance's best
+   robot on the field; your partners' points and the rest of theirs are decided from their
+   ratings (the luck scaled to how many of the alliance they are) and added to the two robots'.
+   *Done.*
 
 ### Difficulty, as calibrated
 

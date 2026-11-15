@@ -76,7 +76,12 @@ pub fn recap(s: &Season, r: &Ratings) -> Vec<String> {
     if s.events.iter().any(|e| e.level == Level::Einstein && e.playoffs_done() && e.bracket.last().unwrap().winner.is_some_and(|w| e.selection.alliances[w].contains(&0))) {
         out.push("World champions.".into());
     }
-    out.push(format!("Season score: {} ({} difficulty, robot multiplier x{:.2}).", s.score(r), s.difficulty.name(), s.robot_mult(r)));
+    out.push(format!("Season {} score: {} ({} difficulty, {}, robot multiplier x{:.2}).", s.year, s.score(r), s.difficulty.name(), s.length.name().to_lowercase(), s.robot_mult(r)));
+    if !s.history.is_empty() {
+        let best = s.history.iter().map(|p| p.score).fold(s.score(r), f64::max);
+        let past = s.history.iter().map(|p| format!("season {} {} ({}, {})", p.year, p.score, p.robot, p.reached)).collect::<Vec<_>>().join("; ");
+        out.push(format!("Before this: {past}. Best: {best}."));
+    }
     out
 }
 
