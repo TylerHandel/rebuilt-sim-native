@@ -309,13 +309,15 @@ impl Event {
         if s.round == 0 { if s.turn == 7 { s.round = 1; } else { s.turn += 1; } }
         else if s.turn == 0 { s.round = 2; } else { s.turn -= 1; }
     }
-    /// An AI captain's pick: the strongest available by what the scouts saw (its rating, a little off)
+    /// An AI captain's pick: the strongest available by what the scouts saw: half its robot's
+    /// rating, half what it did here (its share of its alliances' points per match), a little off
     pub fn ai_pick(&mut self, ratings: &Ratings) -> usize {
         let a = self.selection.turn;
         let avail = self.available(a);
         let mut best = (f64::MIN, avail[0]);
         for t in avail {
-            let seen = self.team(t).strength(ratings) * (1.0 + self.rng.gauss() * 0.08);
+            let here = self.ranks.iter().find(|r| r.team == t).map_or(0.0, |r| r.avg(r.score) / 3.0);
+            let seen = (0.5 * self.team(t).strength(ratings) + 0.5 * here) * (1.0 + self.rng.gauss() * 0.08);
             if seen > best.0 { best = (seen, t); }
         }
         best.1

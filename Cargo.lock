@@ -261,6 +261,7 @@ name = "app"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "campaign",
  "half",
  "rapier3d",
  "serde",

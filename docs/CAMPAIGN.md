@@ -84,14 +84,40 @@ Three things decide how hard a match is, combined into one expected strength per
 Points for each event finish and award, times a robot multiplier (the weaker your robot's rating,
 the higher), times the difficulty's. It's what the season recap ranks you by.
 
-## What it needs, in order
+## Where it stands
 
 1. **1v1 and 3v3 in the native game:** the rules between robots, the AI drivers (navigation,
-   their strategies and skill levels), and the teams' autos, each ported identical to the
-   browser game. *(Done; the trained network driver is still to come.)*
-2. **Robot ratings:** the round robin, run headless, saved as a table.
-3. **The event engine:** schedules, ranking points, decided matches, alliance selection, the
-   double-elimination bracket, district points, save and resume. Pure logic, tested headless.
-4. **The screens:** the season map, the event screen (pits), pre- and post-match, the coach's
-   lines, awards, the recap; the arena's screens showing the event.
-5. **The season:** advancement, the rival, the season score.
+   their strategies and skill levels), and the teams' autos, each ported identical to the browser
+   game. *Done; the trained network driver is still to come.*
+2. **Robot ratings:** `crates/sim/examples/ratings.rs` plays every design headless with the Champs
+   AI: 3 v 3 matches of mixed alliances (OPR, with AUTO, FUEL and TOWER apart, and the spread of
+   alliances' scores around their OPRs) and a 1 v 1 round robin from both sides (Bradley-Terry
+   strengths on the Elo scale). Written to `assets/ratings.json`. *Done.*
+3. **The event engine** (`crates/campaign`, pure logic, tested headless): an even qualification
+   schedule with surrogates, decided matches (the teams' ratings and drivers' skills with luck),
+   ranking points by the 2026 rules, the rankings and their tiebreakers, serpentine alliance
+   selection (declines, a lower captain picked), the eight-alliance double elimination, Einstein's
+   round robin and finals, district points, awards, save and resume. *Done.*
+4. **The screens:** the season page on the menu, the pits (your next match, both alliances, the
+   coach, the rankings, your results), alliance selection, the playoffs, the event's end, the
+   recap. *First version done*; still to come: a schedule and bracket view of their own, scouting,
+   the arena's screens showing the event, a strategy picker for your alliance.
+5. **The season:** a district of 48 fictional teams fielding the robot designs over four district
+   events (you at two, the rival at both), the District Championship (top 32), the Championship
+   (the district's top 10 and the DCMP winners, in a division of 36), Einstein (four division
+   winners). *Done.*
+
+### Difficulty, as calibrated
+
+`crates/campaign/examples/calibrate.rs` plays hundreds of seasons on the ratings, your matches
+decided as a Champs-level driver's would be. With a mid-pack robot (1690) on Standard you win
+about 65% of qualification matches at districts, 52% at the District Championship and 39% in a
+Championship division; Casual about 78 / 65 / 46, Hall of Fame 54 / 44 / 30. How far you get
+depends on you, of course: these are the AI's numbers in your seat.
+
+### Scaled to the simulator
+
+This simulator's alliances score several times the FUEL a real REBUILT alliance does (a
+Champs-level 3 v 3 alliance: about 790), so the ENERGIZED and SUPERCHARGED thresholds are scaled
+to it (district 450 / 750, District Championship and Championship 650 / 900). TOWER points are the
+real game's, and so is TRAVERSAL's threshold (50, then 90).
