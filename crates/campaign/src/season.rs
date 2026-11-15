@@ -64,12 +64,12 @@ pub const DISTRICT_TEAMS: usize = 48;
 pub const DCMP_TEAMS: usize = 32;
 pub const DIVISION_TEAMS: usize = 36;
 /// how many go on from the District Championship to the Championship
-pub const TO_CHAMPS: usize = 8;
+pub const TO_CHAMPS: usize = 10;
 
 /// The AI drivers' skills at a stage (before the difficulty's shift): a weighted mix
 fn skill_mix(stage: Stage) -> [f64; 4] {
     match stage {
-        Stage::District1 | Stage::District2 => [0.3, 0.5, 0.2, 0.0],
+        Stage::District1 | Stage::District2 => [0.4, 0.45, 0.15, 0.0],
         Stage::DistrictChampionship => [0.05, 0.45, 0.4, 0.1],
         _ => [0.0, 0.1, 0.55, 0.35],
     }
@@ -157,7 +157,7 @@ impl Season {
     /// the best AUTO, the cleanest play among the playoff alliances, and the winning captain's
     /// Excellence in Engineering (district points: 5 each)
     fn give_awards(&mut self, e: &Event) {
-        let mut add = |name: &str, team: usize, aw: &mut Vec<Award>, beats: &mut Vec<Beat>| {
+        let add = |name: &str, team: usize, aw: &mut Vec<Award>, beats: &mut Vec<Beat>| {
             let a = Award { event: e.name.clone(), name: name.into(), team };
             if team == 0 { beats.push(Beat::Award(a.clone())); }
             aw.push(a);

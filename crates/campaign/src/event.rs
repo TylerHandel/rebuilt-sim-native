@@ -192,7 +192,7 @@ impl Event {
     /// Decide a match between two alliances from their robots' ratings and drivers' skills, with luck
     pub fn decide(&mut self, red: &[usize], blue: &[usize], ratings: &Ratings) -> (Line, Line) {
         let sd = ratings.residual_sd;
-        let mut line = |ids: &[usize], rng: &mut Rng| {
+        let line = |ids: &[usize], rng: &mut Rng| {
             let (mut fuel, mut tower, mut auto) = (0.0, 0.0, 0.0);
             for &id in ids {
                 let e = self.teams.iter().find(|t| t.id == id).unwrap().expect(ratings);

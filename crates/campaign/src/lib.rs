@@ -6,6 +6,7 @@ pub mod event;
 pub mod model;
 pub mod rng;
 pub mod season;
+pub mod story;
 
 pub use event::{Event, Level, Line, Rules};
 pub use model::{Ratings, Skill, Team};
