@@ -12,7 +12,7 @@
 //   assets/SOURCE      the commit they came from
 // It needs that repo checked out with its npm dependencies installed:
 //   node tools/sync-assets.mjs ../rebuilt-sim-2026
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { cpSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -44,8 +44,17 @@ execFileSync('node', ['--import', './tools/node-env.mjs', 'tools/native-mech.mjs
 const scripts = join(here, 'parity', 'scripts'), traces = join(assets, 'parity');
 rmSync(traces, { recursive: true, force: true });
 mkdirSync(traces, { recursive: true });
-for (const f of readdirSync(scripts).filter((f) => f.endsWith('.json')).sort()) {
-  execFileSync('node', ['--import', './tools/node-env.mjs', 'tools/native-trace.mjs', join(scripts, f), join(traces, f)], { cwd: src, stdio: 'inherit' });
+// (four at a time: each is a whole headless game, and there are dozens)
+{
+  const todo = readdirSync(scripts).filter((f) => f.endsWith('.json')).sort();
+  const run = (f) => new Promise((ok, fail) => {
+    execFile('node', ['--import', './tools/node-env.mjs', 'tools/native-trace.mjs', join(scripts, f), join(traces, f)], { cwd: src, maxBuffer: 1 << 26 }, (err, out, errOut) => {
+      process.stdout.write(out); process.stderr.write(errOut);
+      if (err) fail(new Error(`native-trace ${f}: ${err.message}`)); else ok();
+    });
+  });
+  const lanes = Array.from({ length: Math.min(4, todo.length) }, async () => { while (todo.length) await run(todo.shift()); });
+  await Promise.all(lanes);
 }
 
 const cad = join(assets, 'cad');
