@@ -5,6 +5,7 @@
 mod arena;
 mod bevel;
 mod camera;
+mod campaign;
 mod field;
 mod draw;
 mod effects;

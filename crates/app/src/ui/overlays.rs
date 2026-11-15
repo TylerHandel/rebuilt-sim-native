@@ -127,9 +127,12 @@ fn results_input(
     mut rep: Local<NavRepeat>,
     mut c: ResMut<Choice>,
     mut cmds: MessageWriter<GameCmd>,
+    camp: Option<Res<crate::campaign::Campaign>>,
 ) {
     let nav = read_nav(&keys, &pads, &mut rep, time.delta_secs());
     let clicked = std::mem::take(&mut c.2);
+    // (Road to Einstein: on to the pits, the result kept)
+    if camp.is_some_and(|c| c.playing.is_some()) { if nav.ok || nav.back || clicked { cmds.write(GameCmd::ToPits); } return }
     if (nav.left || nav.up) && c.0 > 0 { c.0 = 0; c.1 = true; }
     if (nav.right || nav.down) && c.0 == 0 { c.0 = 1; c.1 = true; }
     // (A: rematch, B: main menu, as their labels say)
@@ -138,7 +141,8 @@ fn results_input(
 }
 
 /// js ui.js showResults
-fn draw_results(mut commands: Commands, mut c: ResMut<Choice>, fonts: Res<Fonts>, game: Res<Game>, roots: Query<Entity, With<ResultsRoot>>) {
+fn draw_results(mut commands: Commands, mut c: ResMut<Choice>, fonts: Res<Fonts>, game: Res<Game>, roots: Query<Entity, With<ResultsRoot>>, camp: Option<Res<crate::campaign::Campaign>>) {
+    let in_season = camp.is_some_and(|c| c.playing.is_some());
     if !c.1 { return }
     c.1 = false;
     for e in &roots { commands.entity(e).despawn(); }
@@ -212,6 +216,7 @@ fn draw_results(mut commands: Commands, mut c: ResMut<Choice>, fonts: Res<Fonts>
         }
         b.spawn(Node { flex_direction: FlexDirection::Row, justify_content: JustifyContent::Center, column_gap: Val::Px(10.0), margin: UiRect::top(Val::Px(16.0)), ..default() })
             .with_children(|l| {
+                if in_season { item(l, &f, "Back to the pits (A)", 0, true, true, Val::Px(300.0)); return; }
                 item(l, &f, "Rematch (A)", 0, focus == 0, true, Val::Px(220.0));
                 item(l, &f, "Main menu (B)", 1, focus == 1, false, Val::Px(220.0));
             });

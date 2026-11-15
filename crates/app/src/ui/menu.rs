@@ -13,7 +13,7 @@ use crate::settings::{Roster, Settings};
 use crate::update::UpdateStatus;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Page { Home, Practice, OneVOne, ThreeVThree, Settings }
+pub enum Page { Home, Practice, OneVOne, ThreeVThree, Campaign, Settings }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Mode { Practice, OneVOne, ThreeVThree }
@@ -35,7 +35,7 @@ impl Mode {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum OptId { Auto, Start, Alliance, Ds, Hp, Camera, Graphics, Motion, Fps, Venue, Time, Weather, Haze, Film, Upscaler, OppRobot, Opponent, OppSkill, SlotDriver(u8), SlotRobot(u8), SlotStart(u8), SlotSkill(u8) }
+pub enum OptId { Auto, Start, Alliance, Ds, Hp, Camera, Graphics, Motion, Fps, Venue, Time, Weather, Haze, Film, Upscaler, OppRobot, Opponent, OppSkill, SlotDriver(u8), SlotRobot(u8), SlotStart(u8), SlotSkill(u8), CampDifficulty, CampName }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Item {
@@ -47,7 +47,7 @@ enum Item {
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Act { Open(Page), Start, Controls, Quit, Tile(Mode), StepRobot(i32), SetRobot(usize), Step(OptId, i32), Set(OptId, usize) }
+pub enum Act { Open(Page), Start, NewSeason, ContinueSeason, Controls, Quit, Tile(Mode), StepRobot(i32), SetRobot(usize), Step(OptId, i32), Set(OptId, usize) }
 
 /// The menu's state (js UI: page, focus, tile)
 #[derive(Resource)]
@@ -70,6 +70,7 @@ fn items(page: Page, s: &Settings) -> Vec<Item> {
     match page {
         Page::Home => vec![
             Item::Tiles,
+            btn("ROAD TO EINSTEIN · THE SEASON", Act::Open(Page::Campaign), false, false, false),
             btn("CONTROLS", Act::Controls, true, true, false),
             btn("SETTINGS", Act::Open(Page::Settings), true, true, false),
             btn("QUIT", Act::Quit, true, false, false),
@@ -107,6 +108,16 @@ fn items(page: Page, s: &Settings) -> Vec<Item> {
             v.extend(start_back());
             v
         }
+        Page::Campaign => {
+            let mut v = vec![
+                Item::Section("Your robot, all season"), Item::Robot,
+                Item::Section("Season"), Item::Opt(OptId::CampName), Item::Opt(OptId::CampDifficulty), Item::Opt(OptId::Auto), Item::Opt(OptId::Hp),
+            ];
+            if crate::campaign::has_save() { v.push(btn("CONTINUE SEASON", Act::ContinueSeason, false, false, true)); }
+            v.push(btn("NEW SEASON", Act::NewSeason, crate::campaign::has_save(), false, true));
+            v.push(btn("BACK", Act::Open(Page::Home), true, false, true));
+            v
+        }
         Page::Settings => {
             let mut v = vec![Item::Section("View"), Item::Opt(OptId::Camera), Item::Section("Graphics"), Item::Opt(OptId::Graphics)];
             // (NVIDIA DLSS: in builds that have it)
@@ -130,6 +141,7 @@ fn skill_values() -> Vec<(String, String)> { sim::ai::SKILL_ORDER.iter().map(|k|
 // ------------------------------------------------------------------ options (js ui.js OPT)
 fn opt_label(id: OptId) -> String {
     match id {
+        OptId::CampDifficulty => "Difficulty".into(), OptId::CampName => "Your team".into(),
         OptId::OppRobot => "Robot".into(), OptId::Opponent => "Strategy".into(), OptId::OppSkill => "Skill".into(),
         OptId::SlotDriver(i) => format!("{} · driven by", slot_name(i)), OptId::SlotRobot(i) => format!("{} · robot", slot_name(i)),
         OptId::SlotStart(i) => format!("{} · starts at", slot_name(i)), OptId::SlotSkill(i) => format!("{} · AI skill", slot_name(i)),
@@ -150,6 +162,8 @@ fn opt_values(id: OptId) -> Vec<(String, String)> {
     match id {
         OptId::Auto => vec![v("best", "Its own AUTO"), v("drive", "Drive AUTO yourself"), v("skip", "Skip AUTO"), v("none", "Stand still in AUTO")],
         OptId::OppRobot | OptId::SlotRobot(_) => robot_values(),
+        OptId::CampDifficulty => vec![v("casual", "Casual"), v("standard", "Standard"), v("hof", "Hall of Fame")],
+        OptId::CampName => crate::settings::TEAM_NAMES.iter().map(|n| v(n, n)).collect(),
         OptId::Opponent => sim::ai::STRATEGIES.iter().map(|k| v(k, sim::ai::strategy_name(k))).collect(),
         OptId::OppSkill | OptId::SlotSkill(_) => skill_values(),
         OptId::SlotDriver(_) => vec![v("you", "You"), v("scorer", "AI Scorer"), v("defense", "AI Defense"), v("hybrid", "AI Hybrid"), v("empty", "Empty")],
@@ -179,6 +193,7 @@ fn opt_get(id: OptId, s: &Settings) -> String {
         OptId::Venue => s.venue.clone(), OptId::Time => s.time.clone(), OptId::Weather => s.weather.clone(), OptId::Haze => s.haze.clone(),
         OptId::Film => if s.film { "on".into() } else { "off".into() },
         OptId::Upscaler => s.upscaler.clone(),
+        OptId::CampDifficulty => s.camp_difficulty.clone(), OptId::CampName => s.camp_name.clone(),
         OptId::OppRobot => s.opp_robot.clone(), OptId::Opponent => s.opponent.clone(), OptId::OppSkill => s.opp_skill.clone(),
         OptId::SlotDriver(i) => s.slots[i as usize].driver.clone(), OptId::SlotRobot(i) => s.slots[i as usize].robot.clone(),
         OptId::SlotStart(i) => s.slots[i as usize].start.clone(), OptId::SlotSkill(i) => s.slots[i as usize].skill.clone(),
@@ -193,6 +208,7 @@ fn opt_set(id: OptId, s: &mut Settings, v: &str) {
         OptId::Venue => s.venue = v.into(), OptId::Time => s.time = v.into(), OptId::Weather => s.weather = v.into(), OptId::Haze => s.haze = v.into(),
         OptId::Film => s.film = v == "on",
         OptId::Upscaler => s.upscaler = v.into(),
+        OptId::CampDifficulty => s.camp_difficulty = v.into(), OptId::CampName => s.camp_name = v.into(),
         OptId::OppRobot => s.opp_robot = v.into(), OptId::Opponent => s.opponent = v.into(), OptId::OppSkill => s.opp_skill = v.into(),
         OptId::SlotDriver(i) => {
             // (one slot at most is you: the one that was becomes an AI scorer)
@@ -208,6 +224,12 @@ fn opt_set(id: OptId, s: &mut Settings, v: &str) {
 fn opt_desc(id: OptId, s: &Settings) -> String {
     let robot_line = |k: &str| { let r = Roster::get().robot(k); format!("{} — {}. {}", r.short(), r.long_name(), r.blurb) };
     match id {
+        OptId::CampDifficulty => match s.camp_difficulty.as_str() {
+            "casual" => "Casual: the drivers around you a step weaker. Your season score counts three quarters.",
+            "hof" => "Hall of Fame: the drivers around you a step stronger, every event a fight. Your season score counts one and a half times.",
+            _ => "Standard: rookies and regional drivers at the district events, Champs-level drivers at the Championship. With a mid-pack robot you'll win about two in three at districts, one in three on Einstein.",
+        }.into(),
+        OptId::CampName => "Your team's name, as the rankings and the announcer have it.".into(),
         OptId::OppRobot => format!("The AI can drive any of the robots. {}", robot_line(&s.opp_robot)),
         OptId::Opponent => sim::ai::strategy_desc(&s.opponent).into(),
         OptId::OppSkill => sim::ai::skill(&s.opp_skill).desc.into(),
@@ -392,6 +414,8 @@ fn apply_acts(
     mut controls: ResMut<ControlsOpen>,
     mut cmds: MessageWriter<GameCmd>,
     mut exit: MessageWriter<AppExit>,
+    mut commands: Commands,
+    mut next_screen: ResMut<NextState<Screen>>,
 ) {
     let roster = Roster::get();
     for a in std::mem::take(&mut acts.0) {
@@ -406,6 +430,19 @@ fn apply_acts(
             Act::Start => {
                 if roster.robot(&settings.robot).ported { cmds.write(GameCmd::Start); }
                 else { menu.dirty = true; }
+            }
+            Act::NewSeason | Act::ContinueSeason => {
+                let c = match a {
+                    Act::ContinueSeason => crate::campaign::saved().map(|season| crate::campaign::Campaign { season, playing: None }),
+                    _ => {
+                        let d = match settings.camp_difficulty.as_str() { "casual" => campaign::season::Difficulty::Casual, "hof" => campaign::season::Difficulty::HallOfFame, _ => campaign::season::Difficulty::Standard };
+                        let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as u32 ^ d.subsec_nanos()).unwrap_or(1);
+                        let c = crate::campaign::Campaign::new(seed, d, &settings.camp_name, &settings.robot);
+                        c.save();
+                        Some(c)
+                    }
+                };
+                if let Some(c) = c { commands.insert_resource(c); next_screen.set(Screen::Pits); }
             }
             Act::Controls => controls.0 = true,
             Act::Quit => { exit.write(AppExit::Success); }
@@ -455,6 +492,11 @@ fn describe(item: Option<Item>, menu: &Menu, s: &Settings) -> String {
             }
             _ => format!("{} on the {} ALLIANCE, field to yourself.", r.short(), s.alliance.to_uppercase()),
         },
+        Some(Item::Btn { act: Act::ContinueSeason, .. }) => match crate::campaign::saved() {
+            Some(season) => format!("Back to {} with {} ({}), {} difficulty.", season.event().name, season.your_name, Roster::get().robot(&season.your_robot).short(), season.difficulty.name()),
+            None => String::new(),
+        },
+        Some(Item::Btn { act: Act::NewSeason, .. }) => format!("A new season: {} driving {} all season. Two district events, then the District Championship, the Championship and Einstein, if you get there.{}", s.camp_name, r.short(), if crate::campaign::has_save() { " This replaces your saved season." } else { "" }),
         Some(Item::Btn { act: Act::Quit, .. }) => "Close the game. A downloaded update installs as it closes.".into(),
         _ => String::new(),
     }
@@ -510,7 +552,7 @@ fn rebuild(
                 b.spawn(Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(14.0), margin: UiRect::bottom(Val::Px(12.0)), ..default() })
                     .with_children(|t| {
                         t.spawn((f.text("‹ Menu", Face::Inter(700), 15.0, color::MUTED), Click(Act::Open(Page::Home)))).observe(on_click);
-                        t.spawn(f.text(match page { Page::Practice => "Practice", Page::OneVOne => "1 v 1", Page::ThreeVThree => "3 v 3", Page::Settings => "Settings", Page::Home => "" }, Face::Barlow(800), 34.0, color::TEXT));
+                        t.spawn(f.text(match page { Page::Practice => "Practice", Page::OneVOne => "1 v 1", Page::ThreeVThree => "3 v 3", Page::Campaign => "Road to Einstein", Page::Settings => "Settings", Page::Home => "" }, Face::Barlow(800), 34.0, color::TEXT));
                     });
             }
             // the page (css #options: a two-column grid)

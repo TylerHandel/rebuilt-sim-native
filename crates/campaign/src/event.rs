@@ -9,8 +9,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Level { District, DistrictChampionship, Division, Einstein }
 
-/// The game's rules an event plays by (2026 Game Manual section 6: ranking points; the BONUS RP
-/// thresholds go up at the District Championship and the Championship, Team Update 19)
+/// The game's rules an event plays by (2026 Game Manual section 6: win 3 RP, tie 1, and the three
+/// BONUS RP, their thresholds higher at the District Championship and the Championship, Team Update
+/// 19). The manual's FUEL thresholds (100 and 360 at a district, 200 and 500 above) are for real
+/// matches; this simulator's alliances score several times the FUEL (a Champs-level 3 v 3 alliance:
+/// ~790, examples/ratings.rs), so here they're scaled to it, ENERGIZED for a good alliance and
+/// SUPERCHARGED for a great one. TOWER points are as the real game's, and so is TRAVERSAL's.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Rules {
     pub quals_per_team: usize,
@@ -23,9 +27,8 @@ pub struct Rules {
 impl Rules {
     pub fn for_level(l: Level) -> Self {
         match l {
-            Level::District => Rules { quals_per_team: 8, energized: 100.0, supercharged: 360.0, traversal: 50.0 },
-            Level::DistrictChampionship => Rules { quals_per_team: 10, energized: 200.0, supercharged: 500.0, traversal: 90.0 },
-            _ => Rules { quals_per_team: 10, energized: 200.0, supercharged: 500.0, traversal: 90.0 },
+            Level::District => Rules { quals_per_team: 8, energized: 450.0, supercharged: 750.0, traversal: 50.0 },
+            _ => Rules { quals_per_team: 10, energized: 650.0, supercharged: 900.0, traversal: 90.0 },
         }
     }
 }

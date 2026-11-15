@@ -86,7 +86,11 @@ impl MatchSetup {
 
 /// What the screens ask of the game (js ui.js handlers: onStart, onRestart, onResume, onMenu)
 #[derive(Message, Clone, Copy, PartialEq, Eq, Debug)]
-pub enum GameCmd { Start, Restart, Resume, Pause, ToMenu }
+pub enum GameCmd { Start, Restart, Resume, Pause, ToMenu, ToPits }
+
+/// A match set up elsewhere (Road to Einstein's), for the next Start
+#[derive(Resource)]
+pub struct PendingSetup(pub MatchSetup);
 
 /// The field and its FUEL, and the robots of `setup` (none behind the menus)
 pub fn new_world(setup: Option<&MatchSetup>) -> World {
@@ -253,16 +257,20 @@ fn commands(
     mut world_gen: ResMut<WorldGen>,
     settings: Res<Settings>,
     setup: Option<Res<MatchSetup>>,
+    pending: Option<Res<PendingSetup>>,
+    mut camp: Option<ResMut<crate::campaign::Campaign>>,
     mut next: ResMut<NextState<Screen>>,
     mut driver: ResMut<Driver>,
 ) {
     for c in cmds.read() {
         match c {
             GameCmd::Start | GameCmd::Restart => {
-                let m = match (&setup, c) {
-                    (Some(s), GameCmd::Restart) => (**s).clone(),
+                let m = match (&setup, c, &pending) {
+                    (Some(s), GameCmd::Restart, _) => (**s).clone(),
+                    (_, GameCmd::Start, Some(p)) => p.0.clone(),
                     _ => MatchSetup::from_settings(&settings),
                 };
+                commands.remove_resource::<PendingSetup>();
                 game.0 = new_world(Some(&m));
                 commands.insert_resource(m);
                 world_gen.0 += 1;
@@ -271,11 +279,21 @@ fn commands(
             }
             GameCmd::Resume => next.set(Screen::Playing),
             GameCmd::Pause => next.set(Screen::Paused),
-            GameCmd::ToMenu => {
+            GameCmd::ToMenu | GameCmd::ToPits => {
+                // (Road to Einstein: the match you finished goes into the season; one left from the
+                // pause menu doesn't count, and you're back in the pits to play it)
+                let mut pits = false;
+                if let Some(cp) = camp.as_mut() {
+                    if cp.playing.is_some() {
+                        if *c == GameCmd::ToPits && game.0.match_.over() { cp.record(&game.0); }
+                        cp.playing = None;
+                        pits = true;
+                    }
+                }
                 game.0 = new_world(None);
                 commands.remove_resource::<MatchSetup>();
                 world_gen.0 += 1;
-                next.set(Screen::Menu);
+                next.set(if pits { Screen::Pits } else { Screen::Menu });
             }
         }
     }

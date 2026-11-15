@@ -1,6 +1,7 @@
 //! The browser game's UI (index.html, css/style.css, js/ui.js) in Bevy UI: the menus, the match
 //! HUD, pause and results. Its colors, sizes and fonts are the stylesheet's.
 
+pub mod campaign;
 pub mod hud;
 pub mod menu;
 pub mod overlays;
@@ -15,6 +16,8 @@ pub enum Screen {
     Playing,
     Paused,
     Results,
+    /// Road to Einstein's pits: between your matches
+    Pits,
 }
 
 /// css :root
@@ -90,7 +93,7 @@ impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<Screen>()
             .add_systems(PreStartup, load_fonts)
-            .add_plugins((menu::MenuPlugin, hud::HudPlugin, overlays::OverlaysPlugin));
+            .add_plugins((menu::MenuPlugin, hud::HudPlugin, overlays::OverlaysPlugin, campaign::PitsPlugin));
     }
 }
 

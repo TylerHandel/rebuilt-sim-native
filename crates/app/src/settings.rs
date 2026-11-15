@@ -26,6 +26,9 @@ pub struct Settings {
     pub opp_skill: String,
     /// 3 v 3: the six slots, blue 1-3 then red 1-3 (js slots)
     pub slots: Vec<Slot>,
+    /// Road to Einstein: a new season's difficulty ("casual", "standard", "hof") and your team's name
+    pub camp_difficulty: String,
+    pub camp_name: String,
     pub fps: bool,
     /// "high", "medium" or "low"
     pub graphics: String,
@@ -58,6 +61,9 @@ pub struct Settings {
 #[serde(default)]
 pub struct Slot { pub robot: String, pub driver: String, pub start: String, pub skill: String }
 impl Default for Slot { fn default() -> Self { Slot { robot: "2910".into(), driver: "scorer".into(), start: "hub".into(), skill: "champs".into() } } }
+/// what you can call your team in Road to Einstein
+pub const TEAM_NAMES: [&str; 8] = ["The Rebuilders", "Fuel Injection", "Hub Hunters", "Tower of Power", "Trench Coats", "Shift Happens", "Bump Squad", "Neutral Zone"];
+
 /// js DEFAULT_SLOTS
 pub fn default_slots() -> Vec<Slot> {
     let s = |robot: &str, driver: &str, start: &str| Slot { robot: robot.into(), driver: driver.into(), start: start.into(), skill: "champs".into() };
@@ -68,14 +74,14 @@ impl Default for Settings {
     fn default() -> Self {
         Settings {
             robot: "2910".into(), alliance: "blue".into(), ds: 1, start: "rightTrench".into(), auto: "best".into(),
-            mode: "practice".into(), opp_robot: "4414".into(), opponent: "scorer".into(), opp_skill: "regional".into(), slots: default_slots(),
+            mode: "practice".into(), opp_robot: "4414".into(), opponent: "scorer".into(), opp_skill: "regional".into(), slots: default_slots(), camp_difficulty: "standard".into(), camp_name: TEAM_NAMES[0].into(),
             fps: false, graphics: "high".into(), camera: "driver".into(), hp: "auto".into(), motion: "off".into(),
             venue: "arena".into(), time: "day".into(), weather: "clear".into(), haze: "off".into(), film: false, upscaler: "off".into(),
         }
     }
 }
 
-fn path() -> Option<PathBuf> {
+pub fn path() -> Option<PathBuf> {
     let base = std::env::var_os("APPDATA").map(|p| PathBuf::from(p).join("RebuiltSim")).or_else(|| {
         std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from)
             .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))

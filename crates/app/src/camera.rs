@@ -175,7 +175,7 @@ fn place(
 ) {
     let Ok((mut t, mut proj)) = cams.single_mut() else { return };
     let dt = time.delta_secs();
-    let fov = if *screen.get() == Screen::Menu {
+    let fov = if matches!(*screen.get(), Screen::Menu | Screen::Pits) {
         // behind the menus: the whole field, circling slowly
         *menu_yaw += 0.04 * dt;
         let (y, p, d) = (-0.6 + *menu_yaw, 0.55f32, 13.0f32);

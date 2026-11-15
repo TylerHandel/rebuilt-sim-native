@@ -9,6 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 sim = { path = "../sim" }
+campaign = { path = "../campaign" }
 bevy = "0.20"
 velopack = "=1.2.161"
 rapier3d.workspace = true

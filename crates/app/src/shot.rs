@@ -77,6 +77,8 @@ fn shoot(
     mut controls: ResMut<ControlsOpen>,
     mut game: ResMut<Game>,
     time: Res<Time<Real>>,
+    mut next_screen: ResMut<NextState<crate::ui::Screen>>,
+    mut pits: ResMut<crate::ui::campaign::Pits>,
 ) {
     if shot.taken || !assets.is_loaded_with_dependencies(&field.0) {
         return;
@@ -99,6 +101,14 @@ fn shoot(
         if let Some(step) = flow.get((shot.frames / 15) as usize - 1) {
             match step.as_str() {
                 "practice" => { menu.page = Page::Practice; menu.focus = 0; menu.dirty = true; }
+                "season" => { menu.page = Page::Campaign; menu.focus = 0; menu.dirty = true; }
+                // (a new Road to Einstein season, into the pits; then its first action: play)
+                "newseason" => {
+                    commands.insert_resource(crate::campaign::Campaign::new(7, campaign::season::Difficulty::Standard, "The Rebuilders", &std::env::var("ROBOT").unwrap_or("2910".into())));
+                    next_screen.set(crate::ui::Screen::Pits);
+                }
+                "pitsgo" => { pits.clicked = Some(0); }
+                "topits" => { cmds.write(GameCmd::ToPits); }
                 "settings" => { menu.page = Page::Settings; menu.focus = 0; menu.dirty = true; }
                 "start" => { cmds.write(GameCmd::Start); }
                 "pause" => { cmds.write(GameCmd::Pause); }

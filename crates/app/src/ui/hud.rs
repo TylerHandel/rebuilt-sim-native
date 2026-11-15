@@ -19,7 +19,8 @@ impl Plugin for HudPlugin {
         app.add_plugins(FrameTimeDiagnosticsPlugin::default())
             .add_systems(OnEnter(Screen::Playing), spawn)
             .add_systems(OnEnter(Screen::Menu), despawn)
-            .add_systems(Update, (refresh, blink).run_if(|s: Res<State<Screen>>| *s.get() != Screen::Menu))
+            .add_systems(OnEnter(Screen::Pits), despawn)
+            .add_systems(Update, (refresh, blink).run_if(|s: Res<State<Screen>>| !matches!(*s.get(), Screen::Menu | Screen::Pits)))
             .add_systems(Update, fps_box);
     }
 }

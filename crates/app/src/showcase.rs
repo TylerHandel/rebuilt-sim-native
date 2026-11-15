@@ -118,7 +118,7 @@ fn layer(
 
 /// Drawn only while the robot select page's open
 fn active(screen: Res<State<Screen>>, menu: Option<Res<Menu>>, mut cams: Query<&mut Camera, With<StudioCam>>) {
-    let on = *screen.get() == Screen::Menu && menu.is_some_and(|m| m.page == Page::Practice);
+    let on = *screen.get() == Screen::Menu && menu.is_some_and(|m| matches!(m.page, Page::Practice | Page::OneVOne | Page::Campaign));
     for mut c in &mut cams { if c.is_active != on { c.is_active = on; } }
 }
 
