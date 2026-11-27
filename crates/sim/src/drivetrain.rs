@@ -69,6 +69,11 @@ const STEER_RATIO: f64 = 150.0 / 7.0;
 const STEER_ACCEL: f64 = 1500.0;
 const STEER_ROLL: f64 = 0.015;
 const STEER_FRICTION: f64 = 2.0;
+/// js drivetrain.js SETPOINT_GRIP: the wanted velocity reaches the modules as a setpoint that moves
+/// toward it no faster than this share of the tires' grip (mu g) pushes the robot, so a sharp change
+/// of direction at speed carves an arc instead of skidding sideways on wheels snapped to the new
+/// heading
+const SETPOINT_GRIP: f64 = 0.9;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Module { pub angle: f64, pub rate: f64, pub w: f64, pub i: f64, pub slip: bool }
@@ -83,6 +88,8 @@ pub struct SwerveDrive {
     pub current: f64,
     pub want: Vec<f64>,
     pub down: Vec<bool>,
+    /// js `set`: the velocity setpoint (field frame)
+    pub set: [f64; 2],
 }
 
 fn wrap(a: f64) -> f64 { m::atan2(m::sin(a), m::cos(a)) }
@@ -94,9 +101,9 @@ impl SwerveDrive {
     pub fn new(d: Drivetrain, pts: Vec<[f64; 2]>) -> Self {
         let steer_rate = 0.85 * (d.mo.free / STEER_RATIO);
         let n = pts.len();
-        SwerveDrive { d, pts, steer_rate, modules: vec![Module::default(); n], v: 12.4, current: 0.0, want: Vec::new(), down: Vec::new() }
+        SwerveDrive { d, pts, steer_rate, modules: vec![Module::default(); n], v: 12.4, current: 0.0, want: Vec::new(), down: Vec::new(), set: [0.0, 0.0] }
     }
-    pub fn reset(&mut self) { for m in &mut self.modules { *m = Module::default(); } }
+    pub fn reset(&mut self) { for m in &mut self.modules { *m = Module::default(); } self.set = [0.0, 0.0]; }
 
     fn flat_out(&self, w: f64, dir: f64, v: f64) -> f64 {
         let d = &self.d;
@@ -120,6 +127,14 @@ impl SwerveDrive {
         let (c, s) = (m::cos(yaw), m::sin(yaw));
         let to_field = |x: f64, z: f64| [x * c + z * s, -x * s + z * c];
         let to_robot = |x: f64, z: f64| [x * c - z * s, x * s + z * c];
+        let (vx, vz) = {
+            let step = SETPOINT_GRIP * self.d.mu * GRAVITY * dt;
+            let (mut dx, mut dz) = (vx - self.set[0], vz - self.set[1]);
+            let h = m::hypot2(dx, dz);
+            if h > step { dx *= step / h; dz *= step / h; }
+            self.set[0] += dx; self.set[1] += dz;
+            (self.set[0], self.set[1])
+        };
         let [rvx, rvz] = to_robot(vx, vz);
         let mut want = Vec::with_capacity(n);
         for i in 0..n {

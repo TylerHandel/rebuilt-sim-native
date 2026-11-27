@@ -17,8 +17,18 @@ impl Plugin for DrawPlugin {
     }
 }
 
+/// A FUEL's view: where it is, squashed as it bounces (its child, FuelSkin, turned as it's turned:
+/// the squash is along the hit's direction in the world, whatever way the FUEL's spun)
 #[derive(Component)]
-struct FuelView(usize);
+struct FuelView { i: usize, skin: Entity, last_v: Option<Vec3>, s: f32, sv: f32, n: Vec3 }
+#[derive(Component)]
+struct FuelSkin;
+
+/// FUEL foam rings fast and dies quickly when it's hit: how hard a hit squashes it (per m/s the
+/// hit changes its speed), its ring (Hz) and damping
+const SQUASH_KICK: f32 = 2.0;
+const SQUASH_HZ: f32 = 11.0;
+const SQUASH_DAMP: f32 = 0.35;
 
 /// One of robot `.1`'s colliders, drawn (until its model is in)
 #[derive(Component)]
@@ -104,7 +114,8 @@ fn respawn(
     let w = &game.0;
     for e in fuel.iter().chain(parts.iter()).chain(models.iter()) { commands.entity(e).despawn(); }
     for i in 0..w.fuel.balls.len() {
-        commands.spawn((Mesh3d(looks.fuel.0.clone()), MeshMaterial3d(looks.fuel.1.clone()), Transform::default(), FuelView(i)));
+        let skin = commands.spawn((Mesh3d(looks.fuel.0.clone()), MeshMaterial3d(looks.fuel.1.clone()), Transform::default(), FuelSkin)).id();
+        commands.spawn((Transform::default(), Visibility::default(), FuelView { i, skin, last_v: None, s: 0.0, sv: 0.0, n: Vec3::Y })).add_child(skin);
     }
     for (i, r) in w.robots.iter().enumerate() {
         robot_model::spawn(&mut commands, &assets, &dir, i, &r.key);
@@ -126,7 +137,14 @@ fn respawn(
     }
 }
 
-fn sync(game: Res<Game>, mut fuel: Query<(&FuelView, &mut Transform, &mut Visibility), Without<PartView>>, mut parts: Query<(&PartView, &mut Transform), Without<FuelView>>) {
+fn sync(
+    game: Res<Game>,
+    time: Res<Time>,
+    mut fuel: Query<(&mut FuelView, &mut Transform, &mut Visibility), (Without<PartView>, Without<FuelSkin>)>,
+    mut skins: Query<&mut Transform, (With<FuelSkin>, Without<FuelView>, Without<PartView>)>,
+    mut parts: Query<(&PartView, &mut Transform), (Without<FuelView>, Without<FuelSkin>)>,
+) {
+    let dt = time.delta_secs();
     let w = &game.0;
     // (a generic robot's FUEL are in its hopper, in its frame, not bodies: drawn where it holds them)
     let mut held: std::collections::HashMap<usize, (Vec3, Quat)> = std::collections::HashMap::new();
@@ -135,19 +153,41 @@ fn sync(game: Res<Game>, mut fuel: Query<(&FuelView, &mut Transform, &mut Visibi
         let (bt, bq) = (b.translation(), *b.rotation());
         for e in &g.hopper.list { held.insert(e.b, (bt + bq * Vec3::new(e.p[0] as f32, e.p[1] as f32, e.p[2] as f32), bq)); }
     }
-    for (f, mut t, mut v) in &mut fuel {
-        if let Some(&(p, q)) = held.get(&f.0) {
+    for (mut f, mut t, mut v) in &mut fuel {
+        let Ok(mut skin) = skins.get_mut(f.skin) else { continue };
+        if let Some(&(p, q)) = held.get(&f.i) {
             if *v != Visibility::Inherited { *v = Visibility::Inherited; }
-            t.translation = p;
-            t.rotation = q;
+            *t = Transform::from_translation(p);
+            skin.rotation = q;
+            f.last_v = None;
             continue;
         }
-        let Some(b) = w.fuel.balls.get(f.0).and_then(|b| w.physics.bodies.get(b.body)) else { continue };
+        let Some(b) = w.fuel.balls.get(f.i).and_then(|b| w.physics.bodies.get(b.body)) else { continue };
         let show = b.is_enabled() && b.translation().y > -1.0;
         let want = if show { Visibility::Inherited } else { Visibility::Hidden };
         if *v != want { *v = want; }
-        t.translation = b.translation();
-        t.rotation = *b.rotation();
+        // the squash: a hit (its speed changed sharply since last frame) squashes it along the
+        // change, and it springs back, ringing a little
+        let vel = b.linvel();
+        if let Some(lv) = f.last_v {
+            let dv = vel - lv;
+            let hit = dv.length();
+            if hit > 1.2 { f.n = dv / hit; f.sv += SQUASH_KICK * hit; }
+        }
+        f.last_v = Some(vel);
+        let k = (std::f32::consts::TAU * SQUASH_HZ).powi(2);
+        let c = 2.0 * SQUASH_DAMP * std::f32::consts::TAU * SQUASH_HZ;
+        let mut left = dt.min(0.1);
+        while left > 0.0 {
+            let h = left.min(0.002);
+            f.sv += (-k * f.s - c * f.sv) * h;
+            f.s = (f.s + f.sv * h).clamp(-0.12, 0.25);
+            left -= h;
+        }
+        if f.s.abs() < 1e-4 && f.sv.abs() < 1e-3 { f.s = 0.0; f.sv = 0.0; }
+        let a = Quat::from_rotation_arc(Vec3::X, f.n);
+        *t = Transform { translation: b.translation(), rotation: a, scale: Vec3::new(1.0 - f.s, 1.0 + 0.5 * f.s, 1.0 + 0.5 * f.s) };
+        skin.rotation = a.inverse() * *b.rotation();
     }
     for (p, mut t) in &mut parts {
         let Some(c) = w.physics.colliders.get(p.0) else { continue };

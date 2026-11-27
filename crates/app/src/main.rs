@@ -4,8 +4,12 @@
 
 mod arena;
 mod bevel;
+mod bumpers;
 mod camera;
 mod campaign;
+mod contact;
+mod cutaway;
+mod details;
 mod field;
 mod draw;
 mod effects;
@@ -65,7 +69,7 @@ fn main() {
         .insert_resource(settings)
         .insert_resource(robot_model::AssetDir(bevy::asset::io::file::FileAssetReader::get_base_path().join(assets)))
         .add_plugins((ui::UiPlugin, game::GamePlugin, robot_model::RobotModelPlugin, camera::OrbitCameraPlugin, field::FieldPlugin, draw::DrawPlugin, update::UpdatePlugin, shot::ShotPlugin, lights::LightsPlugin, arena::ArenaPlugin, venue::VenuePlugin, effects::EffectsPlugin, materials::MaterialsPlugin, bevel::BevelPlugin))
-        .add_plugins((scene::ScenePlugin, showcase::ShowcasePlugin, loading::LoadingPlugin, nature::NaturePlugin, bevy::post_process::auto_exposure::AutoExposurePlugin))
+        .add_plugins((scene::ScenePlugin, showcase::ShowcasePlugin, loading::LoadingPlugin, nature::NaturePlugin, cutaway::CutawayPlugin, details::DetailsPlugin, contact::ContactPlugin, bumpers::BumpersPlugin, bevy::post_process::auto_exposure::AutoExposurePlugin))
         .run();
 }
 

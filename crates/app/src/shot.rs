@@ -10,6 +10,8 @@
 //! REBUILT_BENCH=1 prints the mean frame time over the last half of the wait (what a change costs).
 //! REBUILT_OFF=crowd,venue,truss,shadows,env,nature turns those off, to see what each costs.
 //! REBUILT_SHOT_SIZE=<w>x<h> sizes the window (what a lower render resolution saves: DLSS's case).
+//! REBUILT_SHOT_CUT=1 cuts the alliance wall nearest the camera away (cutaway.rs).
+//! REBUILT_SHOT_EYE=<forward>,<up>,<right> looks at your robot from there (m, its frame; camera.rs).
 
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{save_to_disk, Screenshot, ScreenshotCaptured};

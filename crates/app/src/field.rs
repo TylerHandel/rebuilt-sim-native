@@ -49,10 +49,21 @@ fn clear_parts(
     children: Query<&Children>,
     names: Query<&Name>,
     parts: Query<&MeshMaterial3d<StandardMaterial>, With<Mesh3d>>,
-    mut mats: ResMut<Assets<StandardMaterial>>,
+    mats: Res<Assets<StandardMaterial>>,
+    mut worn: ResMut<Assets<crate::materials::WornMaterial>>,
+    mut field: ResMut<crate::materials::FieldMats>,
     mut commands: Commands,
 ) {
-    let glass = mats.add(StandardMaterial {
+    // (every part of the field is drawn with a worn material, these unworn, so the alliance wall's
+    // cutaway can drop them: materials.rs FieldPart, cutaway.rs)
+    // (and scratched: the HUB's panels and the Driver Stations' glass have had a season of FUEL,
+    // robots and wiping down)
+    let mut clear = |base: StandardMaterial, field: &mut crate::materials::FieldMats, scratch: f32| {
+        let h = worn.add(bevy::pbr::ExtendedMaterial { base, extension: crate::materials::Worn { cut: Vec4::new(0.0, 0.0, 0.0, scratch), ..default() } });
+        field.mats.push(h.clone());
+        h
+    };
+    let glass = clear(StandardMaterial {
         base_color: Color::srgba_u8(0xee, 0xf4, 0xfa, 9),
         alpha_mode: AlphaMode::Blend,
         perceptual_roughness: 0.0,
@@ -60,9 +71,9 @@ fn clear_parts(
         cull_mode: None,
         double_sided: true,
         ..default()
-    });
+    }, &mut field, 0.35);
     // (each CAD material's tinted copy, made once)
-    let mut tinted: std::collections::HashMap<_, Result<Handle<StandardMaterial>, StandardMaterial>> = std::collections::HashMap::new();
+    let mut tinted: std::collections::HashMap<_, Result<Handle<crate::materials::WornMaterial>, StandardMaterial>> = std::collections::HashMap::new();
     let mut glass_parts = Vec::new();
     for e in children.iter_descendants(ev.entity) {
         if names.get(e).is_ok_and(|n| n.as_str().contains("Outpost Exchange Border")) {
@@ -71,8 +82,9 @@ fn clear_parts(
     }
     for e in children.iter_descendants(ev.entity) {
         let Ok(h) = parts.get(e) else { continue };
+        commands.entity(e).insert(crate::materials::FieldPart);
         if glass_parts.contains(&e) {
-            commands.entity(e).insert((MeshMaterial3d(glass.clone()), crate::materials::Look, bevy::light::NotShadowCaster));
+            commands.entity(e).remove::<MeshMaterial3d<StandardMaterial>>().insert((MeshMaterial3d(glass.clone()), crate::materials::Look, bevy::light::NotShadowCaster));
             continue;
         }
         let Some(m) = mats.get(&h.0) else { continue };
@@ -86,8 +98,8 @@ fn clear_parts(
             m.reflectance = 0.2;
             m
         }));
-        let t = match t { Ok(h) => h.clone(), Err(m) => { let h = mats.add(m.clone()); *t = Ok(h.clone()); h } };
-        commands.entity(e).insert((MeshMaterial3d(t), crate::materials::Look));
+        let t = match t { Ok(h) => h.clone(), Err(m) => { let h = clear(m.clone(), &mut field, 0.6); *t = Ok(h.clone()); h } };
+        commands.entity(e).remove::<MeshMaterial3d<StandardMaterial>>().insert((MeshMaterial3d(t), crate::materials::Look));
     }
 }
 
@@ -358,6 +370,22 @@ fn carpet_texture() -> Image {
                 let i = (y * w + x) * 4;
                 for k in 0..3 { px[i + k] = (px[i + k] as f32 + f).round().clamp(0.0, 255.0) as u8; }
             } }
+        }
+    }
+    // (the carpet's laid in 12 ft rolls along the field: each roll's pile a shade off its
+    // neighbor's, and where two meet a faint seam, a little darker, a hair lighter beside it)
+    {
+        let roll = 12.0 * 12.0 * IN;
+        for y in 0..h {
+            let fy = y as f64 / sy;
+            let k = (fy / roll).floor() as i32;
+            let shade = if k % 2 == 0 { 1.5f32 } else { -1.5 };
+            let d = (fy - (fy / roll).round() * roll).abs() * sy;
+            let seam = if (fy / roll).round() > 0.0 && fy < FIELD_W - 0.1 { if d < 1.2 { -9.0 } else if d < 2.4 { 3.0 } else { 0.0 } } else { 0.0 };
+            for x in 0..w {
+                let i = (y * w + x) * 4;
+                for c in 0..3 { px[i + c] = (px[i + c] as f32 + shade + seam).round().clamp(0.0, 255.0) as u8; }
+            }
         }
     }
     // a canvas fillRect in pixels, mixed in sRGB as the canvas mixes

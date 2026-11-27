@@ -17,9 +17,18 @@ use crate::game::Game;
 
 /// js robot.js WHEEL_R: the drawn wheels' radius, which their spin is figured from
 const WHEEL_R: f32 = 0.05;
+/// the chassis's rock on its tires (drawn only): rad per m/s^2 of acceleration, at most, how fast
+/// it rocks (Hz) and how soon that dies down
+const TILT_PER_ACCEL: f32 = 0.0017;
+const TILT_MAX: f32 = 0.021;
+const TILT_HZ: f32 = 3.2;
+const TILT_DAMP: f32 = 0.45;
 
 #[derive(Deserialize)]
 pub struct Rig {
+    /// its robots.json key
+    #[serde(default)]
+    key: String,
     nodes: HashMap<String, NodeRest>,
     pose: HashMap<String, PoseInput>,
     rate: HashMap<String, HashMap<String, [f32; 3]>>,
@@ -68,6 +77,20 @@ pub struct RobotModel {
     /// the inputs its parts were posed from this frame (for its nets)
     inputs: Vec<(String, f32)>,
     nets_made: bool,
+    /// drawn only: how far the chassis is pitched (nose up +) and rolled (right side down +) by
+    /// its acceleration, rad; how fast those are changing; its velocity last frame
+    tilt: Vec2,
+    tilt_v: Vec2,
+    last_v: Option<Vec3>,
+}
+
+impl RobotModel {
+    /// its robots.json key
+    pub fn key(&self) -> &str { &self.rig.key }
+    /// its swerve modules' centers (x forward, z right, m)
+    pub fn module_points(&self) -> Vec<Vec2> { self.rig.modules.iter().map(|m| Vec2::new(m.x, m.z)).collect() }
+    /// the parts that move (each with what's under it)
+    pub fn moving_parts(&self) -> impl Iterator<Item = Entity> + '_ { self.parts.values().copied() }
 }
 
 /// The model of robot `i` (its key), if it has one: spawned at the robot's pose
@@ -84,7 +107,7 @@ pub fn spawn(commands: &mut Commands, assets: &AssetServer, dir: &AssetDir, i: u
         .spawn((
             Transform::default(),
             Visibility::default(),
-            RobotModel { robot: i, rig: Arc::new(rig), parts: HashMap::new(), spun: HashMap::new(), wheel_turn: vec![0.0; n], steer: vec![0.0; n], ready: false, inputs: Vec::new(), nets_made: false },
+            RobotModel { robot: i, rig: Arc::new(rig), parts: HashMap::new(), spun: HashMap::new(), wheel_turn: vec![0.0; n], steer: vec![0.0; n], ready: false, inputs: Vec::new(), nets_made: false, tilt: Vec2::ZERO, tilt_v: Vec2::ZERO, last_v: None },
         ))
         .with_children(|p| { p.spawn((WorldAssetRoot(scene), Transform::default())).observe(on_ready); })
         .id();
@@ -173,6 +196,37 @@ fn animate(game: Res<Game>, time: Res<Time>, mut models: Query<(&mut RobotModel,
         if let Some(b) = w.physics.bodies.get(r.body) {
             root.translation = b.translation();
             root.rotation = *b.rotation();
+            // the chassis rocks on its tires as it speeds up, brakes, turns and is hit (drawn only:
+            // the sim's body stays as it is): the weight goes to the side it's thrown toward, which
+            // squats as the other lifts, about that side's wheels
+            let v = b.linvel();
+            let q = *b.rotation();
+            let (fwd, right) = (q * Vec3::X, q * Vec3::Z);
+            if let (Some(lv), true) = (m.last_v, dt > 1e-4) {
+                let a = (v - lv) / dt.max(1.0 / 120.0);
+                // (rad per m/s^2: 12 m/s^2, the tires' grip, rocks it 1.2 degrees)
+                let want = Vec2::new(a.dot(fwd), -a.dot(right)) * TILT_PER_ACCEL;
+                let want = want.clamp(Vec2::splat(-TILT_MAX), Vec2::splat(TILT_MAX));
+                let (k, c) = ((std::f32::consts::TAU * TILT_HZ).powi(2), 2.0 * TILT_DAMP * std::f32::consts::TAU * TILT_HZ);
+                let (mut t, mut tv) = (m.tilt, m.tilt_v);
+                let mut left = dt.min(0.1);
+                while left > 0.0 {
+                    let h = left.min(0.004);
+                    tv += ((want - t) * k - tv * c) * h;
+                    t += tv * h;
+                    left -= h;
+                }
+                m.tilt = t.clamp(Vec2::splat(-1.5 * TILT_MAX), Vec2::splat(1.5 * TILT_MAX));
+                m.tilt_v = tv;
+            }
+            m.last_v = Some(v);
+            // (about the edge it tips toward: the wheels on that side stay on the carpet)
+            let reach = m.rig.modules.iter().fold(Vec2::splat(0.2), |a, md| a.max(Vec2::new(md.x.abs(), md.z.abs())));
+            let tilt = m.tilt;
+            let pivot = Vec3::new(-tilt.x.signum() * reach.x, 0.0, tilt.y.signum() * reach.y);
+            let tq = Quat::from_rotation_z(tilt.x) * Quat::from_rotation_x(tilt.y);
+            root.translation += q * (pivot - tq * pivot);
+            root.rotation = q * tq;
         }
         if !m.ready { continue }
         let m = &mut *m;

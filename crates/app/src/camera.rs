@@ -47,7 +47,7 @@ const DS_EYE_H: f32 = 1.6;
 #[derive(Resource)]
 pub struct CameraRig {
     pub mode: CamMode,
-    pos: Vec3,
+    pub pos: Vec3,
     look: Vec3,
     up: Vec3,
     pub alliance: Alliance,
@@ -165,7 +165,7 @@ fn keys(keys: Res<ButtonInput<KeyCode>>, pads: Query<&Gamepad>, mut rig: ResMut<
 }
 
 /// Where the camera is this frame
-fn place(
+pub fn place(
     mut cams: Query<(&mut Transform, &mut Projection), With<MainCam>>,
     mut rig: ResMut<CameraRig>,
     game: Res<Game>,
@@ -191,6 +191,17 @@ fn place(
         });
         let fov = rig.update(dt, robot);
         *t = Transform::from_translation(rig.pos).looking_at(rig.look, rig.up);
+        // (screenshots: REBUILT_SHOT_EYE=<forward>,<up>,<right> m from your robot, in its frame,
+        // looking at it: a close look)
+        if let (Ok(v), Some((rp, f))) = (std::env::var("REBUILT_SHOT_EYE"), robot) {
+            let k: Vec<f32> = v.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+            if k.len() == 3 {
+                let r = Vec3::new(-f.y, 0.0, f.x);
+                let eye = rp + Vec3::new(f.x, 0.0, f.y) * k[0] + Vec3::Y * k[1] + r * k[2];
+                *t = Transform::from_translation(eye).looking_at(rp + Vec3::Y * 0.25, Vec3::Y);
+                rig.pos = eye;
+            }
+        }
         fov
     };
     // (three.js's fov is vertical, in degrees, as Bevy's is in radians)
@@ -252,7 +263,8 @@ fn graphics(
             .remove::<(GeneratedEnvironmentMapLight, bevy::light::EnvironmentMapLight, Skybox, Vignette, ColorGrading)>()
             .remove::<bevy::post_process::motion_blur::MotionBlur>()
             .remove::<(Tonemapping, ChromaticAberration, AutoExposure, VolumetricFog, DistanceFog, Exposure)>()
-            .remove::<bevy::anti_alias::contrast_adaptive_sharpening::ContrastAdaptiveSharpening>();
+            .remove::<bevy::anti_alias::contrast_adaptive_sharpening::ContrastAdaptiveSharpening>()
+            .remove::<bevy::pbr::ContactShadows>();
         dlss.clear(&mut e);
         // (motion blur, as the Motion effects setting asks: half a frame's shutter)
         if blur { e.insert(bevy::post_process::motion_blur::MotionBlur { shutter_angle: 0.5, samples: 3 }); }
@@ -295,6 +307,9 @@ fn graphics(
         if ultra && !upscaled {
             e.insert(TemporalAntiAliasing::default());
         }
+        // (Ultra: the lights' contact shadows, where parts touch the carpet and each other, finer
+        // than the shadow maps: contact.rs turns them on in the lights)
+        if ultra { e.insert(bevy::pbr::ContactShadows { linear_steps: 12, thickness: 0.05, length: 0.25 }); }
         // how bright the scene's drawn: the sunlit stadium's a stop darker; night as the arena by day, so it's dark
         let ev = match (look.outdoor, look.time) {
             (true, crate::arena::Tod::Day) if look.cloud() < 0.5 => 10.6,

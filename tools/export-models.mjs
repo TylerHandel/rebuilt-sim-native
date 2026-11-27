@@ -74,7 +74,9 @@ window.exportRobot = async (key) => {
   const blue = new THREE.Color(ALLIANCE_COLOR_CSS.blue);
   root.traverse((o) => {
     if (!o.isMesh) return;
-    for (const mt of [].concat(o.material)) if (mt?.color && mt.color.equals(blue) && mt.sheen !== undefined && mt.sheen > 0) mt.name = 'alliance';
+    // (cloth: a sheen color, which stays set while the sheen itself is off with the surface detail,
+    // js surfaces.js applyDetail, as it is here)
+    for (const mt of [].concat(o.material)) if (mt?.color && mt.color.equals(blue) && mt.sheenColor && mt.sheenColor.getHex() !== 0) mt.name = 'alliance';
   });
   // names: rig<i> for every node, mod<i>.pivot / .wheel for the modules
   const all = [];
